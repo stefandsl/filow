@@ -247,7 +247,7 @@ async function publicTrial(desktop, owner, fixture, dir, appPort, relayPort) {
 // after skipping it. --entry welcome exercises the first-screen shortcut. Use a private local
 // model or a separately approved loopback receiver. For voice, play the synthetic question through
 // the selected capture device or the QA build's fake microphone. Keep the app normally visible.
-async function practiceTrial(debug, origin, dir, input, entry, router) {
+async function practiceTrial(debug, origin, dir, input, entry, router, failure, retryLocal) {
   const at = pathname => url => url.startsWith(origin + "/") && new URL(url).pathname === pathname;
   const pageAt = async match => {
     await until(async () => {
@@ -299,6 +299,13 @@ async function practiceTrial(debug, origin, dir, input, entry, router) {
         await click(panel, ".okf-type input");
       }
       if (input === "typed") {
+        if (failure === "denied") {
+          await click(panel, "[data-testid=start-mic]");
+          await until(() => panel.evaluate("document.querySelector('[data-recovery=mic]') && !document.querySelector('[data-testid=stop-mic]')"), "denied microphone and stopped capture");
+          await screenshot(panel, dir, "mic-denied.png");
+          await click(panel, "[data-recovery=mic] button");
+          assert(await panel.evaluate("document.activeElement.matches('.okf-type input')"));
+        }
         await panel.call("Input.insertText", { text: question });
         await panel.call("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
         await panel.call("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
@@ -326,6 +333,7 @@ async function practiceTrial(debug, origin, dir, input, entry, router) {
         assert.equal(router.requests.length, 0);
         await screenshot(panel, dir, "cloud-notice.png");
         await click(panel, ".okf-notice-send");
+        if (failure !== "missing") {
         await until(() => router.waiting(), "provider received question");
         if (await panel.evaluate("document.visibilityState !== 'visible'")) await click(tour, ".tour-actions .primary");
         const pill = await until(() => panel.evaluate("document.visibilityState === 'visible' && document.querySelector('.okf-out-to')?.innerText"), "visible sending indicator");
@@ -335,31 +343,57 @@ async function practiceTrial(debug, origin, dir, input, entry, router) {
         assert.equal(router.requests.length, 1);
         assert(r.maker === "openai" && r.hosts?.length === 1 && r.hosts[0] === "openai" && r.wordsOnly && r.questionMatched && r.privateOriginAbsent);
         r.indicatorObserved = new Date().toISOString();
-        router.release();
+        router.release(({ quota: 402, rate: 429, outage: 503 })[failure] || 200);
+        }
       }
-      const answerMatch = router?.marker || target.toLowerCase();
+      const providerFailed = failure && failure !== "denied";
+      if (providerFailed) {
+        const reason = ({ missing: "setup", quota: "quota", rate: "quota", outage: "outage" })[failure];
+        await until(() => panel.evaluate("document.querySelector('[data-recovery=" + reason + "]') && !document.querySelector('.okf-out-to')"), "distinct failure and stopped sending");
+        if (await panel.evaluate("document.visibilityState !== 'visible'")) await click(tour, ".tour-actions .primary");
+        await screenshot(panel, dir, "private-recovery.png");
+        if (retryLocal) {
+          await click(panel, "[data-recovery] button:nth-last-child(2)");
+          await until(() => panel.evaluate("document.activeElement.matches('.okf-type input')"), "local provider selection");
+          await panel.call("Input.insertText", { text: question });
+          await click(panel, ".okf-type button[type=submit]");
+        } else {
+          await click(panel, "[data-recovery] button:last-child");
+          await click(tour, ".tour-actions button:nth-child(2)");
+          await until(() => tour.evaluate("document.querySelector('.tour-status').textContent === document.querySelector('.tour-preview-note').textContent"), "model-free recovery");
+        }
+      }
+      if (!providerFailed || retryLocal) {
+      const answerMatch = (!providerFailed && router?.marker) || target.toLowerCase();
       await until(() => panel.evaluate("document.querySelector('.okf-a')?.textContent.toLowerCase().includes(" + JSON.stringify(answerMatch) + ")"), "assistant answer identifying the practice target");
       if (await panel.evaluate("document.visibilityState !== 'visible'")) await click(tour, ".tour-actions .primary");
       await until(() => panel.evaluate("document.visibilityState === 'visible' && document.querySelector('.okf-a')?.clientWidth"), "visible answer");
       await screenshot(panel, dir, "answer.png");
       await click(panel, ".okf-x");
+      }
+      if (router) assert.equal(router.requests.length, failure === "missing" ? 0 : 1);
     }
     const before = await tour.evaluate("document.querySelector('.tour-status').textContent");
     await click(tour, ".tour-paper button");
     await until(() => tour.evaluate("document.querySelector('.tour-status').textContent !== " + JSON.stringify(before)), "practice completion");
     await screenshot(tour, dir, "completed.png");
-    return { entry, input, entryMs, resultMs: Date.now() - started, completed: true, assistantAnswerObserved: input !== "local" };
+    return { entry, input, failure, retryLocal, entryMs, resultMs: Date.now() - started, completed: true,
+      consentPrompts: router ? 1 : undefined, consentChoice: router ? "grant words only" : undefined,
+      assistantAnswerObserved: input !== "local" && (!failure || failure === "denied" || retryLocal) };
   } finally { panel?.close(); tour.close(); }
 }
 
 async function main() {
   assert.equal(process.platform, "win32");
   const names = ["package", "profile-origin", "out", "app-port", "relay-port", "debug-port"];
-  const { values } = parseArgs({ options: Object.fromEntries([...names, "peer-port", "lan-ip", "fixture-dir", "practice-input", "entry", "cloud-port"].map(key => [key, { type: "string" }])) });
+  const { values } = parseArgs({ options: { ...Object.fromEntries([...names, "peer-port", "lan-ip", "fixture-dir", "practice-input", "entry", "cloud-port", "failure"].map(key => [key, { type: "string" }])), "retry-local": { type: "boolean" } } });
   for (const key of names) assert(values[key], "Missing --" + key);
   const input = values["practice-input"], entry = values.entry || "tour";
   const cloudPort = Number(values["cloud-port"] || 0);
   if (values["cloud-port"]) assert(input === "typed" && cloudPort > 0);
+  const failure = values.failure;
+  if (failure) assert(cloudPort && ["missing", "denied", "quota", "rate", "outage"].includes(failure));
+  if (values["retry-local"]) assert(failure && failure !== "denied");
   if (input) assert(["local", "typed", "voice"].includes(input) && ["welcome", "prompter", "tour"].includes(entry) && !values["fixture-dir"]);
   const ports = ["app-port", "relay-port", "debug-port", ...(input ? [] : ["peer-port"])].map(key => Number(values[key]));
   assert(ports.every(p => Number.isInteger(p) && p > 1023 && p <= 65535 && ![4747, 4748, 11434].includes(p)));
@@ -381,14 +415,14 @@ async function main() {
   const dir = projectVolume(values.out);
   fs.mkdirSync(dir);
   const fixture = values["fixture-dir"] && projectVolume(values["fixture-dir"]);
-  const record = { item: cloudPort ? 4 : input ? 3 : fixture ? 2 : 1, mode: cloudPort ? "Approved words-only loopback trial" : input || (fixture ? "Loopback public-link fixture and LAN peer" : "LAN mirror UI"), profileOrigin: values["profile-origin"], sha, packageSha512,
+  const record = { item: failure ? 5 : cloudPort ? 4 : input ? 3 : fixture ? 2 : 1, mode: failure || (cloudPort ? "Approved words-only loopback trial" : input || (fixture ? "Loopback public-link fixture and LAN peer" : "LAN mirror UI")), profileOrigin: values["profile-origin"], sha, packageSha512,
     device: os.hostname(), os: os.version(), owner, ports, command: process.argv, cwd: process.cwd(), start: new Date().toISOString(),
     expected: input ? "Find and activate Save practice through the selected input path" : fixture ? "Decline, cancel connecting, approve a remote phone, receive state, revoke both transports and advance a slide on LAN" : "Local pairing, synchronized slide advance and rejection of the spent code" };
   let desktop, peer, router;
   try {
     if (input) {
       if (cloudPort) router = await openRouterFixture(cloudPort);
-      record.observed = await practiceTrial(debug, "http://127.0.0.1:" + app, dir, input, entry, router);
+      record.observed = await practiceTrial(debug, "http://127.0.0.1:" + app, dir, input, entry, router, failure, Boolean(values["retry-local"]));
       assert.equal(windowOwner([app, relay, debug], destination).pid, owner.pid);
       record.exit = 0;
       return;

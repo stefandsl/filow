@@ -421,15 +421,18 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
       // Only the company the notice named runs the model (lib/openrouter.ts, openRouterProvider).
       ...withProvider([shape?.model || BUDDY_CLOUD_MODEL()]),
     }),
+  }).catch(error => {
+    if (signal?.aborted) throw error;
+    throw new Error("OpenRouter unavailable");
   });
-  if (!res.ok || !res.body) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok || !res.body) throw new Error(`OpenRouter ${res.status}`);
   for await (const line of lines(res.body)) {
     if (!line.startsWith("data:")) continue;
     const data = line.slice(5).trim();
     if (data === "[DONE]") return;
     try {
-      const json = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }>; error?: { message?: string } };
-      if (json.error) throw new Error(`OpenRouter: ${json.error.message ?? "error"}`);
+      const json = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }>; error?: { code?: number } };
+      if (json.error) throw new Error(`OpenRouter ${Number.isInteger(json.error.code) ? json.error.code : "unavailable"}`);
       const piece = json.choices?.[0]?.delta?.content;
       if (piece) yield piece;
     } catch (e) {

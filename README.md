@@ -97,6 +97,8 @@ At high zoom or in a short window, the page scrolls to keep points and controls 
 
 ## First-run welcome
 
+If the microphone is blocked, type the question in the same panel. A missing OpenRouter key, a credit or request limit, and an unavailable service have separate messages. Choose an installed local model to retry, or close the panel and use **Local practice highlight**. Selecting a recovery does not download a model.
+
 In the assistant panel, **Answers from** selects the provider. With OpenRouter selected and screen sharing off, the notice names the router and model host before the first question leaves the PC. The sending indicator names the recipient while the answer arrives.
 
 Select **Talk or type** in Welcome to open the practice workspace without downloading models. Select it again to open the assistant, then ask “Where is Save practice?” by voice or keyboard. Use the answer to select **Save practice**. **Local practice highlight** points out the same button without a model. After skipping the tour, open **Practice workspace** in the prompter header or **Talk or type** in the sidebar.

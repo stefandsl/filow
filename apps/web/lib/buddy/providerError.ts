@@ -5,6 +5,14 @@
 
 export type ProviderProblem = { provider: string; kind: "key" | "quota" | "payment" };
 
+/** Recovery for a practice question. A refusal never chooses another provider automatically. */
+export function practiceFailure(raw: string): "setup" | "quota" | "outage" | null {
+  if (/^No OpenRouter key\b/i.test(raw)) return "setup";
+  if (/^OpenRouter (402|429)\b/i.test(raw)) return "quota";
+  if (/^OpenRouter (5\d\d\b|unavailable\b)/i.test(raw)) return "outage";
+  return null;
+}
+
 /** The services whose keys Filow holds (the .env file in the app profile). */
 const PROVIDERS = ["ElevenLabs", "OpenRouter", "OpenAI", "FreeLLMAPI", "Cloudflare", "Anthropic", "Google"];
 

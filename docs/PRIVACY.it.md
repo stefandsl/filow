@@ -142,6 +142,8 @@ quella domanda: mai il tuo script, il tuo schermo, le tue domande a OK Filow o u
 (Deciso dal titolare l'11 novembre 2026.)
 **Parla o scrivi** apre la casella della domanda. La richiesta parte quando la invii. L’evidenziazione locale e Salva prova funzionano senza un modello o una richiesta di rete.
 
+Se OpenRouter non può rispondere alla domanda di prova, la richiesta termina. Per la prossima domanda puoi scegliere un modello installato oppure completare la prova con l’evidenziazione locale.
+
 ## Il link pubblico
 
 **Il link pubblico è disattivato all'avvio**, anche dopo un aggiornamento. Per condividere con un

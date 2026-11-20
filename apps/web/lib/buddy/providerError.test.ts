@@ -3,10 +3,23 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
 import { t as coreText } from "@filow/core";
-import { createProblemReporter, plainError, problemText, providerProblem } from "./providerError";
+import { createProblemReporter, plainError, problemText, providerProblem, practiceFailure } from "./providerError";
 import { okfText } from "./text";
 
 const BODY = 'ElevenLabs 401: {"detail":{"type":"authentication_error","code":"unauthorized","message":"Invalid API key","status":"invalid_api_key","request_id":"33feb5b51230706e5d1c07cd838c0c69"}}';
+
+describe("N-02 practice question recovery", () => {
+  it.each([
+    ["No OpenRouter key: add OPENROUTER_API_KEY", "setup"],
+    ["OpenRouter 402: synthetic refusal", "quota"],
+    ["OpenRouter 429: synthetic refusal", "quota"],
+    ["OpenRouter 503: synthetic service details", "outage"],
+    ["OpenRouter unavailable", "outage"],
+  ])("offers a private recovery for %s", (error, reason) => {
+    expect(practiceFailure(error)).toBe(reason);
+    expect(practiceFailure("unrelated audio error")).toBeNull();
+  });
+});
 
 describe("a provider's refusal in plain words", () => {
   it("knows a key that is not valid, a used-up quota and a payment needed, for voice and answer providers", () => {

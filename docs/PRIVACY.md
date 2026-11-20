@@ -138,6 +138,8 @@ changed: never your script, your screen, your OK Filow questions or any answer. 
 owner on 11 November 2026.)
 Opening **Talk or type** opens a question box. A question starts when you submit it. The local practice highlight and Save practice work without a model or a network request.
 
+A failed OpenRouter practice question ends the request. You can choose an installed model for the next question or complete the local practice highlight.
+
 ## The public link
 
 **The public link starts off**, including after an upgrade. To share with a phone on another

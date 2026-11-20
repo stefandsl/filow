@@ -11,7 +11,7 @@ import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture,
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
 import { cloudVoiceAudio } from "@/lib/buddy/cloudVoice";
-import { createProblemReporter, plainError, problemText, type ProviderProblem } from "@/lib/buddy/providerError";
+import { createProblemReporter, plainError, practiceFailure, problemText, type ProviderProblem } from "@/lib/buddy/providerError";
 import { t as coreText } from "@filow/core";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
 import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
@@ -165,6 +165,7 @@ export default function OkFilowPanel() {
   const [learned, setLearned] = useState(0);
   /** A provider refused the account (lib/buddy/providerError.ts): the plain sentence, shown once per session with the button to the keys. */
   const [problem, setProblem] = useState("");
+  const [recovery, setRecovery] = useState<ReturnType<typeof practiceFailure> | "mic">(null);
   const problemWords = useRef({ t, lang });
   problemWords.current = { t, lang };
   const reportProblem = useRef<(raw: string) => ProviderProblem | null>(null as unknown as (raw: string) => ProviderProblem | null);
@@ -271,16 +272,19 @@ export default function OkFilowPanel() {
   }, []);
 
   /** `listen`: the failure is about the recording in progress (microphone, recognizer), so main stops waiting for its keys to go up. */
-  const fail = useCallback((raw: string, listen = false) => {
+  const fail = useCallback((raw: string, listen = false, micDenied = false) => {
     // Electron wraps errors thrown in the main process: "Error invoking remote method 'x': Error: msg".
     // A stopped Ollama: said in the user's language, and the desktop shell starts it in the background.
     const stopped = OLLAMA_STOPPED_ANSWER.test(raw);
     const plain = raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, "");
     // A provider that refused the account (lib/buddy/providerError.ts): plain words and the button to the
     // keys; never its JSON. The details go to the log file only.
-    const refused = stopped ? null : reportProblem.current(plain);
+    const reason = micDenied ? "mic" : practiceFailure(plain);
+    setRecovery(reason);
+    if (reason) setProblem("");
+    const refused = stopped || reason ? null : reportProblem.current(plain);
     // FreeLLMAPI's failures come tagged from the server: shown in the panel's language, with its download link when it is not running
-    const message = stopped ? t("ollamaStopped") : refused ? problemText(refused, t, coreText("menu.editEnv", lang)) : plainError(localizeFreeLlmError(plain, lang));
+    const message = reason ? coreText(`practiceFailure.${reason}`, lang) : stopped ? t("ollamaStopped") : refused ? problemText(refused, t, coreText("menu.editEnv", lang)) : plainError(localizeFreeLlmError(plain, lang));
     setFreeDown(freellmCodeOf(plain) === "not_running");
     setError(message);
     okFilowBridge()?.text(message);
@@ -533,6 +537,7 @@ export default function OkFilowPanel() {
    * start of it the user already heard, which the voice does not say again.
    */
   const ask = useCallback(async (question: string, opts: { typed?: boolean; resume?: { shown: string; said?: string }; phone?: { device: string; yesFor: string } } = {}) => {
+    setRecovery(null);
     const b = okFilowBridge();
     if (!b) return;
     // A paired phone's question (lib/buddy/phoneAsk.ts): asked only after the presenter's yes for this one
@@ -1228,7 +1233,8 @@ export default function OkFilowPanel() {
       stopAudio();
       void b.stt.stop().catch(() => {});
       // (a refusal can come without words: its name then says what it was)
-      fail(e instanceof Error ? e.message || e.name : String(e), true);
+      fail(e instanceof Error ? e.message || e.name : String(e), true,
+        e instanceof Error && /^(NotAllowedError|PermissionDeniedError|SecurityError)$/.test(e.name));
     }
   }, [dictT, endAnswer, fail, setMode, stopAudio, t]);
   const startRef = useRef(startListening);
@@ -1663,6 +1669,18 @@ export default function OkFilowPanel() {
         </p>
       )}
       {note && <p className="okf-note" role="status">{note}</p>}
+      {recovery && <div className="okf-controls" data-recovery={recovery}>
+        {recovery === "mic"
+          ? <button type="button" onClick={() => typeBox.current?.focus()}>{coreText("practiceFailure.type", lang)}</button>
+          : <>
+            {recovery === "setup" && bridge.openKeys && <button type="button" onClick={() => void bridge.openKeys?.()}>{coreText("menu.editEnv", lang)}</button>}
+            <button type="button" onClick={async () => {
+              await configure({ provider: "local" });
+              setRecovery(null); setError(""); typeBox.current?.focus();
+            }}>{t("brainLocal")}</button>
+            <button type="button" onClick={() => bridge.hidePanel()}>{coreText("common.close", lang)}</button>
+          </>}
+      </div>}
       {problem && (
         <p className="okf-warn" role="alert" data-testid="okf-problem">
           {problem}{" "}

@@ -152,6 +152,11 @@ describe("opening the microphone", () => {
 });
 
 describe("what the user is told", () => {
+  it("a denied Welcome microphone explicitly leaves typing available in English and Italian", async () => {
+    const { t } = await import("../../../../packages/core/src/index");
+    expect(t("welcome.micBlocked", "en")).toMatch(/typ(e|ing)/i);
+    expect(t("welcome.micBlocked", "it")).toMatch(/scriv|digita/i);
+  });
   it("whole seconds, never zero", () => {
     expect(micSeconds(15_100)).toBe(15);
     expect(micSeconds(2600)).toBe(3);

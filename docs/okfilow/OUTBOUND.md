@@ -202,6 +202,8 @@ Welcome, the practice workspace and the prompter lead to the same Talk or type p
 
 The OpenRouter answer adapter omits the optional HTTP-Referer header so the desktop LAN address stays private. The words-only trial checks the named host, the content fields and the sending indicator against a held loopback response.
 
+An unsuccessful OpenRouter answer returns its status without the raw provider body. The panel offers an explicit local choice or the local practice exercise. A refused microphone leaves typed questions available.
+
 ## Open (owner decisions)
 
 - OpenRouter hosts: pinned to the maker for Google, OpenAI and Anthropic models (see above); other

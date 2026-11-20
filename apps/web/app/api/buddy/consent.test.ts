@@ -43,6 +43,28 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("cloud question: /api/buddy/ask", () => {
+  it.each([402, 429, 503])("ends an approved %i response with a plain status and no retry", async status => {
+    let count = 0;
+    const receiver = createServer((_req, res) => {
+      count++;
+      res.writeHead(status).end('{"error":"private provider details"}');
+    });
+    await new Promise<void>((resolve, reject) => receiver.once("error", reject).listen(0, "127.0.0.1", resolve));
+    const base = "http://127.0.0.1:" + (receiver.address() as AddressInfo).port;
+    vi.stubEnv("OPENROUTER_BASE_URL", base);
+    vi.stubGlobal("fetch", (url: string, init: RequestInit) => {
+      if (url !== base + "/chat/completions") throw new Error("unexpected destination");
+      return loopbackFetch(url, { ...init, redirect: "error" });
+    });
+    try {
+      const result = await ask(post({ ...askBody, question: "Where is Save practice?", sees: false }, "ask:openrouter/openai"));
+      expect((await result.text()).trim()).toBe("[ERROR] OpenRouter " + status);
+      expect(count).toBe(1);
+    } finally {
+      receiver.closeAllConnections();
+      await new Promise<void>(resolve => receiver.close(() => resolve()));
+    }
+  });
   it("delivers only disclosed content to the approved router and maker during the sending signal", async () => {
     let reply: ServerResponse | undefined;
     let count = 0, sending = false, activeAtReceipt = false, receivedBody = "", referrer: string | undefined;
