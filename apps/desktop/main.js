@@ -583,7 +583,7 @@ function wireScreenSense() {
     if (!picked) return null;
     return { image: await captureRegion(picked.display, picked.rect, picked.image), width: picked.rect.width, height: picked.rect.height };
   });
-  // The pairing dialog can switch the public link on/off; the window reloads with the new URLs.
+  // The menu and pairing panel use the same native disclosure and lifetime.
   appOn("remote:set", (_e, on) => {
     if (mainWin && !mainWin.isDestroyed()) void setRemoteShare(mainWin, Boolean(on));
   });
@@ -805,6 +805,8 @@ async function offerFirewall(win) {
 const { spawn, execFile, execFileSync } = require("node:child_process");
 const https = require("node:https");
 const tunnels = { procs: [], web: "", session: "", state: "off", error: "" };
+let publicLinkAttempt = null;
+let toolPreparation = Promise.resolve();
 
 /** Public-link state for the pairing dialog: off | downloading | connecting | on | error. */
 function remoteStatus(state, error = "") {
@@ -849,7 +851,8 @@ async function verifyDownload(file, asset) {
     throw err;
   }
 }
-async function ensureCloudflared(win) {
+async function ensureCloudflared(win, attempt) {
+  if (attempt.aborted) return null;
   const existing = cloudflaredPath();
   if (existing) return existing;
   const arch = process.arch === "arm64" ? "arm64" : "amd64";
@@ -859,12 +862,12 @@ async function ensureCloudflared(win) {
   const { response } = await dialog.showMessageBox(win, {
     type: "question",
     buttons: [mt("tunnelDownload"), sharedText("common.cancel", menuLang())],
-    defaultId: 0,
+    defaultId: 1, cancelId: 1,
     title: mt("tunnelTitle"),
     message: mt("tunnelMessage"),
     detail: mt("tunnelDetail", { url: base + asset, folder: path.join(userData, "bin") }),
   });
-  if (response !== 0) return null;
+  if (response !== 0 || attempt.aborted) return null;
   remoteStatus("downloading");
   const bin = path.join(userData, "bin");
   fs.mkdirSync(bin, { recursive: true });
@@ -875,12 +878,22 @@ async function ensureCloudflared(win) {
     if (process.platform === "darwin") {
       const tgz = path.join(bin, asset);
       await download(base + asset, tgz, { signal });
+      signal.throwIfAborted();
       await verifyDownload(tgz, asset);
+      signal.throwIfAborted();
       execFileSync("tar", ["-xzf", tgz, "-C", bin]);
       fs.rmSync(tgz, { force: true });
     } else {
-      await download(base + asset, dest, { signal });
-      await verifyDownload(dest, asset);
+      const pending = dest + ".download";
+      try {
+        await download(base + asset, pending, { signal });
+        signal.throwIfAborted();
+        await verifyDownload(pending, asset);
+        signal.throwIfAborted();
+        fs.renameSync(pending, dest);
+      } finally {
+        fs.rmSync(pending, { force: true });
+      }
     }
   } finally {
     modelDownloads.end("cloudflared", signal);
@@ -925,35 +938,50 @@ function killStaleTunnels() {
   });
 }
 
-function startTunnel(bin, port) {
+function startTunnel(bin, port, signal, lost) {
   return tunnelSweep.then(() => new Promise((resolve, reject) => {
+    signal.throwIfAborted();
     const p = spawn(bin, ["tunnel", "--url", `http://127.0.0.1:${port}`, "--no-autoupdate"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     tunnels.procs.push(p);
     let buf = "";
     const timer = setTimeout(() => reject(new Error(`cloudflared gave no URL for port ${port} within 40 s`)), 40_000);
+    const detachOutput = () => {
+      clearTimeout(timer);
+      p.stdout.removeListener("data", onData);
+      p.stderr.removeListener("data", onData);
+    };
+    const cancelled = () => { detachOutput(); reject(modelFiles.cancelError()); };
     const onData = (d) => {
-      buf += d.toString();
+      buf = buf.slice(-512) + d.toString();
       const m = buf.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
       if (m) {
-        clearTimeout(timer);
+        detachOutput();
         resolve(m[0]);
       }
     };
+    signal.addEventListener("abort", cancelled, { once: true });
     p.stdout.on("data", onData);
     p.stderr.on("data", onData);
-    p.on("exit", (code) => {
-      clearTimeout(timer);
-      reject(new Error(`cloudflared exited (${code})`));
-    });
-    p.on("error", (err) => {
-      clearTimeout(timer);
+    const failed = (err) => {
+      detachOutput();
+      signal.removeEventListener("abort", cancelled);
       reject(err);
+      if (!signal.aborted) lost(err);
+    };
+    p.once("exit", code => {
+      tunnels.procs = tunnels.procs.filter(child => child !== p);
+      failed(new Error(`cloudflared exited (${code})`));
     });
+    p.once("error", failed);
   }));
 }
 
 /** `wait` only at quit: see killTree. */
 function stopTunnels({ wait = false } = {}) {
+  publicLinkAttempt?.abort();
+  publicLinkAttempt = null;
+  modelDownloads.cancel("cloudflared");
+  settings.remoteShare = false;
   for (const p of tunnels.procs) {
     if (!p.pid || !killTree(p.pid, { wait })) {
       try {
@@ -976,59 +1004,52 @@ function linkForPairing() {
   return { state: tunnels.state, url: tunnels.web, session: tunnels.session, error: tunnels.error, wanted: Boolean(settings.remoteShare) };
 }
 
-let remoteBusy = false;
 async function setRemoteShare(win, on) {
-  if (remoteBusy) return;
-  remoteBusy = true;
-  stopTunnels();
-  settings.remoteShare = on;
-  settings.remoteShareChosen = true;
-  saveSettings();
-  try {
-    if (on) {
-      try {
-        if (offline) throw new Error(mt("tunnelOffline"));
-        if (process.env.FILOW_SESSION_URL) throw new Error(mt("tunnelHosted"));
-        remoteStatus("connecting");
-        const bin = await ensureCloudflared(win);
-        if (!bin) {
-          settings.remoteShare = false;
-          saveSettings();
-          remoteStatus("off");
-          buildMenu(win);
-          win.reload();
-          return;
-        }
-        if (tunnels.state !== "connecting") remoteStatus("connecting"); // back from "downloading"
-        const [web, sess] = await Promise.all([startTunnel(bin, PORT), startTunnel(bin, SESSION_PORT)]);
-        tunnels.web = web;
-        tunnels.session = sess;
-        process.env.FILOW_PUBLIC_WEB = web;
-        process.env.FILOW_PUBLIC_SESSION = sess;
-        process.env.TRUST_PROXY = "1"; // cloudflared sits in front: read the phone's address from cf-connecting-ip
-        remoteStatus("on");
-      } catch (err) {
-        stopTunnels();
-        if (modelFiles.isCancelled(err)) {
-          // The user stopped the download of cloudflared: the public link stays off, and it is not an error.
-          settings.remoteShare = false;
-          saveSettings();
-          remoteStatus("off");
-          logLine("public link: download stopped by the user, nothing kept on disk");
-        } else remoteStatus("error", String(err.message || err));
-        if (!modelFiles.isCancelled(err)) {
-          settings.remoteShare = false;
-          saveSettings();
-          await errorWithReport(win, mt("tunnelFailed"), String(err.message || err));
-        }
-      }
-    } else {
-      remoteStatus("off");
-    }
+  const finish = (state, message = "") => {
+    stopTunnels();
+    remoteStatus(state, message);
     buildMenu(win);
-    win.reload(); // the preload re-reads the public URLs; the page creates a fresh session and QR
-  } finally {
-    remoteBusy = false;
+  };
+  if (!on) return finish("off");
+  if (publicLinkAttempt) return;
+  publicLinkAttempt = new AbortController();
+  const { signal } = publicLinkAttempt;
+  const failed = err => {
+    if (signal.aborted) return;
+    if (modelFiles.isCancelled(err)) return finish("off");
+    const message = String(err.message || err);
+    finish("error", message);
+    return errorWithReport(win, mt("tunnelFailed"), message);
+  };
+  try {
+    if (offline) throw new Error(mt("tunnelOffline"));
+    if (process.env.FILOW_SESSION_URL) throw new Error(mt("tunnelHosted"));
+    const { response } = await dialog.showMessageBox(win, {
+      type: "question", title: mt("tunnelTitle"), message: mt("tunnelTitle"), detail: mt("tunnelConsent"),
+      buttons: [sharedText("pair.enablePublic", menuLang()), sharedText("common.cancel", menuLang())],
+      defaultId: 1, cancelId: 1, noLink: true,
+    });
+    if (signal.aborted) return;
+    if (response !== 0) return finish("off");
+    settings.remoteShare = true;
+    remoteStatus("connecting");
+    buildMenu(win);
+    // A cancelled download finishes closing its file before a new grant can prepare the same binary.
+    const setup = toolPreparation.then(() => ensureCloudflared(win, signal));
+    toolPreparation = setup.catch(() => {});
+    const bin = await setup;
+    if (signal.aborted) return;
+    if (!bin) return finish("off");
+    if (tunnels.state !== "connecting") remoteStatus("connecting");
+    const [web, sess] = await Promise.all([startTunnel(bin, PORT, signal, failed), startTunnel(bin, SESSION_PORT, signal, failed)]);
+    if (signal.aborted) return;
+    tunnels.web = process.env.FILOW_PUBLIC_WEB = web;
+    tunnels.session = process.env.FILOW_PUBLIC_SESSION = sess;
+    process.env.TRUST_PROXY = "1";
+    remoteStatus("on");
+    buildMenu(win);
+  } catch (err) {
+    await failed(err);
   }
 }
 
@@ -2145,7 +2166,11 @@ let offline = process.env.FILOW_OFFLINE === "1";
 function applyOffline(win, value = process.env.FILOW_OFFLINE === "1") {
   offline = value;
   process.env.FILOW_OFFLINE = value ? "1" : "";
-  if (offline) stopTunnels();
+  if (offline) {
+    stopTunnels();
+    remoteStatus("off");
+    if (win) buildMenu(win);
+  }
   const filter = { urls: ["*://*/*", "ws://*/*", "wss://*/*"] };
   session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
     if (!offline) return callback({});

@@ -13,8 +13,12 @@ export function useRemoteStatus(): RemoteStatus | null {
     const bridge = desktopBridge();
     if (!bridge?.remoteStatus) return;
     let alive = true;
-    void bridge.remoteStatus().then((s) => alive && setRemote(s)).catch(() => undefined);
-    const off = bridge.onRemoteStatus?.((s) => alive && setRemote(s));
+    let receivedEvent = false;
+    const off = bridge.onRemoteStatus?.((s) => {
+      receivedEvent = true;
+      if (alive) setRemote(s);
+    });
+    void bridge.remoteStatus().then((s) => { if (alive && !receivedEvent) setRemote(s); }).catch(() => undefined);
     return () => {
       alive = false;
       off?.();

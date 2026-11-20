@@ -14,13 +14,12 @@ import { PairedDevices } from "./PairedDevices";
 export function PairPanel({ info, status, error, onNewCode, prompter = false, devices, onRevoke, onAllowAsk, onApprove }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean; devices?: PairedDevice[]; onRevoke?: (id: string) => void; onAllowAsk?: (id: string, allow: boolean) => void; onApprove?: (id: string) => void }) {
   const t = useT();
   const [now, setNow] = useState(() => Date.now());
-  const [qr, setQr] = useState<string | null>(null);
+  const [qr, setQr] = useState<{ url: string; image: string } | null>(null);
   const [open, setOpen] = useState(false);
-  // Reopen after the reload that switching the public link triggers.
+  // Older desktop shells reload the page on a public-link switch.
   useEffect(() => {
     if (consumeReopenPairing()) setOpen(true);
   }, []);
-  const [switching, setSwitching] = useState(false);
   const [net, setNet] = useState<NetStatus | null>(null);
   const [netBusy, setNetBusy] = useState(false);
   const bridge = desktopBridge();
@@ -43,7 +42,7 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false, de
     let alive = true;
     import("qrcode").then((QR) =>
       QR.toDataURL(mirrorUrl, { margin: 1, width: 220, color: { dark: "#f7f7f5", light: "#13151a" } }).then((u) => {
-        if (alive) setQr(u);
+        if (alive) setQr({ url: mirrorUrl, image: u });
       }),
     );
     return () => {
@@ -92,7 +91,7 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false, de
             <div className="label">{t("pair.title")}</div>
             {error && <p className="hint" role="status">{t("app.mirrorOff")}: {error}</p>}
             {info && <div className="bigcode">{info.code}</div>}
-            {info && qr && <img src={qr} alt="QR" width={220} height={220} />}
+            {info && qr?.url === mirrorUrl && <img src={qr.image} alt="QR" width={220} height={220} />}
             <div className="row">
               {left !== null && (
                 <span className={`chip ${left === 0 ? "err" : ""}`}>{left === 0 ? t("pair.expired") : t("pair.expires", { t: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` })}</span>
@@ -163,19 +162,17 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false, de
                 </div>
               </div>
             )}
-            {bridge?.setRemoteShare && !pending && (
+            {bridge?.setRemoteShare && (
               <div className="hint">
                 <button
-                  className={`btn ${publicLink ? "" : "primary"}`}
-                  disabled={switching}
-                  title={publicLink ? "" : t("pair.enablePublicHint")}
+                  className={`btn ${publicLink || pending ? "" : "primary"}`}
+                  title={publicLink || pending ? "" : t("pair.enablePublicHint")}
                   onClick={() => {
-                    setSwitching(true);
-                    markReopenPairing();
-                    bridge.setRemoteShare?.(!publicLink);
+                    if (!bridge.publicLinkUpdatesInPlace) markReopenPairing();
+                    bridge.setRemoteShare?.(!publicLink && !pending);
                   }}
                 >
-                  {switching ? "…" : publicLink ? t("pair.disablePublic") : remote?.state === "error" ? t("pair.retry") : t("pair.enablePublic")}
+                  {pending ? t("common.cancel") : publicLink ? t("pair.disablePublic") : remote?.state === "error" ? t("pair.retry") : t("pair.enablePublic")}
                 </button>
               </div>
             )}

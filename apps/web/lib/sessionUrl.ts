@@ -38,6 +38,7 @@ export type DesktopBridge = {
   /** Relay URL for the phone when it differs from the engine's (public tunnel). */
   mirrorServerUrl?: string;
   remoteShare?: boolean;
+  publicLinkUpdatesInPlace?: boolean;
   setRemoteShare?: (on: boolean) => void;
   /** The engine page tells the shell its session so local views (PowerPoint pane) can join it. */
   reportSession?: (info: { id: string; code: string }) => void;

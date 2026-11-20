@@ -14,6 +14,7 @@ import fs from "node:fs";
 import { isIPv4 } from "node:net";
 import os from "node:os";
 import path from "node:path";
+import net from "node:net";
 import { parseArgs } from "node:util";
 import { connect, sleep } from "../../whiteboard/qa-dev.mjs";
 
@@ -133,10 +134,118 @@ async function lanTrial(desktop, peer, dir, lanOrigin, relayOrigin) {
   return { firstSlideMatched: true, nextSlideMatched: true, spentCodeRejected: true };
 }
 
+// Use an English synthetic profile for this replay. The native dialog must belong to this launch.
+function answerSharingNotice(pid, grant) {
+  const script = `
+    $ErrorActionPreference='Stop'
+    Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
+    $root=[Windows.Automation.AutomationElement]::RootElement
+    $condition=[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty,[int]$env:N02_PID)
+    $end=[DateTime]::UtcNow.AddSeconds(10)
+    do {
+      foreach ($win in $root.FindAll([Windows.Automation.TreeScope]::Children,$condition)) {
+        if ($win.Current.Name -ne 'Share to a phone on another network') {continue}
+        $all=$win.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.Condition]::TrueCondition)
+        $words=($all | ForEach-Object {$_.Current.Name}) -join ' '
+        foreach ($word in @('Cloudflare','Anyone','script','transcript','slide','approve','Turn off')) {
+          if (!$words.Contains($word)) {throw 'Incomplete public-link disclosure'}
+        }
+        foreach ($el in $all) {
+          if ($el.Current.ControlType -eq [Windows.Automation.ControlType]::Button -and $el.Current.Name -eq $env:N02_CHOICE) {
+            $el.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+            return
+          }
+        }
+      }
+      Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $end)
+    throw 'Owned sharing dialog or button missing'
+  `;
+  execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { windowsHide: true, timeout: 20000,
+    env: { ...process.env, N02_PID: String(pid), N02_CHOICE: grant ? grant : "Cancel" } });
+}
+
+async function portClosed(port) {
+  return new Promise(resolve => {
+    const socket = net.connect(port, "127.0.0.1");
+    socket.setTimeout(1000);
+    socket.on("connect", () => { socket.destroy(); resolve(false); });
+    socket.on("error", e => resolve(e.code === "ECONNREFUSED"));
+    socket.on("timeout", () => { socket.destroy(); resolve(false); });
+  });
+}
+
+async function publicTrial(desktop, owner, fixture, dir, appPort, relayPort) {
+  const ports = JSON.parse(fs.readFileSync(path.join(fixture, "ports.json"), "utf8"));
+  assert.deepEqual(ports.slice(0, 2), [appPort, relayPort]);
+  const [web, relay] = ports.slice(2);
+  const status = () => desktop.evaluate("window.filow.remoteStatus()");
+  const state = expected => until(async () => (await status()).state === expected, "public link " + expected);
+  const button = ".pairmodal[role=dialog] > .hint > button.btn";
+  const signal = async grant => {
+    const label = await desktop.evaluate("document.querySelector(" + JSON.stringify(button) + ").textContent.trim()");
+    await click(desktop, button);
+    answerSharingNotice(owner.pid, grant && label);
+  };
+  const closed = () => until(async () => (await portClosed(web)) && (await portClosed(relay)), "both fixture transports closed");
+  await closed();
+  await click(desktop, ".topbar button.chip.code");
+  await signal(false);
+  await state("off");
+  for (const role of ["web", "relay"]) assert(!fs.existsSync(path.join(fixture, role + ".jsonl")), "Decline launched a helper");
+  const hold = path.join(fixture, "hold");
+  fs.writeFileSync(hold, "", { flag: "wx" });
+  try {
+    await signal(true);
+    await state("connecting");
+    await until(() => ["web", "relay"].every(role => fs.existsSync(path.join(fixture, role + ".jsonl"))), "two connecting children");
+    await click(desktop, button);
+    await state("off");
+    await closed();
+  } finally { fs.unlinkSync(hold); }
+  await signal(true);
+  await state("on");
+  const current = await status();
+  assert.equal(current.url, "https://n02-web.trycloudflare.com");
+  assert.equal(current.session, "https://n02-relay.trycloudflare.com");
+  await screenshot(desktop, dir, "public-active.png");
+  // Map only these verified labels onto the two local fixture listeners. No public DNS or TLS.
+  const code = await desktop.evaluate("document.querySelector('.pairmodal .bigcode').textContent.trim()");
+  const response = await fetch("http://127.0.0.1:" + web + "/mirror?code=" + encodeURIComponent(code), { redirect: "error" });
+  assert(response.ok && (await response.text()).includes("Filow"));
+  const origin = "http://127.0.0.1:" + relay;
+  const paired = await fetch(origin + "/api/session/pair", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, device: "N02 fixture phone" }), redirect: "error" });
+  assert(paired.ok);
+  const { id, role, viewToken } = await paired.json();
+  assert.equal(role, "pending");
+  const socket = new WebSocket("ws://127.0.0.1:" + relay + "/ws/session/" + encodeURIComponent(id));
+  const messages = [];
+  let disconnected = false;
+  socket.addEventListener("close", () => { disconnected = true; });
+  socket.addEventListener("open", () => socket.send(JSON.stringify({ t: "hello", role: "viewer", token: viewToken })));
+  socket.addEventListener("message", e => messages.push(JSON.parse(e.data).t));
+  try {
+    await until(() => messages.includes("welcome"), "pending phone");
+    await until(() => desktop.evaluate("document.querySelector('.pairmodal .strip')?.textContent.includes('N02 fixture phone')"), "approval request");
+    await screenshot(desktop, dir, "pending-phone.png");
+    assert(!messages.some(t => t === "state" || t === "patch"));
+    await click(desktop, ".pairmodal .strip .controls button:nth-child(2)");
+    await until(() => messages.includes("state"), "approved mirror state");
+    await click(desktop, button);
+    await state("off");
+    await closed();
+    await until(() => disconnected, "closed public socket");
+    await click(desktop, ".pairmodal[role=dialog] > button:last-child");
+  } finally { socket.close(); }
+  return { localWebReceived: true, pendingWithheldState: true, approvedStateReceived: true, revokedSocketClosed: true,
+    fixtureEvents: ["web", "relay"].map(role => fs.readFileSync(path.join(fixture, role + ".jsonl"), "utf8").trim().split("\n").map(line => JSON.parse(line))) };
+}
+
 async function main() {
   assert.equal(process.platform, "win32");
   const names = ["package", "profile-origin", "out", "app-port", "relay-port", "debug-port", "peer-port", "lan-ip"];
-  const { values } = parseArgs({ options: Object.fromEntries(names.map(key => [key, { type: "string" }])) });
+  const { values } = parseArgs({ options: Object.fromEntries([...names, "fixture-dir"].map(key => [key, { type: "string" }])) });
   for (const key of names) assert(values[key], "Missing --" + key);
   const ports = ["app-port", "relay-port", "debug-port", "peer-port"].map(key => Number(values[key]));
   assert(ports.every(p => Number.isInteger(p) && p > 1023 && p <= 65535 && ![4747, 4748, 11434].includes(p)));
@@ -155,13 +264,15 @@ async function main() {
   const owner = windowOwner([app, relay, debug], projectVolume(manifest.destination));
   const dir = projectVolume(values.out);
   fs.mkdirSync(dir);
-  const record = { item: 1, mode: "LAN mirror UI", profileOrigin: values["profile-origin"], sha, packageSha512,
+  const fixture = values["fixture-dir"] && projectVolume(values["fixture-dir"]);
+  const record = { item: fixture ? 2 : 1, mode: fixture ? "Loopback public-link fixture and LAN peer" : "LAN mirror UI", profileOrigin: values["profile-origin"], sha, packageSha512,
     device: os.hostname(), os: os.version(), owner, ports, command: process.argv, cwd: process.cwd(), start: new Date().toISOString(),
-    expected: "Local pairing, synchronized slide advance and rejection of the spent code" };
+    expected: fixture ? "Decline, cancel connecting, approve a remote phone, receive state, revoke both transports and advance a slide on LAN" : "Local pairing, synchronized slide advance and rejection of the spent code" };
   let desktop, peer;
   try {
     desktop = await attach(debug, url => url === "http://127.0.0.1:" + app + "/" || url === "http://127.0.0.1:" + app);
     peer = await attach(peerPort, url => url === "about:blank");
+    if (fixture) record.publicLink = await publicTrial(desktop, owner, fixture, dir, app, relay);
     record.observed = await lanTrial(desktop, peer, dir, "http://" + ip + ":" + app, "http://" + ip + ":" + relay);
     record.exit = 0;
   } catch (err) {

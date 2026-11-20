@@ -143,13 +143,13 @@ quella domanda: mai il tuo script, il tuo schermo, le tue domande a OK Filow o u
 ## Il link pubblico
 
 **Il link pubblico è disattivato all'avvio**, anche dopo un aggiornamento. Per condividere con un
-telefono su un'altra rete, attivalo nel pannello di abbinamento o nel menu Filow. La pagina mirror e
+telefono su un'altra rete, scegli il link pubblico nel pannello di abbinamento o nel menu Filow e conferma l'avviso su Cloudflare. La pagina mirror e
 il relay usano quindi Cloudflare (trycloudflare.com). Copione, trascrizione e stato delle slide
 possono passare dai suoi server. Chi ha il link e il codice corrente può chiedere l'accesso.
 Approva il telefono remoto sul PC per mostrargli la sessione. La pagina della sessione mostra l'etichetta "link pubblico".
 
-Per interrompere la condivisione, disattiva il link pubblico nel pannello di abbinamento o nel menu
-Filow. Un telefono sulla stessa rete Wi-Fi può abbinarsi con il codice locale.
+Per interrompere la condivisione, annulla durante la connessione o disattiva il link nel pannello di abbinamento o nel menu
+Filow. Entrambe le connessioni si chiudono e la sessione LAN resta aperta. Un telefono sulla stessa rete Wi-Fi può abbinarsi con il codice locale.
 
 ## Il mirror sul telefono nella tua rete
 

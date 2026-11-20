@@ -139,12 +139,12 @@ owner on 11 November 2026.)
 ## The public link
 
 **The public link starts off**, including after an upgrade. To share with a phone on another
-network, turn on the public link in the pairing panel or the Filow menu. The mirror page and relay
+network, choose the public link in the pairing panel or the Filow menu and confirm the Cloudflare notice. The mirror page and relay
 then use Cloudflare (trycloudflare.com). Script, transcript and slide state can pass through its
 servers. Someone with the link and the current code can request access. Approve the remote phone
 on the PC to let it see the session. The take page shows a "public link" chip.
 
-To stop sharing, turn off the public link in the pairing panel or the Filow menu. A phone on the
+To stop sharing, cancel while connecting or turn off the active link in the pairing panel or the Filow menu. Both connections close and the LAN session stays open. A phone on the
 same Wi-Fi can pair using the local code.
 
 ## The phone mirror on your own network

@@ -70,7 +70,8 @@ contextBridge.exposeInMainWorld("filow", {
   /** The relay URL the phone uses (public tunnel while sharing). The engine itself keeps using sessionUrl. */
   mirrorServerUrl: process.env.FILOW_PUBLIC_SESSION || "",
   remoteShare: Boolean(process.env.FILOW_PUBLIC_WEB),
-  /** Turn the public link (Cloudflare tunnel) on or off; the app reloads with new pairing URLs. */
+  publicLinkUpdatesInPlace: true,
+  /** Turn the public link on or off. remote:status carries the new pairing URLs. */
   setRemoteShare: (on) => ipcRenderer.send("remote:set", Boolean(on)),
   remoteStatus: () => ipcRenderer.invoke("remote:status"),
   /** Auto-update state (installed app only): idle | checking | downloading | downloaded | none | error. */

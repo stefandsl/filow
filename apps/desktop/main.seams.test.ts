@@ -5,7 +5,8 @@ import { pathToFileURL } from "node:url";
 import { EventEmitter } from "node:events";
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
-import { DICTIONARIES, isLang, langFromLocale, t } from "@filow/core";
+// Load the candidate's dictionaries when the disposable checkout shares its dependency install.
+import { DICTIONARIES, isLang, langFromLocale, t } from "../../packages/core/src/index";
 // localai.js reads the setup rules and the card detection from vendor/, a build of these two files
 // (npm run build:welcome); vendor/ is not in git, so the fixture hands it the sources themselves.
 import * as profileRules from "../../packages/core/src/profile";
@@ -306,6 +307,104 @@ describe("N-02 LAN pairing on first use and upgrade", () => {
     f.checkForUpdates.mockClear();
     await f.api.checkForUpdates({ manual: true });
     expect(f.checkForUpdates).toHaveBeenCalledOnce();
+  });
+});
+
+describe("N-02 public link consent and lifetime", () => {
+  function sharing(installed = true) {
+    const children: Array<EventEmitter & { stdout: EventEmitter; stderr: EventEmitter; kill: ReturnType<typeof vi.fn> }> = [];
+    const spawn = vi.fn(() => {
+      const p = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), kill: vi.fn() });
+      children.push(p);
+      return p;
+    });
+    const f = fixture({}, { childProcess: { spawn, execFileSync: () => installed ? "G:/fixture/cloudflared.exe" : "" } });
+    const frame = { url: f.api.APP_URL };
+    const win = { webContents: { mainFrame: frame, isDestroyed: () => false, send: vi.fn() }, isDestroyed: () => false, reload: vi.fn() };
+    const event = { sender: win.webContents, senderFrame: frame };
+    f.api.setMainWin(win);
+    f.api.wireScreenSense();
+    f.api.buildMenu(win);
+    const menuItem = () => f.menu.mock.calls.at(-1)![0][0].submenu.find((item: { type?: string; label?: string }) =>
+      item.type === "checkbox" && item.label?.startsWith("Public link"));
+    const toggle = (source: "panel" | "menu", on: boolean) => {
+      if (source === "panel") f.ipcListeners["remote:set"](event, on);
+      else menuItem().click({ checked: on });
+    };
+    const status = () => f.ipcHandlers["remote:status"](event);
+    const ready = () => children.forEach((p, i) => p.stdout.emit("data", "https://fixture-" + i + ".trycloudflare.com"));
+    return { ...f, win, toggle, status, ready, children };
+  }
+  const tick = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+
+  describe.each(["panel", "menu"] as const)("%s", source => {
+    it.each([true, false])("discloses the public route and honors decline (installed %s)", async installed => {
+      const f = sharing(installed);
+      f.showMessageBox.mockResolvedValue({ response: 1 });
+      f.toggle(source, true);
+      await tick();
+      const notice = (f.showMessageBox.mock.calls as unknown[][])[0]?.at(-1) as { detail?: string; defaultId?: number; cancelId?: number } | undefined;
+      const detail = notice?.detail ?? "";
+      for (const field of [/Cloudflare/i, /anyone/i, /script/i, /transcript/i, /slide/i, /approv/i, /turn off|stop/i]) expect.soft(detail).toMatch(field);
+      expect.soft(notice?.defaultId).toBe(1);
+      expect.soft(notice?.cancelId).toBe(1);
+      expect.soft(f.children).toHaveLength(0);
+      expect(f.outbound).not.toHaveBeenCalled();
+      // Release the fixture timers even on the defective parent.
+      for (const p of f.children) p.emit("exit", 0);
+      await tick();
+      expect(f.status()).toMatchObject({ wanted: false, url: "", session: "" });
+    });
+  });
+
+  it.each(["connecting", "active"] as const)("revokes both %s transports, ignoring their late URLs", async phase => {
+    const f = sharing();
+    f.toggle("menu", true);
+    await tick();
+    expect(f.children).toHaveLength(2);
+    if (phase === "active") {
+      f.ready();
+      await tick();
+      expect(f.status()).toMatchObject({ state: "on", url: "https://fixture-0.trycloudflare.com", session: "https://fixture-1.trycloudflare.com" });
+    }
+    f.toggle("panel", false);
+    f.ready();
+    await tick();
+    expect.soft(f.status()).toMatchObject({ state: "off", url: "", session: "", wanted: false });
+    for (const p of f.children) expect.soft(p.kill).toHaveBeenCalledOnce();
+    expect(f.win.reload, "keep the existing LAN session and its paired phone").not.toHaveBeenCalled();
+  });
+
+  it("returns to the LAN when a published relay exits and a fresh grant can start again", async () => {
+    const f = sharing();
+    f.toggle("panel", true);
+    await tick();
+    f.ready();
+    await tick();
+    f.children[1].emit("exit", 17);
+    await tick();
+    expect(f.status()).toMatchObject({ state: "error", url: "", session: "", wanted: false });
+    expect(f.children[0].kill).toHaveBeenCalledOnce();
+    f.toggle("menu", true);
+    await tick();
+    f.ready();
+    await tick();
+    expect(f.status()).toMatchObject({ state: "on", url: "https://fixture-2.trycloudflare.com", session: "https://fixture-3.trycloudflare.com" });
+    f.toggle("menu", false);
+  });
+
+  it("ignores a download confirmation that arrives after revocation", async () => {
+    const f = sharing(false);
+    let confirm: ((value: { response: number }) => void) | undefined;
+    f.showMessageBox.mockResolvedValueOnce({ response: 0 }).mockImplementationOnce(() => new Promise(resolve => { confirm = resolve; }));
+    f.toggle("panel", true);
+    await tick();
+    expect(confirm).toBeDefined();
+    f.toggle("menu", false);
+    confirm!({ response: 0 });
+    await tick();
+    expect(f.outbound).not.toHaveBeenCalled();
+    expect(f.status()).toMatchObject({ state: "off", wanted: false });
   });
 });
 

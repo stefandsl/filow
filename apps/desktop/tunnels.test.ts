@@ -22,3 +22,9 @@ it("ignores other ports, named tunnels, non-cloudflared processes and itself", (
   expect(staleTunnelPids(listing, [4797], 52460)).toEqual([]);
   expect(staleTunnelPids(listing, [9999], 1)).toEqual([]);
 });
+
+it("recognizes both owned Windows tunnel targets on private test ports and leaves a neighboring relay alone", () => {
+  const rows = [5201, 5202, 5203].map((port, i) =>
+    `${100 + i}\t"G:\\Private run\\cloudflared.exe" tunnel --url http://127.0.0.1:${port} --no-autoupdate`);
+  expect(staleTunnelPids(rows.join("\r\n"), [5201, 5202], 1)).toEqual([100, 101]);
+});
