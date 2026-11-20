@@ -81,3 +81,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R68 (0.9.44): Explain the new grant once beside the download button for previous pre-filter users. Check a fresh profile, a legacy profile and a second Settings visit.
 - R69 (0.9.44): Date both privacy policies when model download behavior changes. Compare the sentences in the outbound sections and both revision dates.
 - R70 (0.9.44): Record the packaged grant action and embedding worker starts alongside model requests. Check both counts before and after acceptance on fresh and upgraded profiles.
+- R71 (0.9.44): Use the established Russian term for downloading files in upgrade notices. Check the Russian UI and installer wording with the typography suite.
