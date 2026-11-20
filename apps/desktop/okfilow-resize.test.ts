@@ -33,7 +33,7 @@ function setup() {
   const context = {
     cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint, overlayMouse, ipcMain, modelHit, modelWin: model,
     overlays: new Map([[1, overlay], [2, second]]), ourSender: () => allowed,
-    mediaRects: new Map(), mediaOn: new Set(), stopHover: new Set(), mouseWas: new Map(), bubbleHover: new Set(), bubbleFocus: new Set(), shakeSamples: [], detachedDisplay: null,
+    mediaRects: new Map(), mediaOn: new Set(), stopHover: new Set(), mouseWas: new Map(), bubbleHover: new Set(), bubbleFocus: new Set(), shakeSamples: [], detachedDisplay: null, bubbleGeneration: 0,
     mouseCaught: false, mode: "idle", pill: {}, bubble: { open: () => false, setHover: vi.fn(), setFocus: vi.fn() }, QA_SHOTS: false,
     lastCursor: "", screen: { getCursorScreenPoint: () => cursor, getDisplayMatching: () => ({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } }) },
     applyMouse: (_w: typeof overlay) => {}, mediaHit: (_w: typeof overlay, _p: unknown) => {},
@@ -51,6 +51,19 @@ function setup() {
   const send = (w: typeof overlay, rects: unknown, channel = w === model ? "model" : "overlay") => ipcMain.emit(`okfilow:${channel}:rects`, { sender: w.webContents }, rects);
   return { overlay, second, model, panel, modelHit, context, send, deny: () => { allowed = false; }, point: (p: typeof cursor) => { cursor = p; context.mediaHit(overlay, p); modelHit.at(p); } };
 }
+
+it("binds detachment to the reporting display and ignores a previous bubble's late claim", () => {
+  const h = setup();
+  const context = h.context;
+  context.bubble.open = () => true;
+  context.bubbleGeneration = 2;
+  runInNewContext(section('  ipcMain.on("okfilow:bubble:detach"', "\n  });"), context);
+  context.ipcMain.emit("okfilow:bubble:detach", { sender: h.overlay.webContents }, 1);
+  expect(context.detachedDisplay).toBeNull();
+  context.ipcMain.emit("okfilow:bubble:detach", { sender: h.second.webContents }, 2);
+  context.ipcMain.emit("okfilow:bubble:detach", { sender: h.overlay.webContents }, 2);
+  expect(context.detachedDisplay).toBe(2);
+});
 
 describe("bounded resize hit rectangles", () => {
   it("clips a GIF Close button where its narrow tile ends and the desktop gap starts", () => {

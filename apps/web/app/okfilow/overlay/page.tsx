@@ -120,6 +120,7 @@ export default function OkFilowOverlay() {
   const going = out.active && out.names.length > 0;
 
   const pos = useRef({ x: -100, y: -100 });
+  const bubbleGeneration = useRef(-1);
   const detachedHere = useRef<boolean | null>(null);
   const cursor = useRef<{ x: number; y: number } | null>(null);
   const queue = useRef<Target[]>([]);
@@ -188,7 +189,9 @@ export default function OkFilowOverlay() {
       b.onSpoken?.((n) => setSpoken(Number.isInteger(n) ? n : -1)) ?? (() => {}),
       b.outbound?.onChange(setOut) ?? (() => {}),
       b.onLevel(setLevel),
-      b.onCursor((p, owner) => {
+      b.onCursor((p, owner, generation = 0) => {
+        if (bubbleGeneration.current !== generation || owner === false) holds.current.detached = false;
+        bubbleGeneration.current = generation;
         detachedHere.current = owner ?? null;
         cursor.current = p;
         if (!flight.current && dot.current) dot.current.style.visibility = "";
@@ -294,7 +297,7 @@ export default function OkFilowOverlay() {
           const grew = Math.abs(size.width - h.size.width) >= 1 || Math.abs(size.height - h.size.height) >= 1;
           if (h.answer && h.shown && h.placed && !h.detached && bubbleSticks(cursor.current, r)) {
             h.detached = true;
-            b.detachBubble?.();
+            b.detachBubble?.(bubbleGeneration.current);
             // Snapshot the visible position, including a glide that is still in progress.
             h.at = { x: r.left, y: r.top };
             el.style.transitionProperty = "opacity, width, height";

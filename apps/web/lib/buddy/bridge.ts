@@ -268,7 +268,7 @@ export type OkFilowBridge = {
   /** Overlay -> main: the bubble's close button. Main closes the bubble on every overlay (onBubbleClose). Absent in a desktop build older than it. */
   bubbleOpen?(): Promise<boolean>;
   closeBubbleByVoice?(): void;
-  detachBubble?(): void;
+  detachBubble?(generation: number): void;
   bubbleFocus?(on: boolean): void;
   closeBubble?(): void;
   /** Main -> overlays: the bubble goes away now (its time is up, Escape, its close button). */
@@ -308,7 +308,7 @@ export type OkFilowBridge = {
   onMode(fn: (s: { mode: OkFilowMode; error?: string }) => void): Off;
   /** `sees`: this question took the screen with it; `stopped`: the user stopped the answer. */
   onState(fn: (s: { mode: OkFilowMode; error?: string; purpose?: string; sees?: boolean; stopped?: boolean }) => void): Off;
-  onCursor(fn: (p: { x: number; y: number } | null, detachedHere?: boolean | null) => void): Off;
+  onCursor(fn: (p: { x: number; y: number } | null, detachedHere?: boolean | null, generation?: number) => void): Off;
   onLevel(fn: (v: number) => void): Off;
   onText(fn: (t: string) => void): Off;
   onPoint(fn: (points: Array<{ x: number; y: number; label: string }>, avoid?: { left: number; top: number; right: number; bottom: number }[]) => void): Off;

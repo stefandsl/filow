@@ -266,6 +266,7 @@ function createOkFilow(deps) {
   /** The overlays whose bubble has the pointer on it right now (webContents ids). */
   let shakeSamples = [];
   let detachedDisplay = null;
+  let bubbleGeneration = 0;
   const bubbleFocus = new Set();
   const bubbleHover = new Set();
   const bubble = createBubble({
@@ -303,6 +304,7 @@ function createOkFilow(deps) {
       for (const id of bubbleHover) stopHover.delete(id);
       shakeSamples = [];
       detachedDisplay = null;
+      bubbleGeneration++;
       lastCursor = "";
       bubbleFocus.clear();
       bubble.setFocus(false);
@@ -355,12 +357,15 @@ function createOkFilow(deps) {
   }
   /** The bubble's close button (an overlay). */
   ipcMain.on("okfilow:bubble:close", (e) => { if (ourSender(e)) bubble.close("button"); });
-  ipcMain.on("okfilow:bubble:detach", (e) => {
+  ipcMain.on("okfilow:bubble:detach", (e, generation) => {
     if (!ourSender(e) || !bubble.open() || detachedDisplay !== null) return;
-    const id = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
-    if (overlays.get(id)?.webContents === e.sender) {
-      detachedDisplay = id;
-      lastCursor = "";
+    if (generation !== bubbleGeneration) return;
+    for (const [id, overlay] of overlays) {
+      if (overlay.webContents === e.sender) {
+        detachedDisplay = id;
+        lastCursor = "";
+        break;
+      }
     }
   });
   ipcMain.on("okfilow:bubble:focus", (e, focused) => {
@@ -782,7 +787,7 @@ function createOkFilow(deps) {
         if (w.isDestroyed()) continue;
         const b = w.getBounds();
         const local = id === d.id ? { x: p.x - b.x, y: p.y - b.y } : null;
-        w.webContents.send("okfilow:cursor", local, detachedDisplay === null ? null : id === detachedDisplay);
+        w.webContents.send("okfilow:cursor", local, detachedDisplay === null ? null : id === detachedDisplay, bubbleGeneration);
         mediaHit(w, local);
       }
     }, 16);
@@ -808,7 +813,11 @@ function createOkFilow(deps) {
       setOverlayMouse(false);
       purpose = null;
     }
-    if (next === "opening" || next === "thinking") { detachedDisplay = null; lastCursor = ""; }
+    if (next === "opening" || next === "thinking") {
+      detachedDisplay = null;
+      bubbleGeneration++;
+      lastCursor = "";
+    }
     mode = next;
     wake?.reconcile();
     // Whether the question being answered took the screen: an overlay that loads later is told too.
@@ -1499,6 +1508,7 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:text", (e, text) => {
     if (!ourSender(e)) return;
     const t = bubbleText(text);
+    if (t && !bubble.acceptsText()) return;
     sendOverlays("okfilow:text", t);
     const was = bubble.open();
     bubble.setText(t);

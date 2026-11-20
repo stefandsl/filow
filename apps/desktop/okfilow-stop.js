@@ -56,6 +56,7 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
   let mode = "idle";
   let stopped = false;
   let answer = false;
+  let dismissedAnswer = false;
   let paused = false;
   let hover = false;
   let focus = false;
@@ -73,6 +74,7 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
   function close(why) {
     cancel();
     if (!open()) return false;
+    dismissedAnswer = answering(mode);
     text = "";
     stopped = answer = hover = focus = false;
     remaining = null;
@@ -92,7 +94,9 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
   }
   return {
     open, close, text: () => text,
+    acceptsText: () => !dismissedAnswer,
     setText(next) {
+      if (dismissedAnswer && next) return;
       const value = bubbleText(next);
       const changed = text !== value;
       text = value;
@@ -100,6 +104,7 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
       plan(changed);
     },
     setMode(next, extra = {}) {
+      if (next !== "speaking") dismissedAnswer = false;
       if (answering(next)) answer = true;
       if (next === "opening" || next === "listening" || next === "error" || extra.holdMs) answer = false;
       stopped = next === "idle" && extra.stopped === true;

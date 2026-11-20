@@ -80,3 +80,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R67 (2026-11-20, bubble-evade): Keep a detached bubble on its original display until dismissal or replacement. Check: cross a display boundary and return to the original X.
 - R68 (2026-11-20, bubble-evade): Clamp a detached bubble as its content grows. Check: grow a short message at the bottom right and verify its controls stay in bounds.
 - R69 (2026-11-20, bubble-evade): Enable shake dismissal when the bubble has a close control. Check: a streaming segment cannot revive a dismissal during generation.
+- R70 (2026-11-20, bubble-evade): Bind a display claim to its sending overlay and bubble generation. Check: cross the monitor boundary during the claim and reject a claim delayed past dismissal.
+- R71 (2026-11-20, bubble-evade): Preserve a dismissal while speech and answer streaming overlap. Check: close after the first spoken sentence, deliver another segment, then start a new question.

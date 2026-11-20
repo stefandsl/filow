@@ -91,6 +91,21 @@ describe("reading and dismissing a bubble", () => {
     h.pass(4000);
     expect(h.closed).toEqual(["timer"]);
   });
+  it("keeps an explicitly dismissed streaming answer closed while more sentences arrive", () => {
+    const h = harness();
+    h.bubble.setMode("thinking");
+    h.bubble.setText("First sentence.");
+    h.bubble.setMode("speaking");
+    h.bubble.close("shake");
+    h.bubble.setText("First sentence. Second sentence.");
+    expect(h.bubble.open()).toBe(false);
+    expect(h.bubble.acceptsText()).toBe(false);
+    h.bubble.setMode("idle");
+    h.bubble.setMode("thinking");
+    h.bubble.setText("New answer.");
+    expect(h.bubble.text()).toBe("New answer.");
+  });
+
   it("times an idle note and preserves an answer, including Resume", () => {
     const h = harness();
     h.bubble.setText("Copied");
