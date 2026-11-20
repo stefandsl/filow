@@ -1,7 +1,18 @@
 // Browser side of the gate: one embedding worker per page, loaded on demand, and the point
 // vectors cached in localStorage under the gate cache key (model + prep version + language +
 // point texts), so a script that was seen before costs nothing to prepare again.
-import { GATE_MODEL, createDownloadProgress, embedPoints, gateCacheKey, type Bullet, type Embedder, type PointVectors } from "@filow/core";
+import { GATE_MODEL, t, createDownloadProgress, embedPoints, gateCacheKey, type Bullet, type Embedder, type PointVectors } from "@filow/core";
+
+import { getLang } from "../prefs";
+
+// Legacy mode preferences describe how to match points. Only the named download
+// prompt may authorize contacting the model repository.
+const grantKey = "grant:https://huggingface.co/" + GATE_MODEL;
+let pageGrant = false;
+export function hasGateGrant(): boolean {
+  try { return pageGrant || localStorage.getItem(grantKey) === "yes"; }
+  catch { return pageGrant; }
+}
 
 let worker: Worker | null = null;
 let ready: Promise<void> | null = null;
@@ -20,6 +31,13 @@ export function loadGate(progress?: (p: GateProgress) => void): Promise<void> {
   if (!gateAvailable()) return Promise.reject(new Error("no worker support"));
   if (progress) onProgress = progress;
   if (ready) return ready;
+  if (!hasGateGrant()) {
+    if (!window.confirm(t("gate.allowDownload", getLang()))) {
+      return Promise.reject(new DOMException("Download declined", "AbortError"));
+    }
+    pageGrant = true;
+    try { localStorage.setItem(grantKey, "yes"); } catch { /* page-only grant */ }
+  }
   worker = new Worker(new URL("./embed.worker.ts", import.meta.url), { type: "module" });
   const total = createDownloadProgress();
   ready = new Promise<void>((resolve, reject) => {
@@ -71,6 +89,8 @@ export function stopGate(): boolean {
 
 /** Lets go of the model (before its files are deleted from the browser cache); the next loadGate starts over. */
 export function unloadGate(): void {
+  pageGrant = false;
+  try { localStorage.removeItem(grantKey); } catch { /* page-only grant */ }
   if (stopGate()) return;
   for (const p of pending.values()) p.reject(new Error("the pre-filter model was removed"));
   pending.clear();
@@ -82,6 +102,7 @@ export function unloadGate(): void {
 /** The embedder handed to gatedDecide; it waits for the model when it is still loading. */
 export const browserEmbed: Embedder = async (texts) => {
   if (!texts.length) return [];
+  if (!hasGateGrant()) throw new Error("Model download requires permission");
   await loadGate();
   const id = ++seq;
   return new Promise<Float32Array[]>((resolve, reject) => {

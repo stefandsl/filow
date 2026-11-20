@@ -17,7 +17,7 @@ class FakeWorker {
 beforeEach(() => {
   FakeWorker.made = [];
   vi.resetModules();
-  vi.stubGlobal("window", {});
+  vi.stubGlobal("window", { confirm: () => true });
   vi.stubGlobal("Worker", FakeWorker);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -55,4 +55,17 @@ describe("the pre-filter model download", () => {
     void loadGate();
     expect(FakeWorker.made).toHaveLength(2);
   });
+});
+
+it("keeps an ungranted embedding request private and declines a named download", async () => {
+  const confirm = vi.fn(() => false);
+  vi.stubGlobal("window", { confirm });
+  const { browserEmbed, loadGate } = await import("./client");
+  const embedding = browserEmbed(["private script"]).catch(() => []);
+  expect(FakeWorker.made).toHaveLength(0);
+  await embedding;
+  expect(confirm).not.toHaveBeenCalled();
+  await expect(loadGate()).rejects.toMatchObject({ name: "AbortError" });
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Hugging Face"));
+  expect(FakeWorker.made).toHaveLength(0);
 });

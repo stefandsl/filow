@@ -215,3 +215,5 @@ An unsuccessful OpenRouter answer returns its status without the raw provider bo
 - Rows 10 to 12: the add-in's and the extension's choices are their own, not the ones listed in the
   OK Filow panel (the pane cannot reach the desktop's settings). A yes given in the Filow window is
   asked again in the pane, once.
+
+The optional matching model requests missing files from Hugging Face only after you approve that download. Private practice works without it.

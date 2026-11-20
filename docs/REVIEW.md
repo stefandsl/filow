@@ -88,3 +88,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R75 (2026-11-20, N-02): Provider attribution headers must keep the desktop LAN address private. Check: grant a words-only practice question, hold the loopback reply, and compare the actual headers, content, model host and sending signal with the notice.
 - R76 (2026-11-20, N-02): Microphone denial must explain and preserve keyboard entry. Check: deny capture in Welcome and in the assistant, focus the text box, submit the practice question and complete the task.
 - R77 (2026-11-20, N-02): A cloud-answer failure must identify the recovery without exposing the provider response or silently retrying. Check: remove the key and return 402, 429 and 503 from a loopback receiver. Count sends and exercise typing, installed local answers and model-free practice.
+
+- R78 (2026-11-20, N-02): Require a grant for the named model repository before starting an embedding worker. Check: open a fresh and upgraded script with missing model files, decline the download and count workers and outbound requests.

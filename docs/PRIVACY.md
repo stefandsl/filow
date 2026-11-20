@@ -198,3 +198,5 @@ If you are in another EU country, you may complain to your local data protection
 
 When what Filow sends or keeps changes, this policy changes with the same app version, and the date
 at the top changes. The policy shipped inside the app always matches that version of the app.
+
+The optional matching model requests missing files from Hugging Face only after you approve that download. Private practice works without it.
