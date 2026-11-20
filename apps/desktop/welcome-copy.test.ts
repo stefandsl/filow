@@ -20,4 +20,9 @@ describe("setup card copy is true", () => {
     expect(html).toContain('data-i18n="welcome.setupPrivate"');
     expect(html).toContain('data-i18n="welcome.setupOnline"');
   });
+  it("identifies an opening microphone before capture starts", () => {
+    expect(html).toMatch(/id="mic-card"[^>]*data-state="opening"/);
+    const source = readFileSync(new URL("./welcome.ts", import.meta.url), "utf8");
+    expect(source).toContain('"welcome.micOpening"');
+  });
 });

@@ -5,6 +5,7 @@ import { t } from "@filow/core";
 import { Wordmark } from "@filow/ui";
 import { useUiLang } from "@/components/LangSwitch";
 import { desktopBridge } from "@/lib/sessionUrl";
+import { anchorOf, openOkFilow } from "@/lib/buddy/openAsk";
 import { useAccountLink } from "@/lib/accountLink";
 import "./tour.css";
 
@@ -31,16 +32,16 @@ export default function Tour() {
     setBusy(true);
     try {
       const { x, y, width, height } = target.current.getBoundingClientRect();
-      await tour.mark({ x: x - 8, y: y - 8, width: width + 16, height: height + 16 });
-      setHighlighted(true); setMessage(tr("tour.marked"));
+      const marked = await tour.mark({ x: x - 8, y: y - 8, width: width + 16, height: height + 16 });
+      setHighlighted(marked); setMessage(tr(marked ? "tour.marked" : "tour.retry"));
     } catch { setMessage(tr("tour.retry")); }
     finally { setBusy(false); }
   }
-  async function ask() {
+  async function ask(button: HTMLButtonElement) {
     setBusy(true);
     try {
-      const ready = await desktopBridge()?.tour?.ask(lang);
-      setMessage(tr(ready ? "tour.askStarted" : "tour.retry"));
+      const result = await openOkFilow(anchorOf(button));
+      setMessage(tr(result === "panel" ? "tour.askStarted" : "tour.retry"));
     } catch { setMessage(tr("tour.retry")); }
     finally { setBusy(false); }
   }
@@ -52,7 +53,10 @@ export default function Tour() {
         <h1>{tr("tour.title")}</h1>
         <p className="tour-lead">{tr("tour.intro")}</p>
         <ol className="tour-instructions"><li>{tr("tour.first")}</li><li>{tr("tour.second")}</li><li>{tr("tour.third")}</li></ol>
-        <div className="tour-actions"><button className="btn primary" onClick={() => void highlight()} disabled={busy}>{tr("tour.highlight")}</button><button className="btn" onClick={() => void ask()} disabled={busy}>{tr("tour.ask")}</button></div>
+        <div className="tour-actions">
+          <button type="button" className="btn primary" onClick={event => void ask(event.currentTarget)} disabled={busy}>{tr("ctl.okfilow")}</button>
+          <button type="button" className="btn" onClick={() => void highlight()} disabled={busy}>{tr("tour.highlight")}</button>
+        </div>
         <p className="tour-status" role="status">{message || tr("tour.private")}</p>
         <Link className="tour-continue" href={next} onClick={() => { void desktopBridge()?.tour?.done().catch(() => {}); }}>{tr("tour.continue")} →</Link>
       </section>

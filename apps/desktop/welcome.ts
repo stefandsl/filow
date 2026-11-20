@@ -121,15 +121,16 @@ function renderStep() {
 
 // ---- microphone check ----
 let mic: MicState = startMic();
+let openingMic = true;
 let micLabel = "";
 let micStop: (() => void) | null = null;
 function setMic(next: MicState) { mic = next; renderMic(); }
 function renderMic() {
   if (!state) return;
   const card = $("#mic-card");
-  card.dataset.state = mic.status;
+  card.dataset.state = openingMic ? "opening" : mic.status;
   const text: Record<MicState["status"], I18nKey> = { listening: "welcome.micListening", heard: "welcome.micHeard", silent: "welcome.micSilent", none: "welcome.micNone", blocked: "welcome.micBlocked", busy: "welcome.micBusy" };
-  $("#mic-text").textContent = tr(text[mic.status]);
+  $("#mic-text").textContent = tr(openingMic ? "welcome.micOpening" : text[mic.status]);
   const icon = $("#mic-icon");
   const iconName = mic.status === "heard" ? "check" : mic.status === "listening" ? "circle" : mic.status === "silent" ? "clock" : "close";
   if (icon.dataset.icon !== iconName) { icon.dataset.icon = iconName; mountIcons(card); }
@@ -157,16 +158,20 @@ function setLevel(level: number) {
 }
 // Each check has a generation: one that resolves after the user moved on (or retried) stops its own stream.
 let micGen = 0;
-function stopMic() { micGen++; micStop?.(); micStop = null; setLevel(0); }
+function stopMic() { micGen++; micStop?.(); micStop = null; openingMic = false; setLevel(0); }
 async function startMicCheck() {
   stopMic();
   const gen = micGen;
+  openingMic = true;
   setMic(startMic());
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
   } catch (err) {
-    if (gen === micGen) setMic({ ...startMic(), status: micErrorKind((err as Error)?.name ?? "") });
+    if (gen === micGen) {
+      openingMic = false;
+      setMic({ ...startMic(), status: micErrorKind((err as Error)?.name ?? "") });
+    }
     return;
   }
   if (gen !== micGen || steps[index] !== "mic") { stream.getTracks().forEach(tk => tk.stop()); return; }
@@ -187,6 +192,8 @@ async function startMicCheck() {
   const frame = new Float32Array(analyser.fftSize);
   let last = performance.now(), raf = 0, shown = 0;
   const tick = (now: number) => {
+    if (openingMic && ctx.state === "running" && track?.readyState === "live") { openingMic = false; renderMic(); }
+    if (openingMic) { raf = requestAnimationFrame(tick); return; }
     analyser.getFloatTimeDomainData(frame);
     let sum = 0;
     for (const v of frame) sum += v * v;
@@ -292,6 +299,10 @@ document.addEventListener("keydown", event => {
 });
 back.addEventListener("click", () => go(index - 1));
 secondary.addEventListener("click", () => void finish(false));
+$("#first-task").addEventListener("click", () => {
+  $<HTMLInputElement>("#live-practice").checked = true;
+  void finish(false);
+});
 // Closing the window mid-flow completes the welcome (ui-preferences.js): stop the microphone first.
 window.addEventListener("beforeunload", () => stopMic());
 $("#mic-retry").addEventListener("click", () => void startMicCheck());

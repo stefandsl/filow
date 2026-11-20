@@ -140,6 +140,8 @@ Filow se ne accorge, invia di nuovo la stessa domanda della lavagna con il nome 
 lettera, allo stesso servizio, e te lo dice sotto la lezione. Viene modificato solo il testo di
 quella domanda: mai il tuo script, il tuo schermo, le tue domande a OK Filow o una risposta.
 (Deciso dal titolare l'11 novembre 2026.)
+**Parla o scrivi** apre la casella della domanda. La richiesta parte quando la invii. L’evidenziazione locale e Salva prova funzionano senza un modello o una richiesta di rete.
+
 ## Il link pubblico
 
 **Il link pubblico è disattivato all'avvio**, anche dopo un aggiornamento. Per condividere con un

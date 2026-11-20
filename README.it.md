@@ -99,6 +99,8 @@ Con zoom elevato o una finestra bassa, la pagina scorre per mantenere punti e co
 
 ## Finestra di benvenuto
 
+Seleziona **Parla o scrivi** in Benvenuto per aprire la prova senza scaricare modelli. Selezionalo di nuovo per aprire l’assistente e chiedi «Dov’è Salva prova?» a voce o con la tastiera. Segui la risposta e seleziona **Salva prova**. **Evidenzia per la prova locale** indica lo stesso pulsante senza un modello. Se salti il tour, puoi riaprire la prova dalla barra superiore del suggeritore oppure scegliere **Parla o scrivi** nella barra laterale.
+
 Il video iniziale include sottotitoli in inglese, italiano, russo, romeno e giapponese. Seguono la lingua dell’interfaccia, con l’inglese come ripiego; puoi comunque disattivarli dai controlli del video.
 
 L'app desktop apre **Benvenuto** prima di caricare l'app principale o proporre la configurazione

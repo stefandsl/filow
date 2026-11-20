@@ -198,6 +198,8 @@ no additional provider request is made for this cleanup.
 This cleanup runs only when extracting OK Filow answer visuals. Shared drawing validation
 preserves whiteboard sketch titles and labels, including literal tokens such as `[EMAIL]`.
 
+Welcome, the practice workspace and the prompter lead to the same Talk or type panel. Opening it does not submit a question. The practice highlight and Save practice run locally. A spoken or typed question uses the panel’s configured route and consent.
+
 ## Open (owner decisions)
 
 - OpenRouter hosts: pinned to the maker for Google, OpenAI and Anthropic models (see above); other

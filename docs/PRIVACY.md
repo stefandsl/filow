@@ -136,6 +136,8 @@ Filow sees that, it sends the same whiteboard question once more with the name s
 by letter, to the same service, and tells you under the lesson. Only the text of that question is
 changed: never your script, your screen, your OK Filow questions or any answer. (Decided by the
 owner on 11 November 2026.)
+Opening **Talk or type** opens a question box. A question starts when you submit it. The local practice highlight and Save practice work without a model or a network request.
+
 ## The public link
 
 **The public link starts off**, including after an upgrade. To share with a phone on another

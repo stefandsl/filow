@@ -530,6 +530,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     <div className="app prompter" {...displayAttributes(display)} data-take={eng.recording ? "live" : undefined}>
       <header className="topbar">
         <div className="logo"><Wordmark height={28} /></div>
+        {okfHere && !eng.recording && <a className="chip" href="/tour">{t("tour.practice")}</a>}
         <span className="subtitle">{t("app.tagline")}</span><span className="spacer" />
         <PairPanel prompter info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} devices={sessionInfo.devices} onRevoke={sessionInfo.revokeDevice} onAllowAsk={sessionInfo.allowAsk} onApprove={sessionInfo.approveDevice} />
         <LangSwitch lang={lang} onChange={onLang} /><ThemeSwitch pref={theme} onChange={onTheme} />

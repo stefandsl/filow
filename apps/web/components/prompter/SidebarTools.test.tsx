@@ -6,6 +6,8 @@ import { DEFAULT_DISPLAY, LANGS, t, type I18nKey, type Lang } from "@filow/core"
 import { iconPaths } from "../icons";
 import { DisplayPanel } from "./DisplayPanel";
 import { SectionNav } from "./SectionNav";
+// Exercise both desktop entry points in the component suite. The app route glob covers .ts only.
+import "../../app/tour/first-use.test";
 
 // The owner asked for the quick "Display" panel and the whiteboard as buttons in the sidebar, above
 // "Import document" and "Reload script". Teleprompter.tsx is not rendered in a unit test (it needs a
@@ -118,8 +120,11 @@ describe("OK Filow button in the sidebar", () => {
     }
   });
 
-  it("keeps the product name as its label and explains it in each language", () => {
-    expect(LANGS.map((lang) => translate(lang, "ctl.okfilow"))).toEqual(["OK Filow", "OK Filow", "OK Filow", "OK Filow", "OK Filow"]);
+  it("names the spoken and typed actions in the sidebar and keeps OK Filow in the tooltip", () => {
+    expect(translate("en", "ctl.okfilow")).toBe("Talk or type");
+    expect(translate("it", "ctl.okfilow")).toBe("Parla o scrivi");
+    expect(new Set(LANGS.map(lang => translate(lang, "ctl.okfilow"))).size).toBe(5);
+    expect(prompter).toMatch(/href="\/tour"/);
     const titles = LANGS.map((lang) => translate(lang, "ctl.okfilowTitle"));
     expect(new Set(titles).size).toBe(5);
     for (const title of titles) {

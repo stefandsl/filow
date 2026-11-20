@@ -31,6 +31,7 @@
       <section class="step" data-step="language" aria-labelledby="progress h-language" hidden>
         <h1 id="h-language" tabindex="-1" data-i18n="welcome.title"></h1>
         <p class="lead" data-i18n="welcome.languageLead"></p>
+        <button type="button" class="secondary" id="first-task" data-i18n="ctl.okfilow"></button>
         <fieldset class="choices" id="language">
           <legend class="visually-hidden" data-i18n="common.language"></legend>
           <label class="choice"><input type="radio" name="lang" value=""><span id="lang-auto"></span></label>
@@ -64,7 +65,7 @@
       <section class="step" data-step="mic" aria-labelledby="progress h-mic" hidden>
         <h1 id="h-mic" tabindex="-1" data-i18n="welcome.micTitle"></h1>
         <p class="lead" data-i18n="welcome.micLead"></p>
-        <div class="meter-card" id="mic-card" data-state="listening">
+        <div class="meter-card" id="mic-card" data-state="opening">
           <div class="meter" id="mic-meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-label="welcome.micLevel"><i id="mic-bar"></i></div>
           <p class="mic-status" id="mic-status" role="status" aria-live="polite" tabindex="-1"><span aria-hidden="true" class="mic-icon" id="mic-icon"></span><span id="mic-text"></span></p>
           <p class="detail" id="mic-device"></p>

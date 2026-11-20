@@ -242,17 +242,95 @@ async function publicTrial(desktop, owner, fixture, dir, appPort, relayPort) {
     fixtureEvents: ["web", "relay"].map(role => fs.readFileSync(path.join(fixture, role + ".jsonl"), "utf8").trim().split("\n").map(line => JSON.parse(line))) };
 }
 
+// With --practice-input local|typed|voice, start from the tour, or use --entry prompter
+// after skipping it. --entry welcome exercises the first-screen shortcut. Use a private local
+// model or a separately approved loopback receiver. For voice, play the synthetic question through
+// the selected capture device or the QA build's fake microphone. Keep the app normally visible.
+async function practiceTrial(debug, origin, dir, input, entry) {
+  const at = pathname => url => url.startsWith(origin + "/") && new URL(url).pathname === pathname;
+  const pageAt = async match => {
+    await until(async () => {
+      const res = await fetch("http://127.0.0.1:" + debug + "/json/list");
+      return (await res.json()).some(p => p.type === "page" && match(p.url));
+    }, "practice window");
+    return attach(debug, match);
+  };
+  const started = Date.now();
+  if (entry !== "tour") {
+    const welcome = entry === "welcome";
+    const first = await pageAt(welcome ? url => url.startsWith("file:") && url.endsWith("/welcome.html") : at("/"));
+    try {
+      const control = welcome ? "#first-task" : "a[href='/tour']";
+      await until(() => first.evaluate("document.visibilityState === 'visible' && document.querySelector(" + JSON.stringify(control) + ")?.clientWidth"), "visible first-use entry");
+      await screenshot(first, dir, "entry.png");
+      await click(first, control);
+    } finally { first.close(); }
+  }
+  const tour = await pageAt(at("/tour"));
+  let panel;
+  try {
+    await until(() => tour.evaluate("document.visibilityState === 'visible' && document.querySelector('.tour-actions .primary')?.clientWidth"), "hydrated tour");
+    const entryMs = Date.now() - started;
+    const target = await tour.evaluate("document.querySelector('.tour-paper button').textContent.trim()");
+    const italian = target === "Salva prova";
+    assert(italian || target === "Save practice", "Use the EN or IT test profile");
+    const question = italian ? "Dove si trova Salva prova?" : "Where is Save practice?";
+    await screenshot(tour, dir, "task.png");
+    if (input === "local") {
+      await click(tour, ".tour-actions button:nth-child(2)");
+      await until(() => tour.evaluate("document.querySelector('.tour-status').textContent === document.querySelector('.tour-preview-note').textContent"), "local practice mark");
+    } else {
+      await click(tour, ".tour-actions .primary");
+      panel = await pageAt(at("/okfilow/panel"));
+      await until(() => panel.evaluate("document.visibilityState === 'visible' && document.querySelector('.okf-type input') === document.activeElement"), "focused question box");
+      if (input === "typed") {
+        await panel.call("Input.insertText", { text: question });
+        await panel.call("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+        await panel.call("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+      } else {
+        await panel.evaluate(`(() => {
+          const devices = navigator.mediaDevices, original = devices.getUserMedia.bind(devices);
+          devices.getUserMedia = async constraints => {
+            const stream = await original(constraints);
+            window.n02Track = stream.getAudioTracks()[0];
+            devices.getUserMedia = original;
+            return stream;
+          };
+        })()`);
+        await click(panel, "[data-testid=start-mic]");
+        await until(() => panel.evaluate("window.n02Track?.readyState === 'live' && document.querySelector('[data-testid=send-spoken]')"), "live capture");
+        await screenshot(panel, dir, "live-microphone.png");
+        await sleep(4500);
+        await click(panel, "[data-testid=send-spoken]");
+        await until(() => panel.evaluate("window.n02Track.readyState === 'ended'"), "closed capture");
+      }
+      await until(() => panel.evaluate("document.querySelector('.okf-a')?.textContent.toLowerCase().includes(" + JSON.stringify(target.toLowerCase()) + ")"), "assistant answer identifying the practice target");
+      if (await panel.evaluate("document.visibilityState !== 'visible'")) await click(tour, ".tour-actions .primary");
+      await until(() => panel.evaluate("document.visibilityState === 'visible' && document.querySelector('.okf-a')?.clientWidth"), "visible answer");
+      await screenshot(panel, dir, "answer.png");
+      await click(panel, ".okf-x");
+    }
+    const before = await tour.evaluate("document.querySelector('.tour-status').textContent");
+    await click(tour, ".tour-paper button");
+    await until(() => tour.evaluate("document.querySelector('.tour-status').textContent !== " + JSON.stringify(before)), "practice completion");
+    await screenshot(tour, dir, "completed.png");
+    return { entry, input, entryMs, resultMs: Date.now() - started, completed: true, assistantAnswerObserved: input !== "local" };
+  } finally { panel?.close(); tour.close(); }
+}
+
 async function main() {
   assert.equal(process.platform, "win32");
-  const names = ["package", "profile-origin", "out", "app-port", "relay-port", "debug-port", "peer-port", "lan-ip"];
-  const { values } = parseArgs({ options: Object.fromEntries([...names, "fixture-dir"].map(key => [key, { type: "string" }])) });
+  const names = ["package", "profile-origin", "out", "app-port", "relay-port", "debug-port"];
+  const { values } = parseArgs({ options: Object.fromEntries([...names, "peer-port", "lan-ip", "fixture-dir", "practice-input", "entry"].map(key => [key, { type: "string" }])) });
   for (const key of names) assert(values[key], "Missing --" + key);
-  const ports = ["app-port", "relay-port", "debug-port", "peer-port"].map(key => Number(values[key]));
+  const input = values["practice-input"], entry = values.entry || "tour";
+  if (input) assert(["local", "typed", "voice"].includes(input) && ["welcome", "prompter", "tour"].includes(entry) && !values["fixture-dir"]);
+  const ports = ["app-port", "relay-port", "debug-port", ...(input ? [] : ["peer-port"])].map(key => Number(values[key]));
   assert(ports.every(p => Number.isInteger(p) && p > 1023 && p <= 65535 && ![4747, 4748, 11434].includes(p)));
   assert.equal(new Set(ports).size, ports.length);
   const [app, relay, debug, peerPort] = ports;
   const ip = values["lan-ip"];
-  assert(isIPv4(ip) && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip), "Expected private LAN IPv4");
+  if (!input) assert(isIPv4(ip) && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip), "Expected private LAN IPv4");
   const manifest = JSON.parse(fs.readFileSync(projectVolume(values.package), "utf8"));
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   assert.match(sha, /^[\da-f]{40}$/);
@@ -261,15 +339,22 @@ async function main() {
   for await (const chunk of fs.createReadStream(projectVolume(manifest.archive))) digest.update(chunk);
   const packageSha512 = digest.digest("hex");
   assert.equal(packageSha512, manifest.sha512.toLowerCase());
-  const owner = windowOwner([app, relay, debug], projectVolume(manifest.destination));
+  const destination = projectVolume(manifest.destination);
+  const owner = windowOwner(input && entry === "welcome" ? [debug] : [app, relay, debug], destination);
   const dir = projectVolume(values.out);
   fs.mkdirSync(dir);
   const fixture = values["fixture-dir"] && projectVolume(values["fixture-dir"]);
-  const record = { item: fixture ? 2 : 1, mode: fixture ? "Loopback public-link fixture and LAN peer" : "LAN mirror UI", profileOrigin: values["profile-origin"], sha, packageSha512,
+  const record = { item: input ? 3 : fixture ? 2 : 1, mode: input || (fixture ? "Loopback public-link fixture and LAN peer" : "LAN mirror UI"), profileOrigin: values["profile-origin"], sha, packageSha512,
     device: os.hostname(), os: os.version(), owner, ports, command: process.argv, cwd: process.cwd(), start: new Date().toISOString(),
-    expected: fixture ? "Decline, cancel connecting, approve a remote phone, receive state, revoke both transports and advance a slide on LAN" : "Local pairing, synchronized slide advance and rejection of the spent code" };
+    expected: input ? "Find and activate Save practice through the selected input path" : fixture ? "Decline, cancel connecting, approve a remote phone, receive state, revoke both transports and advance a slide on LAN" : "Local pairing, synchronized slide advance and rejection of the spent code" };
   let desktop, peer;
   try {
+    if (input) {
+      record.observed = await practiceTrial(debug, "http://127.0.0.1:" + app, dir, input, entry);
+      assert.equal(windowOwner([app, relay, debug], destination).pid, owner.pid);
+      record.exit = 0;
+      return;
+    }
     desktop = await attach(debug, url => url === "http://127.0.0.1:" + app + "/" || url === "http://127.0.0.1:" + app);
     peer = await attach(peerPort, url => url === "about:blank");
     if (fixture) record.publicLink = await publicTrial(desktop, owner, fixture, dir, app, relay);
@@ -279,7 +364,7 @@ async function main() {
     record.exit = 1;
     // Assertion values may contain a usable pairing link. Keep only the failing call site.
     record.failureSite = String(err.stack).split("\n").find(line => line.includes("n02-windows.mjs:"))?.trim();
-    throw new Error("LAN UI replay failed. See the private evidence directory.");
+    throw new Error("UI replay failed. See the private evidence directory.");
   } finally {
     peer?.close();
     desktop?.close();

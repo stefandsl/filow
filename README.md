@@ -97,6 +97,8 @@ At high zoom or in a short window, the page scrolls to keep points and controls 
 
 ## First-run welcome
 
+Select **Talk or type** in Welcome to open the practice workspace without downloading models. Select it again to open the assistant, then ask “Where is Save practice?” by voice or keyboard. Use the answer to select **Save practice**. **Local practice highlight** points out the same button without a model. After skipping the tour, open **Practice workspace** in the prompter header or **Talk or type** in the sidebar.
+
 The first-run video includes English, Italian, Russian, Romanian and Japanese captions. Captions follow the interface language, with English as fallback; the video controls still let you turn them off.
 
 The desktop app opens **Welcome** before loading the main app or offering local AI setup.

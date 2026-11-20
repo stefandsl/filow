@@ -136,6 +136,7 @@ export default function OkFilowPanel() {
   const committed = useRef<string[]>([]);
   const partial = useRef("");
   const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: ReturnType<typeof floatMicNode> } | null>(null);
+  const panelMic = useRef(false);
   /** The microphone being opened right now (lib/buddy/micOpen.ts), and how long this recording's took to open. */
   const micOpening = useRef<MicOpening<MediaStream> | null>(null);
   const micOpenMs = useRef<number | null>(null);
@@ -258,6 +259,7 @@ export default function OkFilowPanel() {
   }, []);
 
   const stopAudio = useCallback(() => {
+    panelMic.current = false;
     const a = audio.current;
     audio.current = null;
     if (!a) return;
@@ -1276,6 +1278,7 @@ export default function OkFilowPanel() {
     /** This recording's microphone was slow to open: what to say if it gave no words. */
     const slowMic = emptyRecordingNote(micOpenMs.current);
     stopAudio();
+    if (!send) setMode("idle");
     try { await b.stt.stop(); } catch { /* the error already reached onResult */ }
     if (why !== "dictate" && pendingMarks.current) pendingMarks.current.sttStop = Date.now();
     // The worker flushes before acknowledging stop. Allow one turn for final-result IPC.
@@ -1364,6 +1367,16 @@ export default function OkFilowPanel() {
   }, [startListening, stopListening]);
   const stopRef = useRef(stopListening);
   stopRef.current = stopListening;
+  useEffect(() => {
+    const cancelHidden = () => {
+      if (document.hidden && panelMic.current) {
+        panelMic.current = false;
+        void stopRef.current(false);
+      }
+    };
+    document.addEventListener("visibilitychange", cancelHidden);
+    return () => document.removeEventListener("visibilitychange", cancelHidden);
+  }, []);
   listenAgain.current = () => { if (handsFree.current) void startListening("handsfree"); };
   /**
    * The presenter pressed the badge: the oldest waiting phone question comes out of the desktop app's
@@ -1565,6 +1578,7 @@ export default function OkFilowPanel() {
 
   if (!bridge) return <main className="okf-panel"><p>{t("desktopOnly")}</p></main>;
   const c = status;
+  const capturing = mode === "opening" || mode === "listening";
   const configure = async (patch: Partial<OkFilowStatus>) => {
     setStatus(await bridge.configure(patch));
     // The recipient follows the settings (provider, model, offline): the notes must name the new one.
@@ -1667,9 +1681,18 @@ export default function OkFilowPanel() {
 
       {sttReady === false && <p className="okf-warn">{t("noStt")} <a href="/settings/local" target="_blank" rel="noreferrer">{t("openSettings")}</a></p>}
 
-      <form className="okf-type" onSubmit={(e) => { e.preventDefault(); const q = typed.trim(); if (q) { setTyped(""); bridge.hidePanel(); void ask(q, { typed: true }); } }}>
+      <div className="okf-controls">
+        {capturing ? <>
+          {mode === "listening" && purpose.current === "talk" && <button type="button" data-testid="send-spoken" onClick={() => { panelMic.current = false; void stopListening(true); }}>{coreText("tour.sendSpoken", lang)}</button>}
+          <button type="button" data-testid="stop-mic" onClick={() => { panelMic.current = false; void stopListening(false); }}>{coreText("tour.stopMic", lang)}</button>
+        </> : <button type="button" data-testid="start-mic" disabled={sttReady !== true || answering || !!notice} onClick={() => {
+          panelMic.current = true;
+          void startListening("talk").then(() => { if (!audio.current) panelMic.current = false; });
+        }}>{coreText("tour.speak", lang)}</button>}
+      </div>
+      <form className="okf-type" onSubmit={(e) => { e.preventDefault(); const q = typed.trim(); if (q && !capturing) { setTyped(""); bridge.hidePanel(); void ask(q, { typed: true }); } }}>
         <input ref={typeBox} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t("typePlaceholder")} aria-label={t("typePlaceholder")} />
-        <button type="submit" disabled={!typed.trim()}>{t("ask")}</button>
+        <button type="submit" disabled={!typed.trim() || capturing}>{t("ask")}</button>
       </form>
       {/* Always here, in everyday words: whether a question takes the screen with it. */}
       {c && (
