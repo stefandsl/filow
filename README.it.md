@@ -99,6 +99,8 @@ Con zoom elevato o una finestra bassa, la pagina scorre per mantenere punti e co
 
 ## Finestra di benvenuto
 
+Nel pannello dell’assistente puoi scegliere il fornitore delle risposte. Con OpenRouter attivo e lo schermo disattivato, l’avviso indica il router e chi esegue il modello prima del primo invio. L’indicatore mostra il destinatario mentre arriva la risposta.
+
 Seleziona **Parla o scrivi** in Benvenuto per aprire la prova senza scaricare modelli. Selezionalo di nuovo per aprire l’assistente e chiedi «Dov’è Salva prova?» a voce o con la tastiera. Segui la risposta e seleziona **Salva prova**. **Evidenzia per la prova locale** indica lo stesso pulsante senza un modello. Se salti il tour, puoi riaprire la prova dalla barra superiore del suggeritore oppure scegliere **Parla o scrivi** nella barra laterale.
 
 Il video iniziale include sottotitoli in inglese, italiano, russo, romeno e giapponese. Seguono la lingua dell’interfaccia, con l’inglese come ripiego; puoi comunque disattivarli dai controlli del video.

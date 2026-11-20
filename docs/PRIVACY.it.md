@@ -99,7 +99,7 @@ sì nelle impostazioni di OK Filow. Le funzioni cloud usano il tuo account press
 
 | Funzione | Cosa viene inviato | A chi |
 |---|---|---|
-| OK Filow, risposte cloud | la tua domanda e le immagini dei tuoi schermi | OpenRouter, poi il produttore del modello che hai scelto (per esempio Google) |
+| OK Filow, risposte cloud | domanda, testo selezionato e scambi precedenti della conversazione, più le immagini con la condivisione dello schermo attiva. L’app omette il proprio indirizzo LAN dall’intestazione di provenienza | OpenRouter, poi il produttore del modello che hai scelto (per esempio Google) |
 | Lavagna, lezioni online | la tua domanda e, per una domanda successiva, la lezione fatta finora; mai un'immagine del tuo schermo | OpenRouter, poi il produttore del modello scelto per la lavagna: Anthropic per impostazione predefinita (Claude Sonnet 5.5), oppure Google se scegli Gemini 2.5 Flash. Per ogni produttore ti viene chiesto il permesso la prima volta |
 | OK Filow, voce cloud | il testo di ogni risposta | ElevenLabs |
 | OK Filow, immagini nelle schede | il nome del soggetto della scheda | Wikipedia |

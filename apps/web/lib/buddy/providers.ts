@@ -399,7 +399,6 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": process.env.PUBLIC_ORIGIN || "http://localhost:4747",
       "X-Title": "Filow",
     },
     body: JSON.stringify({

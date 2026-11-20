@@ -200,6 +200,8 @@ preserves whiteboard sketch titles and labels, including literal tokens such as 
 
 Welcome, the practice workspace and the prompter lead to the same Talk or type panel. Opening it does not submit a question. The practice highlight and Save practice run locally. A spoken or typed question uses the panel’s configured route and consent.
 
+The OpenRouter answer adapter omits the optional HTTP-Referer header so the desktop LAN address stays private. The words-only trial checks the named host, the content fields and the sending indicator against a held loopback response.
+
 ## Open (owner decisions)
 
 - OpenRouter hosts: pinned to the maker for Google, OpenAI and Anthropic models (see above); other

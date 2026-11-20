@@ -17,6 +17,7 @@ import path from "node:path";
 import net from "node:net";
 import { parseArgs } from "node:util";
 import { connect, sleep } from "../../whiteboard/qa-dev.mjs";
+import { openRouterFixture } from "./n02-fixtures.mjs";
 
 async function until(read, description) {
   const deadline = Date.now() + 30_000;
@@ -246,7 +247,7 @@ async function publicTrial(desktop, owner, fixture, dir, appPort, relayPort) {
 // after skipping it. --entry welcome exercises the first-screen shortcut. Use a private local
 // model or a separately approved loopback receiver. For voice, play the synthetic question through
 // the selected capture device or the QA build's fake microphone. Keep the app normally visible.
-async function practiceTrial(debug, origin, dir, input, entry) {
+async function practiceTrial(debug, origin, dir, input, entry, router) {
   const at = pathname => url => url.startsWith(origin + "/") && new URL(url).pathname === pathname;
   const pageAt = async match => {
     await until(async () => {
@@ -283,6 +284,20 @@ async function practiceTrial(debug, origin, dir, input, entry) {
       await click(tour, ".tour-actions .primary");
       panel = await pageAt(at("/okfilow/panel"));
       await until(() => panel.evaluate("document.visibilityState === 'visible' && document.querySelector('.okf-type input') === document.activeElement"), "focused question box");
+      if (router) {
+        // Change the provider using the panel's own control. A configured key alone grants nothing.
+        const select = "select:has(option[value=cloud]):has(option[value=freellm])";
+        assert.equal(await panel.evaluate(`(() => {
+          const el = document.querySelector(${JSON.stringify(select)});
+          if (!el || el.disabled) return false;
+          el.value = 'cloud'; el.dispatchEvent(new Event('change', { bubbles: true })); return true;
+        })()`), true);
+        await until(() => panel.evaluate("document.querySelector(" + JSON.stringify(select) + ").value === 'cloud'"), "cloud selected");
+        const eye = ".okf-see-switch";
+        if (await panel.evaluate("document.querySelector('.okf-see-switch')?.getAttribute('aria-checked') === 'true'")) await click(panel, eye);
+        await until(() => panel.evaluate("document.querySelector('.okf-see-switch')?.getAttribute('aria-checked') === 'false'"), "words only");
+        await click(panel, ".okf-type input");
+      }
       if (input === "typed") {
         await panel.call("Input.insertText", { text: question });
         await panel.call("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
@@ -304,7 +319,26 @@ async function practiceTrial(debug, origin, dir, input, entry) {
         await click(panel, "[data-testid=send-spoken]");
         await until(() => panel.evaluate("window.n02Track.readyState === 'ended'"), "closed capture");
       }
-      await until(() => panel.evaluate("document.querySelector('.okf-a')?.textContent.toLowerCase().includes(" + JSON.stringify(target.toLowerCase()) + ")"), "assistant answer identifying the practice target");
+      if (router) {
+        const notice = await until(() => panel.evaluate("document.visibilityState === 'visible' && document.querySelector('.okf-notice[role=alertdialog]')?.innerText"), "visible outbound notice");
+        for (const recipient of ["OpenRouter", "OpenAI"]) assert(notice.includes(recipient));
+        assert(/no picture|nessuna immagine/i.test(notice));
+        assert.equal(router.requests.length, 0);
+        await screenshot(panel, dir, "cloud-notice.png");
+        await click(panel, ".okf-notice-send");
+        await until(() => router.waiting(), "provider received question");
+        if (await panel.evaluate("document.visibilityState !== 'visible'")) await click(tour, ".tour-actions .primary");
+        const pill = await until(() => panel.evaluate("document.visibilityState === 'visible' && document.querySelector('.okf-out-to')?.innerText"), "visible sending indicator");
+        assert(pill.includes("OpenRouter") && pill.includes("OpenAI"));
+        await screenshot(panel, dir, "sending.png");
+        const [r] = router.requests;
+        assert.equal(router.requests.length, 1);
+        assert(r.maker === "openai" && r.hosts?.length === 1 && r.hosts[0] === "openai" && r.wordsOnly && r.questionMatched && r.privateOriginAbsent);
+        r.indicatorObserved = new Date().toISOString();
+        router.release();
+      }
+      const answerMatch = router?.marker || target.toLowerCase();
+      await until(() => panel.evaluate("document.querySelector('.okf-a')?.textContent.toLowerCase().includes(" + JSON.stringify(answerMatch) + ")"), "assistant answer identifying the practice target");
       if (await panel.evaluate("document.visibilityState !== 'visible'")) await click(tour, ".tour-actions .primary");
       await until(() => panel.evaluate("document.visibilityState === 'visible' && document.querySelector('.okf-a')?.clientWidth"), "visible answer");
       await screenshot(panel, dir, "answer.png");
@@ -321,13 +355,16 @@ async function practiceTrial(debug, origin, dir, input, entry) {
 async function main() {
   assert.equal(process.platform, "win32");
   const names = ["package", "profile-origin", "out", "app-port", "relay-port", "debug-port"];
-  const { values } = parseArgs({ options: Object.fromEntries([...names, "peer-port", "lan-ip", "fixture-dir", "practice-input", "entry"].map(key => [key, { type: "string" }])) });
+  const { values } = parseArgs({ options: Object.fromEntries([...names, "peer-port", "lan-ip", "fixture-dir", "practice-input", "entry", "cloud-port"].map(key => [key, { type: "string" }])) });
   for (const key of names) assert(values[key], "Missing --" + key);
   const input = values["practice-input"], entry = values.entry || "tour";
+  const cloudPort = Number(values["cloud-port"] || 0);
+  if (values["cloud-port"]) assert(input === "typed" && cloudPort > 0);
   if (input) assert(["local", "typed", "voice"].includes(input) && ["welcome", "prompter", "tour"].includes(entry) && !values["fixture-dir"]);
   const ports = ["app-port", "relay-port", "debug-port", ...(input ? [] : ["peer-port"])].map(key => Number(values[key]));
   assert(ports.every(p => Number.isInteger(p) && p > 1023 && p <= 65535 && ![4747, 4748, 11434].includes(p)));
   assert.equal(new Set(ports).size, ports.length);
+  assert(!ports.includes(cloudPort));
   const [app, relay, debug, peerPort] = ports;
   const ip = values["lan-ip"];
   if (!input) assert(isIPv4(ip) && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip), "Expected private LAN IPv4");
@@ -344,13 +381,14 @@ async function main() {
   const dir = projectVolume(values.out);
   fs.mkdirSync(dir);
   const fixture = values["fixture-dir"] && projectVolume(values["fixture-dir"]);
-  const record = { item: input ? 3 : fixture ? 2 : 1, mode: input || (fixture ? "Loopback public-link fixture and LAN peer" : "LAN mirror UI"), profileOrigin: values["profile-origin"], sha, packageSha512,
+  const record = { item: cloudPort ? 4 : input ? 3 : fixture ? 2 : 1, mode: cloudPort ? "Approved words-only loopback trial" : input || (fixture ? "Loopback public-link fixture and LAN peer" : "LAN mirror UI"), profileOrigin: values["profile-origin"], sha, packageSha512,
     device: os.hostname(), os: os.version(), owner, ports, command: process.argv, cwd: process.cwd(), start: new Date().toISOString(),
     expected: input ? "Find and activate Save practice through the selected input path" : fixture ? "Decline, cancel connecting, approve a remote phone, receive state, revoke both transports and advance a slide on LAN" : "Local pairing, synchronized slide advance and rejection of the spent code" };
-  let desktop, peer;
+  let desktop, peer, router;
   try {
     if (input) {
-      record.observed = await practiceTrial(debug, "http://127.0.0.1:" + app, dir, input, entry);
+      if (cloudPort) router = await openRouterFixture(cloudPort);
+      record.observed = await practiceTrial(debug, "http://127.0.0.1:" + app, dir, input, entry, router);
       assert.equal(windowOwner([app, relay, debug], destination).pid, owner.pid);
       record.exit = 0;
       return;
@@ -366,6 +404,7 @@ async function main() {
     record.failureSite = String(err.stack).split("\n").find(line => line.includes("n02-windows.mjs:"))?.trim();
     throw new Error("UI replay failed. See the private evidence directory.");
   } finally {
+    if (router) { record.providerRequests = router.requests; await router.close(); }
     peer?.close();
     desktop?.close();
     record.end = new Date().toISOString();

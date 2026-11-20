@@ -40,6 +40,15 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("OK Filow asks the screen helper of the setup", () => {
+  it("a configured cloud model still requires the presenter's choice before the first practice question", async () => {
+    vi.stubEnv("FILOW_OFFLINE", "");
+    vi.stubEnv("OPENROUTER_API_KEY", "fixture-only");
+    vi.stubEnv("BUDDY_CLOUD_MODEL", "openai/test-model");
+    const res = await ask(request({ question: "Where is Save practice?", provider: "cloud", sees: false }));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: "consent_required", recipient: { names: ["OpenRouter", "OpenAI"] } });
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("Lite at 8 GB with Gemma installed: the small model, from text, and no picture leaves for the model", async () => {
     machine(8, 4);
     const res = await ask(request({ question: "what does this do?", ...shot, provider: "local" }));

@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createServer, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
+import { createOutboundController } from "@/lib/buddy/outboundClient";
+import { noticeBody, type ConsentMap, type NoticeRequest } from "@/lib/buddy/outbound";
+import { okfText } from "@/lib/buddy/text";
 import * as sysinfo from "@/lib/sysinfo";
 import { POST as ask } from "./ask/route";
 import { POST as tts } from "./tts/route";
@@ -10,6 +15,7 @@ import { POST as openaiToken } from "../stt/openai-token/route";
 // The second lock: whatever the client does, a route forwards user content to a provider only when
 // the request carries the consent key for exactly that kind and that recipient. No real keys, no network.
 const LOCAL = "http://127.0.0.1:11434/";
+const loopbackFetch = globalThis.fetch;
 let net: ReturnType<typeof vi.fn>;
 const outside = () => net.mock.calls.map((c) => String(c[0])).filter((url) => !url.startsWith(LOCAL));
 
@@ -37,6 +43,67 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("cloud question: /api/buddy/ask", () => {
+  it("delivers only disclosed content to the approved router and maker during the sending signal", async () => {
+    let reply: ServerResponse | undefined;
+    let count = 0, sending = false, activeAtReceipt = false, receivedBody = "", referrer: string | undefined;
+    const server = createServer(async (req, res) => {
+      count++;
+      activeAtReceipt = sending;
+      referrer = String(req.headers["http-referer"] || "");
+      for await (const chunk of req) receivedBody += chunk;
+      reply = res;
+    });
+    await new Promise<void>((resolve, reject) => server.once("error", reject).listen(0, "127.0.0.1", resolve));
+    const base = "http://127.0.0.1:" + (server.address() as AddressInfo).port;
+    vi.stubEnv("OPENROUTER_BASE_URL", base + "/v1");
+    vi.stubEnv("PUBLIC_ORIGIN", "http://192.168.7.21:5021");
+    vi.stubEnv("BUDDY_CLOUD_MODEL", "openai/test-model");
+    vi.stubGlobal("fetch", (url: string, init: RequestInit) => {
+      if (String(url) !== base + "/v1/chat/completions") throw new Error("Unexpected destination");
+      return loopbackFetch(url, { ...init, redirect: "error" });
+    });
+    let stored: ConsentMap = {}, notice: NoticeRequest | null = null;
+    const controller = createOutboundController({
+      consent: () => stored, save: async next => { stored = next; return true; },
+      onNotice: value => { notice = value; },
+      fetchRecipients: async () => (await recipients()).json(),
+      signal: { begin: () => { sending = true; }, end: () => { sending = false; } },
+    });
+    try {
+      const question = "Where is Save practice?";
+      const body = { ...askBody, question, sees: false };
+      const who = (await controller.recipients())!.ask;
+      expect(who.names).toEqual(["OpenRouter", "OpenAI"]);
+      expect((await ask(post(body))).status).toBe(403);
+      const decision = controller.allow("ask", who, undefined, true);
+      expect(notice).toMatchObject({ words: true, recipient: who });
+      const copy = noticeBody(notice!, okfText("en"));
+      for (const term of ["OpenRouter", "OpenAI", "question", "No picture"]) expect(copy).toContain(term);
+      expect(count).toBe(0);
+      await controller.decide("granted");
+      expect(await decision).toBe("granted");
+      const completed = controller.sending("ask", who, async headers => {
+        const res = await ask(new Request("http://unit.invalid/api/buddy/ask", { method: "POST", headers, body: JSON.stringify(body) }));
+        return res.text();
+      });
+      await vi.waitFor(() => expect(reply).toBeDefined());
+      reply!.end('data: {"choices":[{"delta":{"content":"Choose Save practice."}}]}\n\ndata: [DONE]\n\n');
+      expect(await completed).toBe("Choose Save practice.");
+      expect(activeAtReceipt).toBe(true);
+      expect(sending).toBe(false);
+      expect(count).toBe(1);
+      const forwarded = JSON.parse(receivedBody);
+      expect(forwarded.model).toBe("openai/test-model");
+      expect(forwarded.provider.only.map((host: string) => host.toLowerCase())).toEqual(["openai"]);
+      expect(forwarded.messages.at(-1).content).toEqual([{ type: "text", text: expect.stringContaining(question) }]);
+      expect(receivedBody).not.toContain(askBody.images[0]);
+      expect(referrer, "the presenter did not grant the router their LAN address").not.toContain("192.168.7.21");
+    } finally {
+      reply?.end();
+      server.closeAllConnections();
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+  });
   it("without the user's yes nothing is forwarded", async () => {
     const res = await ask(post(askBody));
     expect(res.status).toBe(403);

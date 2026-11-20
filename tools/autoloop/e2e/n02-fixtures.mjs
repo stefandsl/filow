@@ -4,10 +4,12 @@
 // The two advertised hostnames are labels. The replay connects only to the fixture's loopback ports.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { createServer } from "node:http";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 function checkedPorts(values) {
   const ports = values.map(Number);
@@ -79,9 +81,58 @@ async function serve(dir, role) {
   server.once("close", () => clearInterval(timer));
 }
 
-const [mode, directory, ...values] = process.argv.slice(2);
-assert(directory && /^G:\\/i.test(path.resolve(directory)) && !/^G:\\FILOW(?:\\|$)/i.test(path.resolve(directory)));
-const dir = path.resolve(directory);
-if (mode === "prepare") await prepare(dir, values);
-else if (mode === "serve") await serve(dir, values[0]);
-else throw new Error("Expected prepare or serve");
+// A synthetic OpenRouter receiver for a private package configured with
+// OPENROUTER_BASE_URL=http://127.0.0.1:<port>/v1 and an inert fixture key.
+// Hold each response until the UI observer has checked the visible indicator.
+export async function openRouterFixture(port) {
+  assert(Number.isInteger(port) && port > 1023 && port < 65536 && ![4747, 4748, 11434].includes(port));
+  const requests = [], pending = [];
+  const marker = randomUUID().slice(0, 8);
+  const server = createServer(async (req, res) => {
+    const record = { start: new Date().toISOString(), expectedPath: req.method === "POST" && req.url === "/v1/chat/completions" };
+    requests.push(record);
+    try {
+      assert(record.expectedPath);
+      let data = "";
+      for await (const chunk of req) {
+        data += chunk;
+        assert(data.length <= 256000);
+      }
+      const body = JSON.parse(data);
+      record.maker = String(body.model).split("/")[0];
+      record.hosts = body.provider?.only;
+      record.wordsOnly = body.messages.filter(m => Array.isArray(m.content)).every(m => m.content.every(part => part.type === "text"));
+      record.questionMatched = body.messages.at(-1)?.content?.some(part => part.text?.includes("Where is Save practice?") || part.text?.includes("Dove si trova Salva prova?")) === true;
+      record.privateOriginAbsent = req.headers["http-referer"] === undefined;
+      pending.push(res);
+    } catch {
+      res.writeHead(400).end();
+    }
+  });
+  await new Promise((resolve, reject) => server.once("error", reject).listen(port, "127.0.0.1", resolve));
+  return {
+    marker, requests, waiting: () => pending.length,
+    release(status = 200) {
+      const res = pending.shift();
+      assert(res, "Expected a held provider request");
+      if (status === 200) {
+        res.writeHead(200, { "Content-Type": "text/event-stream" });
+        res.end("data: " + JSON.stringify({ choices: [{ delta: { content: "Select Save practice (Salva prova). " + marker } }] }) + "\n\ndata: [DONE]\n\n");
+      } else res.writeHead(status).end(JSON.stringify({ error: { message: "synthetic failure" } }));
+      requests.at(-1).end = new Date().toISOString();
+    },
+    async close() {
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
+    },
+  };
+}
+
+if (pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  const [mode, directory, ...values] = process.argv.slice(2);
+  assert(directory && /^G:\\/i.test(path.resolve(directory)) && !/^G:\\FILOW(?:\\|$)/i.test(path.resolve(directory)));
+  const dir = path.resolve(directory);
+  if (mode === "prepare") await prepare(dir, values);
+  else if (mode === "serve") await serve(dir, values[0]);
+  else throw new Error("Expected prepare or serve");
+}
