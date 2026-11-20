@@ -129,7 +129,7 @@ export const ja: Dictionary = {
   "welcome.setupProfile": "{name}構成",
   "welcome.setupLocal": "このコンピューターで動作",
   "welcome.setupPrivate": "この構成では、音声の聞き取りはこのコンピューターの中で行われます。音声がどこかに送信されることはありません。",
-  "welcome.setupOnline": "インターネットを使うもの：ダウンロード（モデル、アプリの更新）、Cloudflare経由のスマートフォン接続（初期設定はオン、メニューでオフにできます）、クラウドAI（自分のキーを設定した場合のみ）。",
+  "welcome.setupOnline": "同じWi-Fi上のスマートフォンをペアリングできます。公開リンクを有効にするとCloudflare経由で接続します。モデルのダウンロードと更新の確認にはインターネットを使います。クラウドAIにはご自身のキーが必要です。",
   "welcome.setupMemory": "メモリ{gb}GB",
   "welcome.setupReady": "最初のセッションに必要なものは、すべてインストール済みです。",
   "welcome.setupDownload": "約{gb}GBのダウンロードが1回だけ必要です。アプリを見ている間もバックグラウンドで続きます。",

@@ -9,7 +9,7 @@ size and licence notice; listening makes no network requests. After detection,
 the ordinary question retains its existing provider and outbound consent rules.
 See [wake-word evidence](okfilow/WAKE-WORD.md).
 
-Last updated: 10 November 2026. This text describes what the Filow app really does, checked against
+Last updated: 20 November 2026. This text describes what the Filow app really does, checked against
 its code (the full technical list is docs/okfilow/OUTBOUND.md in Filow's source code). It is also
 available in Italian: set Filow's language to Italian.
 
@@ -20,7 +20,7 @@ available in Italian: set Filow's language to Italian.
 - Your script, your voice and your screen stay on your computer unless you turn on a cloud feature.
   Before the first time anything of yours goes to a cloud service, Filow tells you what goes where and waits
   for your answer. While it sends, it shows "Going outside".
-- **One exception today:** the public link for your phone is on by default (see "The public link").
+- Phone pairing starts on your local network. You can turn on a public Cloudflare link for a phone on another network.
 - You can delete everything Filow keeps (see "How to delete your data").
 
 ## Who is responsible
@@ -38,7 +38,7 @@ what it does with the data it receives. Its own privacy policy applies.
 
 Almost nothing:
 
-- **Update check.** About 8 seconds after start (not in offline mode), Filow asks GitHub (github.com,
+- **Update check.** When you choose “Check for updates” while online, Filow asks GitHub (github.com,
   run by GitHub, Inc.) whether a newer version exists, and downloads it if so. GitHub sees your IP
   address and the app version, like any download. We only see download counts.
 - **A problem report you choose to post.** "Report a problem" makes the report on your computer and
@@ -138,20 +138,19 @@ changed: never your script, your screen, your OK Filow questions or any answer. 
 owner on 11 November 2026.)
 ## The public link
 
-To let a phone on another network follow your talk, Filow opens a public link through Cloudflare
-(trycloudflare.com). **Today this link is on by default and starts when Filow starts, without
-asking.** While it is on, your script, the live transcript and the current slide pass through
-Cloudflare's servers, and anyone who has the link and the 6-digit pairing code can open your
-session. The take page shows a "public link" chip.
+**The public link starts off**, including after an upgrade. To share with a phone on another
+network, turn on the public link in the pairing panel or the Filow menu. The mirror page and relay
+then use Cloudflare (trycloudflare.com). Script, transcript and slide state can pass through its
+servers. Someone with the link and the current code can request access. Approve the remote phone
+on the PC to let it see the session. The take page shows a "public link" chip.
 
-To turn it off: in the Filow menu, untick "Share to phone on any network". A phone on the same
-Wi-Fi still works without it. Whether this link should be off by default is an open decision for
-the publisher (decision D31).
+To stop sharing, turn off the public link in the pairing panel or the Filow menu. A phone on the
+same Wi-Fi can pair using the local code.
 
 ## The phone mirror on your own network
 
 So that a phone on the same Wi-Fi can open the mirror page, Filow's local server answers on your
-local network. Pairing needs the 6-digit code shown on your screen. Nothing goes through the
+local network. Pairing needs the single-use code shown on your screen. Nothing goes through the
 internet for this.
 
 ## Children, students and classrooms

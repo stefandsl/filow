@@ -10,11 +10,6 @@ import { publicLinkOn, useRemoteStatus } from "@/lib/useRemoteStatus";
 import type { PairedDevice } from "@filow/client";
 import { PairedDevices } from "./PairedDevices";
 
-/** Tell the desktop shell the pairing panel is open, so it brings the phone link up (a shell without it started the link at launch). */
-export function announcePairing(bridge: Pick<NonNullable<ReturnType<typeof desktopBridge>>, "pairingOpened"> | null | undefined): void {
-  bridge?.pairingOpened?.();
-}
-
 /** Shows the pairing code and a QR for the mirror URL. */
 export function PairPanel({ info, status, error, onNewCode, prompter = false, devices, onRevoke, onAllowAsk, onApprove }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean; devices?: PairedDevice[]; onRevoke?: (id: string) => void; onAllowAsk?: (id: string, allow: boolean) => void; onApprove?: (id: string) => void }) {
   const t = useT();
@@ -29,17 +24,12 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false, de
   const [net, setNet] = useState<NetStatus | null>(null);
   const [netBusy, setNetBusy] = useState(false);
   const bridge = desktopBridge();
-  // Live: the link comes up after the window opens, and the panel follows it without a reload.
+  // The panel follows status changes when the presenter switches public sharing on or off.
   const remote = useRemoteStatus();
   const publicLink = publicLinkOn(remote);
   useEffect(() => {
     if (!open || !bridge?.net) return;
     void bridge.net.status().then(setNet);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-  // The link for a phone on another network starts when this panel opens, never at launch.
-  useEffect(() => {
-    if (open) announcePairing(bridge);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   const pending = remote?.state === "downloading" || remote?.state === "connecting";

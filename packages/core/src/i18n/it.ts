@@ -129,7 +129,7 @@ export const it: Dictionary = {
   "welcome.setupProfile": "Configurazione {name}",
   "welcome.setupLocal": "Funziona su questo computer",
   "welcome.setupPrivate": "Con questa configurazione Filow capisce la tua voce su questo computer: l'audio non viene inviato da nessuna parte.",
-  "welcome.setupOnline": "Cosa usa internet: i download (modelli, aggiornamenti dell'app), il link per il telefono tramite Cloudflare (attivo di default, si spegne dal menu) e un'AI cloud, solo con una tua chiave.",
+  "welcome.setupOnline": "Abbina un telefono sulla stessa rete Wi-Fi. Se attivi il link pubblico, la connessione passa da Cloudflare. Il download dei modelli e la ricerca di aggiornamenti usano internet. Per l'AI cloud serve la tua chiave.",
   "welcome.setupMemory": "{gb} GB di memoria",
   "welcome.setupReady": "Tutto il necessario per la prima prova è già installato.",
   "welcome.setupDownload": "Un solo download di circa {gb} GB. Prosegue in background mentre esplori l'app.",

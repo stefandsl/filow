@@ -44,9 +44,11 @@ describe("the privacy policy shipped in the app", () => {
     const en: Block[] = policy("PRIVACY.md"), it: Block[] = policy("PRIVACY.it.md");
     expect(shape(it)).toEqual(shape(en));
   });
-  it("states plainly that the public link is on by default and that there is no telemetry", () => {
+  it("describes LAN pairing and the optional public link in both policies", () => {
     const en = readFileSync(path.join(docs, "PRIVACY.md"), "utf8");
-    expect(en).toMatch(/\*\*Today this link is on by default/);
+    const itPolicy = readFileSync(path.join(docs, "PRIVACY.it.md"), "utf8");
+    expect(en).toContain("The public link starts off");
+    expect(itPolicy).toContain("Il link pubblico è disattivato all'avvio");
     expect(en).toMatch(/\*\*No telemetry\.\*\*/);
   });
   it("Italian opens the Italian file when it is there, anything else the English one", () => {

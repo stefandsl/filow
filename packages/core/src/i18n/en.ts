@@ -129,7 +129,7 @@ export const en = {
   "welcome.setupProfile": "{name} setup",
   "welcome.setupLocal": "Runs on this computer",
   "welcome.setupPrivate": "With this setup, Filow understands your voice on this computer: the audio is not sent anywhere.",
-  "welcome.setupOnline": "What uses the internet: downloads (models, app updates), the phone link through Cloudflare (on by default, off in the menu) and a cloud AI, only with your own key.",
+  "welcome.setupOnline": "Pair a phone on the same Wi-Fi. Turning on the public link uses Cloudflare. Model downloads and update checks use the internet. Cloud AI uses your own key.",
   "welcome.setupMemory": "{gb} GB of memory",
   "welcome.setupReady": "Everything for your first take is already installed.",
   "welcome.setupDownload": "One-time download of about {gb} GB. It continues in the background while you look around.",

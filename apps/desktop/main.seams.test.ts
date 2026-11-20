@@ -39,7 +39,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   const registerShortcut = vi.fn(() => true);
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
   const updaterHandlers: Record<string, (info: { version: string }) => void> = {}, notificationShow = vi.fn();
-  const writeFileSync = vi.fn(), appendFileSync = vi.fn(), rmSync = vi.fn(), fsRead = vi.fn((..._args: unknown[]) => "FILOW_OFFLINE=1");
+  const writeFileSync = vi.fn(), renameSync = vi.fn(), appendFileSync = vi.fn(), rmSync = vi.fn(), fsRead = vi.fn((..._args: unknown[]) => "FILOW_OFFLINE=1");
   const modules: Record<string, any> = {
     electron: {
       crashReporter: { start() {} },
@@ -48,14 +48,14 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
         requestSingleInstanceLock: () => { calls.push("lock"); return !lockHeld; }, exit: appExit,
         whenReady, getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}), commandLine: { appendSwitch: (...a: string[]) => { calls.push(`switch ${a.join(" ")}`); } } },
       ipcMain: { on: (channel: string, fn: (event: unknown, ...args: unknown[]) => void) => { ipcListeners[channel] = fn; }, handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => { ipcHandlers[channel] = fn; } }, BrowserWindow: FakeBrowserWindow,
-      session: { defaultSession: { webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
+      session: { defaultSession: { setDisplayMediaRequestHandler() {}, webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
       shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText }, globalShortcut: { register: registerShortcut, unregisterAll() {} },
       Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu: menu },
       Notification: class { static isSupported() { return true; } on() {} show() { notificationShow(); } },
       net: { isOnline: () => true }, nativeTheme: { shouldUseDarkColors: true },
     },
     "node:path": path, "node:url": { pathToFileURL },
-    "node:fs": { readFileSync: fsRead, appendFileSync, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync, writeFileSync, renameSync() {} },
+    "node:fs": { readFileSync: fsRead, appendFileSync, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync, writeFileSync, renameSync },
     "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake", networkInterfaces: () => ({}) },
     "node:http": { get: () => { const req = new EventEmitter(); queueMicrotask(() => req.emit("error", new Error("Ollama absent"))); return req; } },
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": childProcess,
@@ -86,7 +86,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   // the old seeded model ids loadEnv reads as unset
   modules["./env-defaults.js"] = createRequire(import.meta.url)("./env-defaults.js");
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
-    ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
+    ;({ applyOffline, loadSettings, wireScreenSense, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
        setTakeLive, loadUpdater, installUpdate, setUpdateState, setMainWin: (win, shown = false) => { mainWin = win; mainWasShown = shown; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
@@ -101,7 +101,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {}, exit: processExit },
     URL, URLSearchParams, console, setTimeout, clearTimeout, AbortController,
   });
-  return { api, env, menu, quitAndInstall, updaterLoad, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync, rmSync, fsReads: fsRead,
+  return { api, env, menu, quitAndInstall, updaterLoad, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, renameSync, appendFileSync, rmSync, fsReads: fsRead,
     calls, appHandlers, appExit, processExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
     ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
     ipcHandlers, ipcListeners,
@@ -114,11 +114,11 @@ describe("Step 4 desktop offline seams", () => {
     const f = fixture({ FILOW_OFFLINE: "1" }, { updateFeed: true }); f.api.startupOffline();
     expect(f.blocked("https://cloud.invalid/upload")).toBe(true);
     expect(f.blocked("http://127.0.0.1:4747/api/decide")).toBe(false);
-    await f.api.checkForUpdates(); expect(f.checkForUpdates).not.toHaveBeenCalled();
+    await f.api.checkForUpdates({ manual: true }); expect(f.checkForUpdates).not.toHaveBeenCalled();
   });
   it("an installed app that is online does ask the update feed", async () => {
     const f = fixture({}, { updateFeed: true });
-    await f.api.checkForUpdates(); expect(f.checkForUpdates).toHaveBeenCalledOnce();
+    await f.api.checkForUpdates({ manual: true }); expect(f.checkForUpdates).toHaveBeenCalledOnce();
   });
   // Contract: ARCHITECTURE.md §6.10 FILOW_OFFLINE; main.js loads profile .env for app configuration.
   it("profile env offline must survive desktop startup", () => {
@@ -166,7 +166,7 @@ describe("Step 4 desktop offline seams", () => {
     const execFileSync = vi.fn((cmd: string) => (cmd === "where" ? "G:/bin/cloudflared.exe\r\n" : ""));
     const spawn = vi.fn(() => { throw new Error("no tunnels in tests"); });
     const f = fixture({}, { childProcess: { execFile: vi.fn(), execFileSync, spawn } });
-    await f.api.setRemoteShare({ reload() {} }, true, { auto: true, reload: false });
+    await f.api.setRemoteShare({ reload() {} }, true);
     const lines = f.appendFileSync.mock.calls.map((c: unknown[]) => String(c[1])).filter((l: string) => l.includes("public link:"));
     expect(lines.map((l: string) => l.replace(/^\S+ /, "").trim())).toEqual(["public link: connecting", "public link: error no tunnels in tests"]);
   });
@@ -246,76 +246,69 @@ describe("Step 4 desktop offline seams", () => {
   });
 });
 
-// Easy settings: "Keep it on this PC" is only true if nothing reaches out at launch. The public link
-// for a phone starts when the pairing panel opens. cloudflared is never run here: spawn is a stub.
-describe("the phone link starts when pairing, not at launch", () => {
-  /** A shell with cloudflared "installed" and a spawn that only records: no process, no network. */
-  function shell(env: Record<string, string> = {}) {
-    const execFileSync = vi.fn((cmd: string) => (cmd === "where" ? "G:/bin/cloudflared.exe\r\n" : ""));
-    const spawn = vi.fn(() => { throw new Error("no tunnels in tests"); });
-    const f = fixture(env, { childProcess: { execFile: vi.fn(), execFileSync, spawn } });
-    const linkLines = () => f.appendFileSync.mock.calls.map((c: unknown[]) => String(c[1])).filter((l: string) => l.includes("public link:")).map((l: string) => l.replace(/^\S+ /, "").trim());
-    return { f, spawn, linkLines, win: { reload: vi.fn() } };
-  }
-  const settle = () => new Promise((r) => setTimeout(r, 0));
+describe("N-02 LAN pairing on first use and upgrade", () => {
+  const profiles = [
+    ["new", undefined],
+    ["empty settings", {}],
+    ["no sharing flags", { editorZoom: 1.25 }],
+    ["old automatic on", { remoteShare: true, remoteShareChosen: true, editorZoom: 1.25 }],
+    ["old explicit off", { remoteShare: false, remoteShareChosen: true, editorZoom: 1.25 }],
+  ] as const;
 
-  it("loading the shell starts nothing; opening the pairing panel starts the link once", async () => {
-    const { f, spawn, linkLines, win } = shell();
-    expect(f.api.settings().remoteShare).toBe(true);
-    await settle();
-    expect(spawn).not.toHaveBeenCalled();
-    expect(linkLines()).toEqual([]);
-    expect(f.api.linkForPairing(win)).toBe(true);
-    await settle();
-    // both tunnels were asked for (the page and the relay), with the fixed arguments; the stub refuses them
-    expect(spawn.mock.calls.map((c: unknown[]) => [c[0], (c[1] as string[]).slice(0, 2)])).toEqual([["G:/bin/cloudflared.exe", ["tunnel", "--url"]], ["G:/bin/cloudflared.exe", ["tunnel", "--url"]]]);
-    expect(linkLines()).toEqual(["public link: connecting", "public link: error no tunnels in tests"]);
-    // started by opening the panel: no window reload, no dialog, and the user's choice stays on
-    expect(win.reload).not.toHaveBeenCalled();
-    expect(f.showMessageBox).not.toHaveBeenCalled();
-    expect(f.api.settings().remoteShare).toBe(true);
+  describe.each([true, false])("cloudflared installed = %s", installed => {
+    it.each(profiles)("%s: open, close and reopen across two launches", async (_name, profile) => {
+      const files = new Map<string, string>([["script.md", "# Existing talk\r\n\r\nSlide one\r\n"]]);
+      if (profile) files.set("settings.json", JSON.stringify(profile));
+      const script = files.get("script.md");
+      for (let launch = 1; launch <= 2; launch++) {
+        const spawn = vi.fn(() => { throw new Error("fixture refused tunnel launch"); });
+        const execFileSync = vi.fn(() => installed ? "G:/fixture/cloudflared.exe" : "");
+        const f = fixture({}, { updateFeed: true, childProcess: { spawn, execFileSync } });
+        f.fsReads.mockImplementation(file => {
+          const contents = files.get(path.basename(String(file)));
+          if (contents === undefined) throw new Error("file absent");
+          return contents;
+        });
+        f.writeFileSync.mockImplementation((file, contents) => files.set(path.basename(String(file)), String(contents)));
+        f.renameSync.mockImplementation((from, to) => {
+          const key = path.basename(String(from));
+          files.set(path.basename(String(to)), files.get(key)!);
+          files.delete(key);
+        });
+        f.api.loadSettings();
+        const frame = { url: f.api.APP_URL };
+        const win = { webContents: { mainFrame: frame, isDestroyed: () => false, send: vi.fn() }, isDestroyed: () => false, reload: vi.fn() };
+        f.api.setMainWin(win);
+        f.api.wireScreenSense();
+        const event = { sender: win.webContents, senderFrame: frame };
+        for (let open = 0; open < 2; open++) {
+          // Old renderers announce every open. Exercise the registered listener if this shell still has it.
+          f.ipcListeners["remote:pairing"]?.(event);
+          await new Promise(resolve => setTimeout(resolve, 0));
+          expect.soft(spawn, "tunnel process launches").not.toHaveBeenCalled();
+          expect.soft(f.outbound, "cloudflared download attempts").not.toHaveBeenCalled();
+          expect.soft(await f.ipcHandlers["remote:status"](event)).toMatchObject({ state: "off", url: "", session: "", wanted: false });
+        }
+        expect(files.get("script.md")).toBe(script);
+        if (profile && "editorZoom" in profile) {
+          expect(f.api.settings().editorZoom).toBe(profile.editorZoom);
+          expect(JSON.parse(files.get("settings.json")!).editorZoom).toBe(profile.editorZoom);
+        }
+      }
+    });
   });
 
-  it("a link that is up or coming up is not started again; a failed one is retried at the next opening", async () => {
-    const { f, spawn, win } = shell();
-    for (const state of ["on", "connecting", "downloading"]) {
-      f.api.tunnels.state = state;
-      expect(f.api.linkForPairing(win), state).toBe(false);
-    }
-    await settle();
-    expect(spawn).not.toHaveBeenCalled();
-    f.api.tunnels.state = "error";
-    expect(f.api.linkForPairing(win)).toBe(true);
-    await settle();
-    expect(spawn).toHaveBeenCalledTimes(2); // one start: the page's tunnel and the relay's
-  });
-
-  it("never starts for a user who switched the link off, in offline mode, or with a hosted relay", async () => {
-    const off = shell();
-    off.f.api.patchSettings({ remoteShare: false });
-    expect(off.f.api.linkForPairing(off.win)).toBe(false);
-    const offline = shell({ FILOW_OFFLINE: "1" });
-    offline.f.api.startupOffline();
-    expect(offline.f.api.linkForPairing(offline.win)).toBe(false);
-    const hosted = shell({ FILOW_SESSION_URL: "https://relay.example" });
-    expect(hosted.f.api.linkForPairing(hosted.win)).toBe(false);
-    await settle();
-    for (const s of [off, offline, hosted]) { expect(s.spawn).not.toHaveBeenCalled(); expect(s.linkLines()).toEqual([]); }
-  });
-
-  it("the only automatic start is the pairing panel's: main.js wires it to the panel's message and the page sends it", () => {
-    const main = readFileSync(new URL("./main.js", import.meta.url), "utf8");
-    // one call site starts the link without the user's own switch, and it is linkForPairing
-    expect(main.match(/setRemoteShare\([^)]*auto: true/g)).toHaveLength(1);
-    const body = main.slice(main.indexOf("function linkForPairing(win) {"), main.indexOf("let remoteBusy"));
-    expect(body.includes("void setRemoteShare(win, true, { auto: true, reload: false });")).toBe(true);
-    expect(main.match(/linkForPairing\(/g)).toHaveLength(2); // its definition and the "remote:pairing" handler
-    expect(/appOn\("remote:pairing", \(\) => \{\s*if \(mainWin && !mainWin\.isDestroyed\(\)\) linkForPairing\(mainWin\);/.test(main)).toBe(true);
-    expect(readFileSync(new URL("./preload.js", import.meta.url), "utf8")).toContain('pairingOpened: () => ipcRenderer.send("remote:pairing")');
-    const panel = readFileSync(new URL("../web/components/PairPanel.tsx", import.meta.url), "utf8");
-    expect(/useEffect\(\(\) => \{\s*if \(open\) announcePairing\(bridge\);/.test(panel)).toBe(true);
+  it("contacts an available update feed only on an explicit check", async () => {
+    const f = fixture({}, { updateFeed: true });
+    // The parent startup timer invokes this entry point after eight seconds with no user action.
+    await f.api.checkForUpdates();
+    expect.soft(f.checkForUpdates, "automatic startup feed requests").not.toHaveBeenCalled();
+    f.checkForUpdates.mockClear();
+    await f.api.checkForUpdates({ manual: true });
+    expect(f.checkForUpdates).toHaveBeenCalledOnce();
   });
 });
+
 // Easy settings: the Windows installer no longer has a page of model names. A choices file left by an
 // older installer is removed without being read, so the app's own first-run setup always decides.
 describe("choices from an older installer", () => {
@@ -802,7 +795,7 @@ describe("pilot update isolation", () => {
   });
   it.each([undefined, true])("keeps updates working with metadata %s", async updates => {
     const f = fixture({}, { updateFeed: true, updates });
-    await f.api.checkForUpdates();
+    await f.api.checkForUpdates({ manual: true });
     expect(f.checkForUpdates).toHaveBeenCalledOnce();
     expect(f.api.loadUpdater().autoInstallOnAppQuit).toBe(true);
     f.api.setUpdateState({ status: "downloaded", version: "future" });

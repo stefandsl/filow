@@ -191,7 +191,7 @@ async function refreshPptRegistrationAfterMigration() {
 
 // ---- Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, global hotkey ----
 const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
-let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: true, mirrorHost: "", lang: "", theme: "system", overlayAuto: true, overlayHidden: false, overlayOpacity: 0.94 };
+let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: false, mirrorHost: "", lang: "", theme: "system", overlayAuto: true, overlayHidden: false, overlayOpacity: 0.94 };
 
 // Shell strings live in the shared dictionary (packages/core/src/i18n, bundled to vendor/i18n.js), so
 // the parity check covers them in every language. The page owns the language choice and tells us over
@@ -215,10 +215,10 @@ function loadSettings() {
   } catch {
     /* first run */
   }
-  // 0.4.0 made the public link the default. Settings written by older versions carry
-  // remoteShare:false without the user ever choosing it; switch them once.
-  if (!settings.remoteShareChosen) {
-    settings.remoteShare = true;
+  // Older shells wrote true/true automatically. Each launch starts on the LAN.
+  // Record an off choice in the old format so reopening with an older shell also stays local.
+  if (settings.remoteShare !== false || settings.remoteShareChosen !== true) {
+    settings.remoteShare = false;
     settings.remoteShareChosen = true;
     saveSettings();
   }
@@ -587,15 +587,11 @@ function wireScreenSense() {
   appOn("remote:set", (_e, on) => {
     if (mainWin && !mainWin.isDestroyed()) void setRemoteShare(mainWin, Boolean(on));
   });
-  // The pairing dialog was opened: the public link starts now, not at launch.
-  appOn("remote:pairing", () => {
-    if (mainWin && !mainWin.isDestroyed()) linkForPairing(mainWin);
-  });
   appHandle("update:status", () => ({ ...updateState, current: app.getVersion() }));
   appOn("update:check", () => void checkForUpdates({ manual: true }));
   appOn("update:install", () => installUpdate());
   appOn("take:live", (_e, on) => setTakeLive(on));
-  appHandle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, session: tunnels.session, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
+  appHandle("remote:status", linkForPairing);
   wireStt();
   wireModels();
   appHandle("localai:status", () => localAiState);
@@ -792,10 +788,7 @@ function rebuildMenu(win) {
     /* menu rebuild is cosmetic */
   }
 }
-// V2 onboarding: not asked at first start while the public link is on (the default): phones then reach
-// Filow over that link and the rule is not needed. The pairing panel shows the firewall state and asks in
-// context (pair.firewallAllow), when the user actually pairs over Wi-Fi. This also skips a netsh call
-// (up to 5 s on the main thread) on every first start.
+// A LAN phone may need a Windows firewall rule. The same choice is available in the pairing panel.
 async function offerFirewall(win) {
   if (process.platform !== "win32" || settings.remoteShare !== false) { logLine("firewall offer: left to the pairing panel"); return; }
   if (firewallStatus() === "ok") return;
@@ -856,24 +849,22 @@ async function verifyDownload(file, asset) {
     throw err;
   }
 }
-async function ensureCloudflared(win, { silent = false } = {}) {
+async function ensureCloudflared(win) {
   const existing = cloudflaredPath();
   if (existing) return existing;
   const arch = process.arch === "arm64" ? "arm64" : "amd64";
   const base = "https://github.com/cloudflare/cloudflared/releases/latest/download/";
   const asset =
     process.platform === "win32" ? `cloudflared-windows-${arch}.exe` : process.platform === "darwin" ? `cloudflared-darwin-${arch}.tgz` : `cloudflared-linux-${arch}`;
-  if (!silent) {
-    const { response } = await dialog.showMessageBox(win, {
-      type: "question",
-      buttons: [mt("tunnelDownload"), sharedText("common.cancel", menuLang())],
-      defaultId: 0,
-      title: mt("tunnelTitle"),
-      message: mt("tunnelMessage"),
-      detail: mt("tunnelDetail", { url: base + asset, folder: path.join(userData, "bin") }),
-    });
-    if (response !== 0) return null;
-  }
+  const { response } = await dialog.showMessageBox(win, {
+    type: "question",
+    buttons: [mt("tunnelDownload"), sharedText("common.cancel", menuLang())],
+    defaultId: 0,
+    title: mt("tunnelTitle"),
+    message: mt("tunnelMessage"),
+    detail: mt("tunnelDetail", { url: base + asset, folder: path.join(userData, "bin") }),
+  });
+  if (response !== 0) return null;
   remoteStatus("downloading");
   const bin = path.join(userData, "bin");
   fs.mkdirSync(bin, { recursive: true });
@@ -980,33 +971,18 @@ function stopTunnels({ wait = false } = {}) {
   delete process.env.TRUST_PROXY;
 }
 
-/**
- * "Pair a phone" was opened: bring the public link up when the user has it on and it is not up yet.
- * It comes up in about 6 s (bound by trycloudflare.com issuing the address) and stays for the rest of
- * this run. The window is not reloaded: the page gets the new addresses with the "remote:status"
- * event and redraws the pairing QR in place (docs/OWNER-DECISIONS.md D2, third option); until then
- * the QR carries the address on this network. Returns whether a start was made.
- */
-function linkForPairing(win) {
-  const { linkStartsForPairing } = require("./tunnels.js");
-  if (!linkStartsForPairing({ wanted: settings.remoteShare, offline, hosted: Boolean(process.env.FILOW_SESSION_URL), state: tunnels.state })) return false;
-  void setRemoteShare(win, true, { auto: true, reload: false });
-  return true;
+/** Opening the panel reads the current link. Only its separate switch or the menu can change it. */
+function linkForPairing() {
+  return { state: tunnels.state, url: tunnels.web, session: tunnels.session, error: tunnels.error, wanted: Boolean(settings.remoteShare) };
 }
 
-/**
- * The public link is on by default (WhatsApp-style pairing: the QR works from any network).
- * `auto` = started by opening the pairing panel: no dialogs, failures only show in the pairing dialog
- * and the app keeps working on the LAN. From the menu or the dialog's own button the user gets the
- * download question and errors.
- */
 let remoteBusy = false;
-async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
+async function setRemoteShare(win, on) {
   if (remoteBusy) return;
   remoteBusy = true;
   stopTunnels();
   settings.remoteShare = on;
-  if (!auto) settings.remoteShareChosen = true;
+  settings.remoteShareChosen = true;
   saveSettings();
   try {
     if (on) {
@@ -1014,13 +990,13 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
         if (offline) throw new Error(mt("tunnelOffline"));
         if (process.env.FILOW_SESSION_URL) throw new Error(mt("tunnelHosted"));
         remoteStatus("connecting");
-        const bin = await ensureCloudflared(win, { silent: auto });
+        const bin = await ensureCloudflared(win);
         if (!bin) {
           settings.remoteShare = false;
           saveSettings();
           remoteStatus("off");
           buildMenu(win);
-          if (reload) win.reload();
+          win.reload();
           return;
         }
         if (tunnels.state !== "connecting") remoteStatus("connecting"); // back from "downloading"
@@ -1040,18 +1016,17 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
           remoteStatus("off");
           logLine("public link: download stopped by the user, nothing kept on disk");
         } else remoteStatus("error", String(err.message || err));
-        if (!auto && !modelFiles.isCancelled(err)) {
+        if (!modelFiles.isCancelled(err)) {
           settings.remoteShare = false;
           saveSettings();
           await errorWithReport(win, mt("tunnelFailed"), String(err.message || err));
         }
-        // auto: stay "wanted" so opening the pairing panel again retries; the LAN QR keeps working meanwhile
       }
     } else {
       remoteStatus("off");
     }
     buildMenu(win);
-    if (reload) win.reload(); // the preload re-reads the public URLs; the page creates a fresh session and QR
+    win.reload(); // the preload re-reads the public URLs; the page creates a fresh session and QR
   } finally {
     remoteBusy = false;
   }
@@ -1293,8 +1268,8 @@ async function uninstallPowerPointAddin(win) {
 // ---- Automatic updates (README "Automatic updates") ----
 // electron-updater is bundled into vendor/electron-updater.js (workspace hoisting keeps it out of
 // the asar otherwise). The feed is a PUBLIC GitHub repo that holds only the installers, because an
-// app cannot read a private repo's releases without shipping a token. Checks run at start-up and
-// from the menu; the download happens in the background and the user chooses when to restart.
+// app cannot read a private repo's releases without shipping a token. An explicit check starts
+// the background download if an update exists. The user chooses when to restart.
 const updatesEnabled = require("./package.json").updates !== false;
 let updatesOffLogged = false;
 function updatesOff() {
@@ -1395,7 +1370,7 @@ function setUpdateState(next) {
 }
 
 async function checkForUpdates({ manual = false } = {}) {
-  if (updatesOff()) return;
+  if (updatesOff() || !manual) return;
   // Unpacked (--dir) builds ship no update feed: checking would only report an error.
   if (!packaged || !fs.existsSync(path.join(process.resourcesPath, "app-update.yml"))) {
     if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Filow", message: mt("updateInstalledOnly") });
@@ -2569,11 +2544,6 @@ async function main() {
   }
   guardNavigation(win);
 
-  // The public link is not started here: it comes up the first time "Pair a phone" is opened
-  // (linkForPairing). Nothing is kept of a pairing between two starts (the relay's sessions live in
-  // memory, codes are single use and the trycloudflare address is new each time), so no phone waits
-  // for a link at launch.
-
   try {
     stage("waiting for servers");
     await waitFor(APP_URL + "/api/stt/status");
@@ -2616,7 +2586,6 @@ async function main() {
       if (!win.isDestroyed()) showAtStart(win);
       logLine(`main window shown (${Math.round(performance.now())} ms after process start)`);
     }, wait);
-    if (!updatesOff()) setTimeout(() => void checkForUpdates(), 8000); // after startup, unless this build forbids updates
     if (process.platform === "win32" || process.platform === "darwin") {
       if (settings.pptInstalled) {
         startHttpsProxy();

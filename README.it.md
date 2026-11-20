@@ -85,7 +85,7 @@ Con zoom elevato o una finestra bassa, la pagina scorre per mantenere punti e co
 | ✅ **Spunta dal vivo** | I punti vengono spuntati man mano che li tratti, giudicati per idea, non per parole. Confidenza mostrata per ogni punto. |
 | ⚠️ **Vassoio Saltati** | Tutto quello che hai scavalcato, un clic per riaprirlo. |
 | 👁 **Screen Sense** | Osserva le tue slide o qualsiasi finestra e ti dice cosa c'è sullo schermo, quali fatti non hai ancora detto e quando una slide contraddice il tuo script. |
-| 📱 **Mirror sul telefono** | Inquadra un QR e il telefono mostra la vista dal vivo con Prec / Succ / Stop. Funziona da qualsiasi rete per impostazione predefinita; approvi ogni telefono. |
+| 📱 **Mirror sul telefono** | Inquadra un QR e il telefono mostra la vista dal vivo con Prec / Succ / Stop. Abbina il telefono sulla stessa rete Wi-Fi. Per un'altra rete, attiva il link pubblico e approva il telefono. |
 | 🖥 **Add-in per PowerPoint** | Un clic aggiunge Filow a PowerPoint su questo PC o Mac. Le note del relatore diventano lo script, oppure lo script viene generato dalle slide. |
 | 🧩 **Estensione per il browser** | reveal.js, Slidev, Marp, Canva, Pitch: genera lo script dal deck e segue la slide dal vivo. |
 | 📄 **Importazione** | PDF, PPTX, DOCX, TXT o Markdown diventano punti, una sezione per slide o pagina. |
@@ -95,7 +95,7 @@ Con zoom elevato o una finestra bassa, la pagina scorre per mantenere punti e co
 | ⌨️ **Dettatura** | Tieni premuti i tasti, parla, e il testo viene scritto nell'app che stai usando. |
 | 🌍 **Cinque lingue d'interfaccia** | English, Italiano, Русский, Română, 日本語; finestre e menu desktop condividono la preferenza, i browser hanno la propria. |
 | 🌗 **Tema chiaro e scuro** | Interruttore ☀ / ◐ / ☾; "sistema" segue Windows o macOS. |
-| 🔄 **Aggiornamento automatico** | L'app desktop controlla GitHub e installa da sola le nuove versioni. |
+| 🔄 **Aggiornamento automatico** | Scegli **Controlla aggiornamenti** per cercare su GitHub e scaricare una versione disponibile. |
 
 ## Finestra di benvenuto
 
@@ -221,7 +221,7 @@ Come è protetto l'abbinamento: un codice funziona **una sola volta** e per **5 
 
 Un telefono in rete mobile, o su una Wi-Fi aziendale che isola i client, non può raggiungere l'indirizzo del tuo portatile. Tre strade, in ordine di impegno:
 
-1. **Link pubblico, attivo per impostazione predefinita** nell'app desktop. Al primo avvio l'app scarica una sola volta il `cloudflared` gratuito di Cloudflare (circa 20 MB, mostrato come "Configurazione del link pubblico…" nella finestra di abbinamento), apre due quick tunnel e aggiorna il QR; da quel momento contiene URL casuali `https://….trycloudflare.com` che funzionano ovunque, come WhatsApp Web. La finestra di abbinamento dice "Funziona da qualsiasi rete" quando è pronto, oppure perché non lo è (niente internet, download bloccato), nel qual caso il QR continua a funzionare sulla stessa Wi-Fi. Disattivalo nella finestra ("Torna a solo Wi-Fi"), con la ✕ sul chip "link pubblico" nella barra in alto, o dal menu; il tunnel si ferma anche quando l'app si chiude. I quick tunnel (`*.trycloudflare.com`) sono pensati per prove brevi: nessuna garanzia di disponibilità, un nuovo URL a ogni avvio. Per gli interventi che contano, usa un tuo server (sotto) o un [tunnel Cloudflare con nome](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) con Cloudflare Access davanti alla pagina del mirror. L'abbinamento richiede comunque il codice a 6 cifre, è limitato nella frequenza, e gli endpoint che spendono restano dietro il token del motore. Disattivalo dallo stesso menu; gli URL cambiano ogni volta. Non disponibile in modalità Offline.
+1. **Link pubblico per un'altra rete.** Ogni avvio parte dalla rete locale, anche dopo un aggiornamento. Apri il pannello di abbinamento per vedere il codice e il QR della LAN. Per condividere al di fuori della LAN, attiva il link pubblico nel pannello o nel menu Filow. Se necessario, Filow chiede di scaricare lo strumento `cloudflared` di Cloudflare (circa 20 MB). Due tunnel trasportano la pagina mirror e il suo relay. Quando entrambi sono pronti, il QR usa indirizzi temporanei `*.trycloudflare.com`. Approva il telefono remoto sul PC. Per interrompere la condivisione, usa il pannello, l'etichetta del link pubblico o il menu. I quick tunnel richiedono internet e non garantiscono la disponibilità. Per un uso regolare, scegli un server dedicato o un [tunnel Cloudflare con nome](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) con Cloudflare Access. Gli endpoint a pagamento richiedono il token del motore.
 2. **Stessa VPN su entrambi**: se il portatile e il telefono usano la stessa VPN (Tailscale, Twingate…), scegli l'indirizzo VPN nel menu **Indirizzo del mirror su questa rete** e inquadra di nuovo. L'app preferisce per impostazione predefinita un indirizzo LAN privato, quindi un indirizzo VPN non viene mai scelto automaticamente.
 3. **Un tuo server**: fai il deploy con la configurazione Debian qui sotto e punta l'app desktop verso di esso con `FILOW_SESSION_URL` in `.env`. URL permanente, dominio tuo.
 
@@ -254,7 +254,7 @@ Scarica il file per il tuo sistema dalla pagina **Releases** di questo repositor
 
 ### L'installer per Windows
 
-Una procedura guidata passo per passo nella lingua del tuo Windows (inglese, italiano, tedesco, francese, spagnolo, portoghese, olandese, polacco, russo, giapponese, cinese; le pagine personalizzate sono in inglese e italiano): benvenuto, licenza (proprietaria, © VoidExploit), cartella di installazione, una pagina **AI in locale su questo PC** (vedi sotto), poi la pagina finale con **Esegui Filow** e **Crea un collegamento sul desktop**. L'app si apre con una schermata iniziale (logo, barra di avanzamento, "Modelli locali · i dati restano su questo PC · GDPR" quando gira in locale, "Filtro PII attivo · GDPR" altrimenti) mentre i server e il link pubblico partono, poi va alle Impostazioni per scaricare i modelli che hai spuntato.
+Una procedura guidata passo per passo nella lingua del tuo Windows (inglese, italiano, tedesco, francese, spagnolo, portoghese, olandese, polacco, russo, giapponese, cinese; le pagine personalizzate sono in inglese e italiano): benvenuto, licenza (proprietaria, © VoidExploit), cartella di installazione, una pagina **AI in locale su questo PC** (vedi sotto), poi la pagina finale con **Esegui Filow** e **Crea un collegamento sul desktop**. L'app si apre con una schermata iniziale (logo, barra di avanzamento, "Modelli locali · i dati restano su questo PC · GDPR" quando gira in locale, "Filtro PII attivo · GDPR" altrimenti) mentre si avviano i server locali, poi va alle Impostazioni per scaricare i modelli che hai spuntato.
 
 #### AI locale scelta in base all'hardware
 
@@ -369,7 +369,7 @@ Il risultato finisce in `release/`.
 
 Le versioni di prova create con `-c.extraMetadata.updates=false` non cercano, scaricano o installano aggiornamenti. Il menu indica che gli aggiornamenti sono disattivati; i nuovi installer vengono forniti dal proprietario.
 
-L'app desktop installata controlla se c'è una nuova versione pochi secondi dopo l'avvio e dal menu (*Controlla aggiornamenti…*). L'aggiornamento si scarica in background; ricevi "Riavvia ora / Più tardi", e un aggiornamento rimandato si installa da solo alla prossima chiusura. Windows e Linux (AppImage) si aggiornano sul posto; macOS richiede una build firmata e notarizzata per gli aggiornamenti sul posto, quindi su Mac l'app si limita a dirti che esiste una nuova versione finché quello non è configurato.
+L'app desktop installata cerca una nuova versione su GitHub quando scegli *Controlla aggiornamenti…*. L'aggiornamento si scarica in background; ricevi "Riavvia ora / Più tardi", e un aggiornamento rimandato si installa da solo alla prossima chiusura. Windows e Linux (AppImage) si aggiornano sul posto; macOS richiede una build firmata e notarizzata per gli aggiornamenti sul posto, quindi su Mac l'app si limita a dirti che esiste una nuova versione finché quello non è configurato.
 
 Il feed è un repository GitHub **pubblico** separato che contiene solo gli installer. È nato quando questo repository sorgente era privato (un'app installata non può leggere release private senza portarsi dietro un segreto); il sorgente è pubblico dal 2026-11-03, e il feed resta dove le app installate cercano gli aggiornamenti. Configurazione una tantum, da una macchina dove `gh` è autenticato:
 

@@ -129,7 +129,7 @@ export const ro: Dictionary = {
   "welcome.setupProfile": "Configurația {name}",
   "welcome.setupLocal": "Rulează pe acest computer",
   "welcome.setupPrivate": "Cu această configurație, Filow îți înțelege vocea pe acest computer: sunetul nu este trimis nicăieri.",
-  "welcome.setupOnline": "Ce folosește internetul: descărcările (modele, actualizări ale aplicației), legătura cu telefonul prin Cloudflare (activă implicit, se oprește din meniu) și un serviciu AI în cloud, doar cu propria ta cheie.",
+  "welcome.setupOnline": "Asociază un telefon din aceeași rețea Wi-Fi. Dacă activezi linkul public, conexiunea trece prin Cloudflare. Descărcarea modelelor și căutarea actualizărilor folosesc internetul. Pentru AI în cloud ai nevoie de cheia ta.",
   "welcome.setupMemory": "{gb} GB de memorie",
   "welcome.setupReady": "Tot ce îți trebuie pentru prima sesiune este deja instalat.",
   "welcome.setupDownload": "O singură descărcare, de aproximativ {gb} GB. Continuă în fundal cât timp explorezi aplicația.",

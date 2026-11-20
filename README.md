@@ -83,7 +83,7 @@ At high zoom or in a short window, the page scrolls to keep points and controls 
 | ✅ **Live check-off** | Points are checked off as you cover them, judged by idea, not wording. Confidence shown per point. |
 | ⚠️ **Missed tray** | Everything you jumped over, one click to re-open. |
 | 👁 **Screen Sense** | Watches your slides or any window and tells you what is on screen, which facts you have not said yet, and when a slide contradicts your script. |
-| 📱 **Phone mirror** | Scan a QR and your phone shows the live view with Prev / Next / Stop. Works from any network by default; you approve each phone. |
+| 📱 **Phone mirror** | Scan a QR and your phone shows the live view with Prev / Next / Stop. Pair on the same Wi-Fi. For another network, turn on the public link and approve the phone. |
 | 🖥 **PowerPoint add-in** | One click adds Filow to PowerPoint on this PC or Mac. Your speaker notes become the script, or the script is generated from the slides. |
 | 🧩 **Browser extension** | reveal.js, Slidev, Marp, Canva, Pitch: generate the script from the deck and follow the live slide. |
 | 📄 **Import** | PDF, PPTX, DOCX, TXT or Markdown become talking points, one section per slide or page. |
@@ -93,7 +93,7 @@ At high zoom or in a short window, the page scrolls to keep points and controls 
 | ⌨️ **Dictation** | Hold the keys, speak, and the text is typed into the app you are using. |
 | 🌍 **Five UI languages** | English, Italiano, Русский, Română, 日本語; desktop windows and menus share one preference, browsers keep their own. |
 | 🌗 **Light and dark theme** | ☀ / ◐ / ☾ toggle; "system" follows Windows or macOS. |
-| 🔄 **Self-updating** | The desktop app checks GitHub and installs new versions itself. |
+| 🔄 **Self-updating** | Choose **Check for updates** to check GitHub and download an available version. |
 
 ## First-run welcome
 
@@ -216,7 +216,7 @@ How pairing is protected: a code works **once** and for **5 minutes** (the dialo
 
 A phone on mobile data, or on an office Wi-Fi that isolates clients, cannot reach your laptop's address. Three ways, in order of effort:
 
-1. **Public link, on by default** in the desktop app. On first start the app downloads Cloudflare's free `cloudflared` once (about 20 MB, shown as "Setting up the public link…" in the pairing dialog), opens two quick tunnels and refreshes the QR; it then carries random `https://….trycloudflare.com` URLs that work from anywhere, like WhatsApp Web. The pairing dialog says "Works from any network" when it is ready, or why it is not (no internet, download blocked), in which case the QR keeps working on the same Wi-Fi. Turn it off in the dialog ("Back to Wi-Fi only"), with the ✕ on the "public link" chip in the top bar, or in the menu; the tunnel also stops when the app quits. Quick tunnels (`*.trycloudflare.com`) are meant for short tests: no uptime promise, a new URL every start. For talks that matter, run your own server (below) or a [named Cloudflare tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) with Cloudflare Access in front of the mirror page. Pairing still needs the 6-digit code, pairing is rate limited, and the spend endpoints stay behind the engine token. Turn it off from the same menu; the URLs change every time. Not available in Offline mode.
+1. **Public link for another network.** Each launch starts on the LAN, including the first launch after an upgrade. Open **Pair a phone** for the local code and QR. To share beyond the LAN, turn on the public link in the panel or the Filow menu. If needed, Filow asks to download Cloudflare's `cloudflared` tool (about 20 MB). Two tunnels carry the mirror page and its relay. When both are ready, the QR uses temporary `*.trycloudflare.com` addresses. Approve the remote phone on the PC. To stop, use the pairing panel, the public-link chip or the menu. Quick tunnels have no uptime guarantee and require an internet connection. For regular use, choose a hosted server or a [named Cloudflare tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) with Cloudflare Access. The spend endpoints require the engine token.
 2. **Same VPN on both**: if the laptop and the phone run the same VPN (Tailscale, Twingate…), pick the VPN address in the menu **Mirror address on this network** and scan again. The app prefers a private LAN address by default, so a VPN address is never chosen automatically.
 3. **Your own server**: deploy the Debian setup below and point the desktop app at it with `FILOW_SESSION_URL` in `.env`. Permanent URL, your own domain.
 
@@ -249,7 +249,7 @@ Download the file for your OS from the **Releases** page of this repo (built aut
 
 ### The Windows installer
 
-A step-by-step wizard in the language of your Windows (English, Italian, German, French, Spanish, Portuguese, Dutch, Polish, Russian, Japanese, Chinese; the custom pages are in English and Italian): welcome, licence (proprietary, © VoidExploit), install folder, a **Local AI on this PC** page (see below), then the finish page with **Run Filow** and **Create a desktop shortcut**. The app opens with a splash screen (logo, progress bar, "Local models · data stays on this PC · GDPR" when it runs locally, "PII guard on · GDPR" otherwise) while the servers and the public link start, then goes to Settings to fetch the models you ticked.
+A step-by-step wizard in the language of your Windows (English, Italian, German, French, Spanish, Portuguese, Dutch, Polish, Russian, Japanese, Chinese; the custom pages are in English and Italian): welcome, licence (proprietary, © VoidExploit), install folder, a **Local AI on this PC** page (see below), then the finish page with **Run Filow** and **Create a desktop shortcut**. The app opens with a splash screen (logo, progress bar, "Local models · data stays on this PC · GDPR" when it runs locally, "PII guard on · GDPR" otherwise) while the local servers start, then goes to Settings to fetch the models you ticked.
 
 #### Local AI chosen from your hardware
 
@@ -364,7 +364,7 @@ Output lands in `release/`.
 
 Test builds packaged with `-c.extraMetadata.updates=false` do not check, download or install updates. The menu says updates are off; the owner supplies replacement installers.
 
-The installed desktop app checks for a new version a few seconds after start-up and from the menu (*Check for updates…*). The update downloads in the background; you get "Restart now / Later", and an update you postpone installs itself the next time you quit. Windows and Linux (AppImage) update in place; macOS needs a signed and notarized build for in-place updates, so on a Mac the app only tells you a new version exists until that is set up.
+The installed desktop app checks GitHub for a new version when you select *Check for updates…*. The update downloads in the background; you get "Restart now / Later", and an update you postpone installs itself the next time you quit. Windows and Linux (AppImage) update in place; macOS needs a signed and notarized build for in-place updates, so on a Mac the app only tells you a new version exists until that is set up.
 
 The feed is a separate **public** GitHub repository that holds only the installers. It was set up while this source repository was private (an installed app cannot read private releases without shipping a secret); the source has been public since 2026-11-03, and the feed stays where installed apps look for updates. One-time setup, from a machine where `gh` is logged in:
 

@@ -10,7 +10,7 @@ effettua richieste di rete. Dopo il riconoscimento, la domanda ordinaria conserv
 le regole del fornitore e del consenso all'invio già previste.
 Vedi [prove della parola di attivazione](okfilow/WAKE-WORD.md).
 
-Ultimo aggiornamento: 10 novembre 2026. Questo testo descrive quello che l'app Filow fa davvero,
+Ultimo aggiornamento: 20 novembre 2026. Questo testo descrive quello che l'app Filow fa davvero,
 verificato sul suo codice (l'elenco tecnico completo è docs/okfilow/OUTBOUND.md nel codice sorgente di
 Filow). È disponibile anche in inglese: imposta la lingua di Filow sull'inglese.
 
@@ -21,7 +21,7 @@ Filow). È disponibile anche in inglese: imposta la lingua di Filow sull'inglese
 - Il tuo copione, la tua voce e il tuo schermo restano sul tuo computer, a meno che tu non attivi una
   funzione cloud. Prima che qualcosa di tuo vada per la prima volta a un servizio cloud, Filow ti dice cosa
   va dove e aspetta la tua risposta. Mentre invia, mostra "Esce dal PC".
-- **Un'eccezione, oggi:** il link pubblico per il telefono è attivo di serie (vedi "Il link pubblico").
+- L'abbinamento del telefono avviene sulla rete locale. Per un telefono su un'altra rete puoi attivare un link pubblico tramite Cloudflare.
 - Puoi cancellare tutto quello che Filow conserva (vedi "Come cancellare i tuoi dati").
 
 ## Chi è responsabile
@@ -39,7 +39,7 @@ decidere cosa fa dei dati che riceve. Vale la sua informativa sulla privacy.
 
 Quasi niente:
 
-- **Controllo degli aggiornamenti.** Circa 8 secondi dopo l'avvio (non in modalità offline), Filow
+- **Controllo degli aggiornamenti.** Quando scegli «Controlla aggiornamenti» mentre sei online, Filow
   chiede a GitHub (github.com, gestito da GitHub, Inc.) se esiste una versione più recente, e la
   scarica se c'è. GitHub vede il tuo indirizzo IP e la versione dell'app, come per ogni download. Noi
   vediamo solo il numero di download.
@@ -142,20 +142,19 @@ quella domanda: mai il tuo script, il tuo schermo, le tue domande a OK Filow o u
 (Deciso dal titolare l'11 novembre 2026.)
 ## Il link pubblico
 
-Per permettere a un telefono su un'altra rete di seguire il tuo intervento, Filow apre un link
-pubblico tramite Cloudflare (trycloudflare.com). **Oggi questo link è attivo di serie e parte
-all'avvio di Filow, senza chiedere.** Mentre è attivo, il tuo copione, la trascrizione dal vivo e la
-slide corrente passano dai server di Cloudflare, e chiunque abbia il link e il codice di
-abbinamento a 6 cifre può aprire la tua sessione. La pagina della sessione mostra l'etichetta "link pubblico".
+**Il link pubblico è disattivato all'avvio**, anche dopo un aggiornamento. Per condividere con un
+telefono su un'altra rete, attivalo nel pannello di abbinamento o nel menu Filow. La pagina mirror e
+il relay usano quindi Cloudflare (trycloudflare.com). Copione, trascrizione e stato delle slide
+possono passare dai suoi server. Chi ha il link e il codice corrente può chiedere l'accesso.
+Approva il telefono remoto sul PC per mostrargli la sessione. La pagina della sessione mostra l'etichetta "link pubblico".
 
-Per spegnerlo: nel menu Filow, togli la spunta a "Condividi col telefono su qualsiasi rete". Un
-telefono sulla stessa rete Wi-Fi funziona anche senza. Se questo link debba essere spento di serie è
-una decisione ancora aperta per l'editore (decisione D31).
+Per interrompere la condivisione, disattiva il link pubblico nel pannello di abbinamento o nel menu
+Filow. Un telefono sulla stessa rete Wi-Fi può abbinarsi con il codice locale.
 
 ## Il mirror sul telefono nella tua rete
 
 Perché un telefono sulla stessa rete Wi-Fi possa aprire la pagina mirror, il server locale di Filow
-risponde sulla tua rete locale. Per l'abbinamento serve il codice a 6 cifre mostrato sul tuo schermo.
+risponde sulla tua rete locale. Per l'abbinamento serve il codice monouso mostrato sul tuo schermo.
 Per questo non passa niente da internet.
 
 ## Minori, studenti e classi
