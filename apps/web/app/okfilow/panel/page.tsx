@@ -1233,8 +1233,11 @@ export default function OkFilowPanel() {
       stopAudio();
       void b.stt.stop().catch(() => {});
       // (a refusal can come without words: its name then says what it was)
-      fail(e instanceof Error ? e.message || e.name : String(e), true,
-        e instanceof Error && /^(NotAllowedError|PermissionDeniedError|SecurityError)$/.test(e.name));
+      if (e instanceof Error && /^(NotAllowedError|PermissionDeniedError|SecurityError)$/.test(e.name)) {
+        fail(e.message || e.name, true, true);
+      } else {
+        fail(e instanceof Error ? e.message || e.name : String(e), true);
+      }
     }
   }, [dictT, endAnswer, fail, setMode, stopAudio, t]);
   const startRef = useRef(startListening);

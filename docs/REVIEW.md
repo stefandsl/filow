@@ -91,3 +91,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 
 - R78 (2026-11-20, N-02): Require a grant for the named model repository before starting an embedding worker. Check: open a fresh and upgraded script with missing model files, decline the download and count workers and outbound requests.
 - R79 (2026-11-20, N-02): Use the established Russian download terminology in setup disclosures. Check: compare every English download string to the Russian dictionary through the typography gate.
+- R80 (2026-11-20, N-02): Keep ordinary capture failures and permission denials on the recording-error path. Check: inspect both callers, exercise denial recovery and verify that a recognizer failure ends the active hold.
