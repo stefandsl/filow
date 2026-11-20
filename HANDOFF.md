@@ -1,8 +1,68 @@
 # Filow hand-off
 
-See the [delivery plan](docs/PLAN.md) for the current baseline, priorities and owner checkpoints.
+## N-01 | Working baseline, 20 November 2026
 
-## Where it stands (18 November 2026)
+The operator observed `stefandsl/filow` at **`44569cfaad1bd2036871dda478e7e9d750d30f1f`** on `origin/main` at 07:49:15.712 UTC. The primary checkout, assigned `ticket/n01` worktree and private builder checkout all started at that SHA with zero tracked changes and zero untracked files. Hold the comparison if the baseline moves or unexplained edits appear. All seven prepared Windows checks passed on that commit. The earlier prepared run had 4,217 passes and 12 skips. [Delivery plan](docs/PLAN.md)
+
+### History and audit recovery
+
+Both `git merge-base --is-ancestor 4e0bb19 368f019` and `git merge-base --is-ancestor 368f019 44569cfaad1bd2036871dda478e7e9d750d30f1f` returned 0. In chronological order, the eight first-parent merges were `4490badc`, `ffc1c819`, `41ceb307`, `f77bab55`, `c88fd440`, `6a44c174`, `f6432758` and `4009dd08`. Replay with `git log --reverse --first-parent --merges --oneline edc47a4..4e0bb19`.
+
+The original `tmp/branch-backup-2026-11-18.bundle` has SHA-256 `ca66b1da88eab644cd0c6f7dc8d7515ccd951f9a5fc5bfbd7508a50c819a11bb`. It contains a complete history with 115 advertised heads. The operator's private `run.json` records its location in `historyInputs.bundle`. Set `FILOW_FACTORY_BRANCH_BUNDLE` to that file. Run the recovery commands in a disposable clone.
+
+```powershell
+$bundle = $env:FILOW_FACTORY_BRANCH_BUNDLE
+$ref = 'refs/heads/audit/fixes-0.9.42'
+$audit = '0315dcf4f8b970c1f09dc93106c5c60111277cf3'
+if (!$bundle -or !(Test-Path -LiteralPath $bundle -PathType Leaf)) { throw 'HOLD: supply the original branch backup' }
+if ((Get-FileHash -LiteralPath $bundle -Algorithm SHA256 -ErrorAction Stop).Hash -ne 'ca66b1da88eab644cd0c6f7dc8d7515ccd951f9a5fc5bfbd7508a50c819a11bb') { throw 'HOLD: backup digest differs' }
+git bundle verify "$bundle"
+if ($LASTEXITCODE) { throw 'HOLD: invalid bundle' }
+$heads = @(git bundle list-heads "$bundle")
+if ($LASTEXITCODE -or $heads.Count -ne 115 -or $heads -cnotcontains "$audit $ref") { throw 'HOLD: backup heads differ' }
+git fetch --no-tags "$bundle" "${ref}:$ref"
+if ($LASTEXITCODE -or (git rev-parse --verify $ref) -ne $audit) { throw 'HOLD: audit ref recovery failed' }
+```
+
+Keep C6, C12, C23, C27 and C28 on the archived branch until each fix has an independent evaluation on labelled EN/IT sentences. [Audit handoff](docs/audit/AUDIT-0.9.42-HANDOFF.md)
+
+### Reproduce the Windows checks
+
+CI selects Node 22 and installs with `npm ci --prefer-offline`. This run used Node `v22.13.0` and npm `11.15.0`. The SHA-256 of `package-lock.json` was `bb8a1cc903b21cbf2b4f2c6ece68695d694098eb3dae9389e30bd1832101779d`. It matched `node_modules/.filow-lock-sha256`, allowing the factory to link the prepared installation into its disposable gate checkout. Run the steps there with private caches and temp directories on G:, at least 20 GB free, a credential-free child environment, a 25-minute command limit and one setup retry. [Windows checks job](.github/workflows/desktop.yml)
+
+All rows tested the full baseline SHA above on 20 November 2026. Paths are relative to the private directory for `run-dda8fd7b`. The working directory for every command was `ci-uu2JWG/` (the receipt's `checkout` field). Each receipt is under `rc/<ID>.json`. The expected exit was 0 at each step.
+
+| Command in execution order (PowerShell) | Start UTC | End UTC | Actual exit | Receipt ID |
+|---|---|---|---:|---|
+| `node node_modules/electron/install.js` | 07:51:02.833 | 07:51:45.651 | 0 | `f2bb250d` |
+| `npm run vendor -w apps/desktop` | 07:51:46.041 | 07:51:54.008 | 0 | `bb6a1e03` |
+| `if (Test-Path apps/desktop/vendor/i18n.js) { Remove-Item -LiteralPath apps/desktop/vendor/i18n.js }` | 07:51:54.389 | 07:51:54.390 | 0 | `5f0ed88c` |
+| `npx vitest run --reporter=json` | 07:51:54.834 | 07:53:01.878 | 0 | `cad1b848` |
+| `npm run build:welcome -w apps/desktop` | 07:53:02.277 | 07:53:02.662 | 0 | `4d7434d6` |
+| `npm run typecheck` | 07:53:03.066 | 07:53:21.194 | 0 | `e96d2925` |
+| `npm run lint` | 07:53:21.595 | 07:53:32.371 | 0 | `f3f35024` |
+
+**4,290 tests passed**, 0 failed, 12 skipped and 0 todo. Of 331 files, 326 passed, 0 failed and 5 were wholly skipped. The JSON report measured 66,427.4267578125 ms. The factory adds the JSON reporter to the workflow's `npx vitest run` and saves the raw report beside the receipt as `rc/cad1b848.json.vitest.json`.
+
+**Missing input.** The vendor step builds `apps/desktop/vendor/hardware.js` from `packages/core/src/hardware.ts`. Without it, `qaHardware` returned `null` for `ramGb=16,cores=8,gpu=none`. The “every hardware read” test in `apps/desktop/qa.test.ts` exited 1 in the disposable fixture. After preparation the same test returned the expected hardware and exited 0. This explains the three historical desktop QA failures. Record HOLD for incomplete preparation if this happens again.
+
+**Interrupted gate.** Preserve the first nonzero exit or missing Vitest report and record which later gates did not run. Resume with the same run ID. Match the saved intent to the receipt's run, SHA, phase, step and ID before repeating a command. In the fixture, a failed Vitest launch held welcome, typecheck and lint. A successful retry reused the first three receipts. A separate interruption after the Electron receipt resumed at vendor. The private `b/operator-evidence.json` locates the fixture results under `fixtureReceipt`.
+
+After the builder reply, `npm.cmd run filow:build -- run-dda8fd7b` in the assigned operator worktree runs these checks on the new commit. Read `buildEvidence` in the private `run.json` for that SHA's receipts. [Factory walkthrough](docs/GUIDE-START-HERE.md)
+
+### Tracker and native checks
+
+The operator's 20 November 2026 inventory (07:53:44 UTC) from `gh issue list --repo stefandsl/filow --state open` returned **zero open issues**. If the tracker snapshot is unavailable on replay, mark the inventory unverified and hold that check. Issue 8 was last documented closed at 22:24:05 UTC on 18 November. Before proposing a reopen, reproduce the drawing, move or resize failure on the prepared SHA and record the exact action and result. [Issue 8](https://github.com/stefandsl/filow/issues/8)
+
+| Device and action | Observation on the pinned SHA |
+|---|---|
+| Windows AMD64 test PC, NT 10.0.26300.0. Open About in packaged Filow 0.9.43 and use Save in the report dialog. | One fresh-profile run passed, UI exit 0. The saved file matched the visible preview. The screenshot and saved-file hashes matched the receipt. An earlier attempt at the same source SHA recorded `passed: false` without a UI exit or saved report. A second successful launch remains unverified. |
+| Windows ARM device | Live package inspection remains unverified. |
+| O2 overlay on Windows in light and dark themes | Fast drags, DPI scaling, display edges, capture cancellation and click-through remain unverified in the package. |
+
+The tested x64 archive was `Filow-win-x64.tar`, SHA-512 `a29efacf581302a31aa1fc330a10548e18d96ade3a9b8c2e594fd076f28071f7234cc0db445447dda525943ae86a1881551690a09450ee562c06738f6fffc624`. For the same-device replay and independent review, open `b/operator-evidence.json` in the run directory. Its `packageManifest` identifies the source SHA, archive, OS and device. Its `receipt` locates the native result, saved report, screenshot and startup log. The same index locates the two tracker snapshots.
+
+## Integration history (18 November 2026)
 
 The integration candidate at `4e0bb19` includes bounded overlay resizing and the 2D drawing width fix. Its gate had 4,183 passes, 12 skips and the same three desktop QA failures as main. See the eight merges with `git log --first-parent --merges edc47a4..4e0bb19` and the issue 8 regression with `git show 4e0bb19`.
 
