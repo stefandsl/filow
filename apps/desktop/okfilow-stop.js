@@ -105,8 +105,8 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
   }
   function close(why) {
     cancel();
+    if (open() || why === "escape") dismissedAnswer = answering(mode);
     if (!open()) return false;
-    dismissedAnswer = answering(mode);
     text = "";
     stopped = answer = hover = focus = false;
     remaining = null;
@@ -145,10 +145,12 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
       const reset = mode !== next || holdMs !== nextHold || stopped !== (next === "idle" && extra.stopped === true);
       holdMs = nextHold;
       if (next === "speaking" && mode !== next) { counting = false; shownMs = 0; }
+      // A stop acknowledgement can arrive after Escape has dismissed the streamed answer.
+      const showStopped = next === "idle" && extra.stopped === true && !dismissedAnswer;
       if (next !== "speaking") dismissedAnswer = false;
       if (answering(next)) answer = true;
       if (next === "opening" || next === "listening" || next === "error" || extra.holdMs) answer = false;
-      stopped = next === "idle" && extra.stopped === true;
+      stopped = showStopped;
       mode = next;
       plan(reset);
     },
@@ -244,8 +246,8 @@ function createMarks({ clear, setTimer = setTimeout, clearTimer = clearTimeout }
   };
 }
 
-/** What Escape does: stops the answer in progress; with none, closes the bubble and wipes the marks. */
-const escapePlan = (mode) => (answering(mode) ? ["stop"] : ["bubble", "marks"]);
+/** Escape dismisses the bubble and stops an active answer. Idle Escape also clears the marks. */
+const escapePlan = (mode) => (answering(mode) ? ["stop", "bubble"] : ["bubble", "marks"]);
 
 /** "Look at my screen": "on" or "off" once the user chose, "auto" until then (the setup decides). */
 const seeChoice = (v) => (v === "on" || v === "off" ? v : "auto");

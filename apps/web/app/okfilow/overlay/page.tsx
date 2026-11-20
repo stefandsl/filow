@@ -153,7 +153,7 @@ export default function OkFilowOverlay() {
         if (typeof s.sees === "boolean") setSees(s.sees);
         setStopped(s.stopped === true);
         // A question, a dictation or a stopped answer brings the bubble back; a new answer starts unspoken.
-        if (s.mode === "listening" || s.mode === "thinking" || s.stopped === true) reopen();
+        if (s.mode === "listening" || s.mode === "thinking" || (s.stopped === true && !s.bubbleDismissed)) reopen();
         if (s.mode === "listening" || s.mode === "thinking") setSpoken(-1);
         if (s.stopped === true) {
           // Stop: playback ends at once (pictures and videos go); the pointer flies nowhere else, and the

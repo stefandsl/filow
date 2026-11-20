@@ -41,7 +41,7 @@ Whitespace counts as zero units. Japanese, Chinese and Korean wide characters co
 Ways out at any time: Esc, the close button, a new question (spoken or typed) or a dictation, which
 replace the old words at once.
 
-- Esc in the focused overlay dismisses the bubble and stops an active answer.
+- Esc dismisses the bubble and stops an active answer while the foreground app receives the same key.
 - The close button (top right corner of the bubble, named "Close the answer" in the five languages)
   closes the bubble on every screen, and the answer's marks with it.
 - An answer's marks (boxes, circles, arrows, underlines and their labels) last as long as they are
@@ -60,7 +60,7 @@ replace the old words at once.
 
 ## Keyboard
 
-The overlay appears without activation. Click the bubble to give it keyboard focus. Escape then closes it. While another app has focus, that app receives Escape.
+Clicking the bubble or its X keeps keyboard focus in the current app. While speech is playing or the bubble is open, Filow listens for Escape through the passive gesture hook. It removes the Escape listener when both end.
 
 ## Where it lives
 

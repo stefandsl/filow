@@ -317,18 +317,30 @@ describe("reading and dismissing a bubble", () => {
 
 describe("Escape", () => {
   it("stops an answer in progress; with none it closes the bubble and wipes the marks", () => {
-    expect(escapePlan("thinking")).toEqual(["stop"]);
-    expect(escapePlan("speaking")).toEqual(["stop"]);
+    expect(escapePlan("thinking")).toEqual(["stop", "bubble"]);
+    expect(escapePlan("speaking")).toEqual(["stop", "bubble"]);
     for (const mode of ["idle", "error", "listening"]) expect(escapePlan(mode)).toEqual(["bubble", "marks"]);
   });
-  it("main's Escape follows that plan, only in the focused overlay", () => {
+  it.each(["", "First sentence"])("keeps Escape dismissed through the panel stop acknowledgement (%s)", (text) => {
+    const { bubble } = harness();
+    bubble.setMode("speaking");
+    bubble.setText(text);
+    bubble.close("escape");
+    bubble.setText("Late text from the panel");
+    bubble.setMode("idle", { stopped: true, holdMs: 4000 });
+    expect(bubble.open()).toBe(false);
+    bubble.setMode("thinking");
+    bubble.setText("Next question");
+    expect(bubble.open()).toBe(true);
+  });
+  it("main's Escape follows the stop and dismissal plan", () => {
     const at = main.indexOf("function onEscape()");
     const fn = main.slice(at, main.indexOf("\n  }\n", at));
     expect(fn).toContain("for (const step of escapePlan(mode))");
     expect(fn).toContain('if (step === "stop") stopAnswer("escape");');
     expect(fn).toContain('else if (step === "bubble") bubble.close("escape");');
     expect(fn).toContain("else clearDrawings();");
-    expect(main).not.toContain("K.Escape");
+    expect(main).not.toMatch(/globalShortcut\.register\(["'](?:Esc|Escape)["']/i);
   });
 });
 

@@ -84,7 +84,7 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R71 (2026-11-20, bubble-evade): Preserve a dismissal while speech and answer streaming overlap. Check: close after the first spoken sentence, deliver another segment, then start a new question.
 
 - R72 (2026-11-20, bubble-evade): Time finished and stopped text unless its answer has an action. Check: expire both, hold with Resume, remove the last action and observe dismissal.
-- R73 (2026-11-20, bubble-evade): Handle overlay Escape only in its focused window. Check: open Notepad's menu over a packaged answer and press Escape. The menu closes and the bubble remains.
+- R73 (2026-11-20, bubble-evade): Handle overlay Escape only in its focused window. Check: open Notepad's menu over a packaged answer and press Escape. The menu closes and the bubble remains. Superseded by R82.
 - R74 (2026-11-20, bubble-evade): Preserve fade and hit-area cleanup when changing a bubble timer. Check: observe an idle answer expire and the unpinned overlays hide.
 - R75 (2026-11-20, bubble-evade): Preserve reading units and separate dictation durations from notices. Check: time Japanese, spaced text, long text and panel holds at both bounds.
 - R76 (2026-11-20, bubble-evade): Retain lifecycle regressions across timer changes. Check: replay late text, replacement, pause, overlapping hover and focus, and a second close.
@@ -93,3 +93,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R79 (2026-11-20, bubble-evade): Verify detachment by position. Check: approach during a glide, leave, then grow the detached rectangle at a display edge.
 - R80 (2026-11-20, bubble-evade): Reuse cursor display scale in high-frequency hook callbacks. Check: inspect the move handler for native display queries and replay scaled shake thresholds.
 - R81 (2026-11-20, bubble-evade): Record intentional lifetime changes alongside preserved timing bounds. Check: compare the bubble timing table with the clock tests for each end state.
+- R82 (2026-11-21, bubble-evade): Observe Escape passively during speech or an open bubble and detach the observer when both end. Check: press Escape in a packaged run with Notepad's Open dialog in front. Verify the dialog closes, speech stops, the bubble stays dismissed after the stop acknowledgement and the idle observer has no listeners.
+- R83 (2026-11-21, bubble-evade): Keep bubble overlays non-activating while accepting mouse input. Check: click the packaged bubble text and X with Notepad in front. Verify its foreground window handle after each click and type into the same document.

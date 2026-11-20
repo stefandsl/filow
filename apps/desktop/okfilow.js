@@ -21,7 +21,7 @@ const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOve
 const { createHitTarget, insideAny, cleanHitReport, localPoint } = require("./okfilow-hit");
 const { cleanShow, showFor } = require("./okfilow-media");
 const { clampBounds, movedBounds, localRect } = require("./okfilow-move");
-const { escTarget, overlayEscape } = require("./okfilow-esc");
+const { createEscapeObserver } = require("./okfilow-esc");
 const { createPractice } = require("./tour");
 const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
@@ -221,6 +221,8 @@ function createOkFilow(deps) {
   let stt = null;
   let tts = null;
   let hook = null;
+  let escapeKey;
+  const observeEscape = createEscapeObserver(onEscape);
   let hookError = "";
   /** macOS only: the permission hold-to-talk still lacks (mac-permissions.js), "" when none. */
   let hookPermission = "";
@@ -305,6 +307,7 @@ function createOkFilow(deps) {
   }
   function refreshBubbleMouse() {
     const open = bubble.open();
+    observeEscape(hook, escapeKey, mode, open);
     if (!open) {
       for (const id of bubbleHover) stopHover.delete(id);
       shake.reset();
@@ -698,7 +701,6 @@ function createOkFilow(deps) {
           backgroundColor: "#00000000",
           webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload, backgroundThrottling: false },
         });
-        w.webContents.on("before-input-event", (event, input) => overlayEscape(w.isFocused(), event, input, pressEsc));
         w.on("blur", () => {
           if (bubbleFocus.delete(w.webContents.id)) bubble.setFocus(bubbleFocus.size > 0);
         });
@@ -844,7 +846,7 @@ function createOkFilow(deps) {
     // By what the panel says it is for: the keys of a short press are up again before the microphone is open.
     if (next === "opening" && extra.purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
     if (next === "listening" && extra.purpose === "dictate") dictation.diag.mark("open", {}, { once: true });
-    sendOverlays("okfilow:state", { mode, ...extra });
+    sendOverlays("okfilow:state", { mode, ...extra, bubbleDismissed: extra.stopped === true && !bubble.open() });
     sendPanel("okfilow:mode", { mode, ...extra });
     if (mode !== "idle" && mode !== "error") {
       clearTimeout(fadeTimer);
@@ -1118,8 +1120,6 @@ function createOkFilow(deps) {
     if (!w || w.isDestroyed()) return;
     const id = w.webContents.id;
     const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), media: mediaOn.has(id), mode, pill, bubble: bubble.open() });
-    const focusable = bubble.open() && (bubbleHover.has(id) || w.isFocused());
-    if (w.isFocusable() !== focusable) w.setFocusable(focusable);
     w.setIgnoreMouseEvents(m.ignore);
     // Test builds log every change, so an end-to-end run can tell whether Windows would deliver a click.
     if (QA_SHOTS && mouseWas.get(id) !== m.ignore) logLine(`okfilow qa overlay ${id} mouse ${m.ignore ? "click-through" : "takes clicks"} (mode ${mode}, hover ${stopHover.has(id)}, caught ${mouseCaught})`);
@@ -1139,7 +1139,7 @@ function createOkFilow(deps) {
     return true;
   }
   /**
-   * Escape: stops the answer in progress; when there is none, closes the bubble and wipes the drawings
+   * Escape dismisses the bubble and stops the answer in progress, or wipes idle drawings
    * (okfilow-stop.js escapePlan). Always ends a held or hands-free dictation.
    */
   function onEscape() {
@@ -1151,26 +1151,6 @@ function createOkFilow(deps) {
     gestures?.escape();
   }
 
-  // ---- Escape on what OK Filow shows (okfilow-esc.js): handled by the focused overlay ----
-  let escAt = 0;
-  const modelShown = () => Boolean(modelWin && !modelWin.isDestroyed() && modelWin.isVisible());
-  function pressEsc() {
-    const now = Date.now();
-    // an answer in progress: Escape stops it first, as before
-    if (answering(mode) || bubble.open()) {
-      escAt = now;
-      onEscape();
-      if (answering(mode)) bubble.close("escape");
-      return;
-    }
-    const what = escTarget({ model: modelShown(), items: pinned(), bubble: bubble.open(), lastAt: escAt, now });
-    escAt = now;
-    logLine(`okfilow: Escape closes ${what || "nothing"}`);
-    if ((what === "model" || what === "all") && modelShown()) modelWin.close();
-    if (what === "items" || what === "all") clearDrawings();
-    if (what === "bubble" || what === "all") bubble.close("escape");
-    gestures?.escape();
-  }
   function onGesture(ev) {
     logLine(`okfilow: gesture ${ev}`);
     switch (ev) {
@@ -1361,6 +1341,8 @@ function createOkFilow(deps) {
       });
       uIOhook.start();
       hook = uIOhook;
+      escapeKey = K.Escape;
+      observeEscape(hook, escapeKey, mode, bubble.open());
     }
   }
   let powerWired = false;
@@ -1888,6 +1870,7 @@ function createOkFilow(deps) {
     if (modelWin && !modelWin.isDestroyed()) modelWin.destroy();
     if (boardWin && !boardWin.isDestroyed()) boardWin.destroy();
     hookRetry.stop();
+    observeEscape(null, escapeKey, mode, false);
     for (const k of [eyeBound, pauseBound]) { if (k.accelerator) { try { globalShortcut.unregister(k.accelerator); } catch { /* quitting */ } } }
     try { hook?.stop(); } catch { /* quitting */ }
     stopCursor();

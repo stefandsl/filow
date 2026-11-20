@@ -35,6 +35,7 @@ function setup() {
     cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint, overlayMouse, ipcMain, modelHit, modelWin: model,
     overlays: new Map([[1, overlay], [2, second]]), ourSender: () => allowed,
     mediaRects: new Map(), mediaOn: new Set(), stopHover: new Set(), mouseWas: new Map(), bubbleHover: new Set(), bubbleFocus: new Set(), shake: { reset: vi.fn() }, detachedDisplay: null, bubbleGeneration: 0,
+    observeEscape: vi.fn(), hook: null, escapeKey: 1,
     mouseCaught: false, mode: "idle", pill: {}, bubble: { open: () => false, setHover: vi.fn(), setFocus: vi.fn() }, QA_SHOTS: false,
     lastCursor: "", screen: { getCursorScreenPoint: () => cursor, getDisplayMatching: () => ({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } }) },
     applyMouse: (_w: typeof overlay) => {}, mediaHit: (_w: typeof overlay, _p: unknown) => {},
@@ -52,6 +53,16 @@ function setup() {
   const send = (w: typeof overlay, rects: unknown, channel = w === model ? "model" : "overlay") => ipcMain.emit(`okfilow:${channel}:rects`, { sender: w.webContents }, rects);
   return { overlay, second, model, panel, modelHit, context, send, deny: () => { allowed = false; }, point: (p: typeof cursor) => { cursor = p; context.mediaHit(overlay, p); modelHit.at(p); } };
 }
+
+it("accepts clicks on a hovered bubble without making the overlay focusable", () => {
+  const h = setup();
+  h.context.bubble.open = () => true;
+  h.context.bubbleHover.add(1);
+  h.context.stopHover.add(1);
+  h.context.applyMouse(h.overlay);
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+  expect(h.overlay.setFocusable).not.toHaveBeenCalledWith(true);
+});
 
 it("binds detachment to the reporting display and ignores a previous bubble's late claim", () => {
   const h = setup();

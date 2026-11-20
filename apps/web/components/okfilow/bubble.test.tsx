@@ -165,7 +165,7 @@ describe("the overlay page and the bubble", () => {
     expect(overlay).toContain('const bubbleShown = here && !closed && Boolean(text || stopped || mode === "listening" || mode === "thinking");');
     expect(overlay).toMatch(/b\.onBubbleClose\?\.\(\(\) => \{\s*setClosed\(true\);/);
     expect(overlay).toMatch(/b\.onText\(\(next\) => \{\s*setText\(next\);\s*if \(next\) reopen\(\);/);
-    expect(overlay).toContain('if (s.mode === "listening" || s.mode === "thinking" || s.stopped === true) reopen();');
+    expect(overlay).toContain('if (s.mode === "listening" || s.mode === "thinking" || (s.stopped === true && !s.bubbleDismissed)) reopen();');
     // the stopped pill goes with it
     expect(overlay).toContain("const view = pillView({ mode, purpose, stopped: stopped && !closed, pill });");
   });

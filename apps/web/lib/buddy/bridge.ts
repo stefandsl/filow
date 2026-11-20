@@ -307,7 +307,7 @@ export type OkFilowBridge = {
   onConfig(fn: (s: OkFilowStatus) => void): Off;
   onMode(fn: (s: { mode: OkFilowMode; error?: string }) => void): Off;
   /** `sees`: this question took the screen with it; `stopped`: the user stopped the answer. */
-  onState(fn: (s: { mode: OkFilowMode; error?: string; purpose?: string; sees?: boolean; stopped?: boolean }) => void): Off;
+  onState(fn: (s: { mode: OkFilowMode; error?: string; purpose?: string; sees?: boolean; stopped?: boolean; bubbleDismissed?: boolean }) => void): Off;
   onCursor(fn: (p: { x: number; y: number } | null, detachedHere?: boolean | null, generation?: number) => void): Off;
   onLevel(fn: (v: number) => void): Off;
   onText(fn: (t: string) => void): Off;
