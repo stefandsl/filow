@@ -67,7 +67,7 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
   const [provider, runtime, ...args] = process.argv.slice(2);
   // Previously issued scripts start directly with the executable.
   const step = args[0] === '--step' ? args.splice(0,2)[1] : 'Dispatch';
-  const operatorRoot = step === 'Builder' && args[0] === '--operator-root' ? args.splice(0,2)[1] : undefined;
+  const operatorRoot = args[0] === '--operator-root' ? args.splice(0,2)[1] : undefined;
   const exe = args.shift();
 
   const file = path.join(runtime,'..','dispatch.log');

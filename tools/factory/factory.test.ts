@@ -876,7 +876,7 @@ it('reissues a builder packet on a closed review and holds a ruleless correction
   expect(inspect(tree).head).toBe(corrected.head);
 });
 
-it('checks the operator identity before dispatch and forwards it only to the builder', async () => {
+it('checks the operator identity before dispatch and forwards it when an operator checkout is supplied', async () => {
   const { providerEnv } = await import('./dispatch.mjs');
   const runtime = path.join(lab,'identity test');
   const config = path.join(lab,'operator.gitconfig');
@@ -982,3 +982,29 @@ it.runIf(process.platform === 'win32')('names the file and live process on a Win
     expect(installLock('npm error code EPERM\nnpm error path ' + file,lab)).toContain('Lock probe compilation failed (ENOENT)');
   } finally { const done = new Promise(resolve=>holder.once('exit',resolve)); holder.kill(); await done; }
 },90000); // Includes two compilations and the native process and Restart Manager queries on Windows CI.
+
+it.each(['Coordinator','Builder','Repair','Reviewer, blind case','Reviewer, replay','Judge'])(
+  'runs Git with the shared shell allowlist in the %s packet', async kind => {
+    vi.stubEnv('CODEX_API_KEY',marker); vi.stubEnv('OPENROUTER_API_KEY',marker);
+    const role = kind === 'Repair' ? 'Builder' : kind;
+    const folder = path.join(lab,'packet-env',kind === 'Repair' ? 'b/00000000' : kind);
+    const state = {...packetState(false),risk:{level:'Heavy',reason:'Independent replay'}};
+    packet(state,role,folder,'Check Git.',path.join(folder,'report.json'),()=>process.execPath);
+    const script = fs.readFileSync(path.join(folder,'dispatch.ps1'),'utf8');
+    expect(script).toContain("'--operator-root' '" + tree.replaceAll("'","''") + "'");
+    expect(script).toContain('shell_environment_policy.ignore_default_excludes=true');
+    expect(script).not.toContain('shell_environment_policy.exclude=');
+    const policy = script.match(/shell_environment_policy\.include_only=\[([^\]]+)\]/)![1];
+    const names = policy.split(',').map(name=>name.replaceAll("'",""));
+    const {providerEnv} = await import('./dispatch.mjs');
+    const child = providerEnv(route('Heavy',role).provider,process.env,path.join(folder,'rt'),tree);
+    Object.assign(child,{GIT_CONFIG_COUNT:'2',GIT_CONFIG_KEY_0:'core.longpaths',GIT_CONFIG_VALUE_0:'true',
+      GIT_CONFIG_KEY_1:'factory.probe',GIT_CONFIG_VALUE_1:'second'});
+    const env = Object.fromEntries(Object.entries(child).filter(([name]) => names.some(pattern =>
+      pattern.endsWith('*') ? name.startsWith(pattern.slice(0,-1)) : name === pattern))) as NodeJS.ProcessEnv;
+    for (const key of ['CODEX_API_KEY','OPENROUTER_API_KEY','CODEX_HOME']) expect(env).not.toHaveProperty(key);
+    const run = (...args:string[]) => execFileSync('git',args,{env,cwd:folder,encoding:'utf8'}).trim();
+    expect(run('config','core.longpaths')).toBe('true');
+    expect(run('config','factory.probe')).toBe('second');
+    for (const who of ['AUTHOR','COMMITTER']) expect(run('var','GIT_'+who+'_IDENT')).toContain('Practice <practice@example.invalid>');
+  },15000); // Generates a real packet and starts four Git processes per role.
