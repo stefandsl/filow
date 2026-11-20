@@ -12,7 +12,7 @@ The practice ticket asks for a confirmation that tells the user what to do next.
 
 ### Junior | Open your own copy
 
-Use PowerShell, Git and Node 22. Choose a writable project volume outside C: with at least 20 GB free. Start in its project directory. The practice uses the revision containing these commands. The historical manual tour exercise starts at `368f019`.
+Use PowerShell, Git and Node 22. In the operator checkout, verify that `git config user.name` and `git config user.email` return your commit name and email. Set them for this clone with `git config user.name "Your Name"` and `git config user.email "you@example.com"` before planning. The builder uses this identity for its commits. Choose a writable project volume outside C: with at least 20 GB free. Start in its project directory. The practice uses the revision containing these commands. The historical manual tour exercise starts at `368f019`.
 
 ```powershell
 $practiceRoot = Join-Path (Get-Location).Path 'filow-practice'

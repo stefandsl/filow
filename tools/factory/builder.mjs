@@ -2,22 +2,56 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getReport } from './review.mjs';
-import { ensure, git, Hold, json } from './worktree.mjs';
+import { ensure, git, hash, Hold, json, operatorIdentity, read } from './worktree.mjs';
 import { observeSlice } from './factory.mjs';
 import { linkDependencies } from './gates.mjs';
 
+function reusable(state, dir, copy, start) {
+  try {
+    const metadata = git(copy,'rev-parse','--absolute-git-dir');
+    if (fs.realpathSync(metadata) !== fs.realpathSync(path.join(dir,'git-data')) ||
+        git(copy,'branch','--show-current') !== state.branch || git(copy,'remote') ||
+        git(copy,'status','--porcelain','--untracked-files=all')) return false;
+    const stamp = path.join('node_modules','.filow-lock-sha256');
+    if (fs.realpathSync(path.join(copy,stamp)) !== fs.realpathSync(path.join(state.root,stamp)) ||
+        read(path.join(copy,stamp)) !== hash(fs.readFileSync(path.join(state.root,'package-lock.json')))) return false;
+    const head = git(copy,'rev-parse','HEAD');
+    if (head !== start) {
+      if (git(copy,'merge-base',start,head) !== start) return false;
+      observeSlice({root:copy,head},state);
+    }
+    return true;
+  } catch (error) {
+    if (error instanceof Hold || error.code === 'ENOENT' || error.code === 'ENOTDIR') return false;
+    throw error;
+  }
+}
+
 export function builderCheckout(state, dir, start) {
   const copy = path.join(dir,'checkout');
-  if (fs.existsSync(path.join(copy,'.git'))) return copy;
+  const identity = operatorIdentity(state.root);
+  const metadata = path.join(dir,'git-data');
+  if (fs.existsSync(copy) || fs.existsSync(metadata) || fs.existsSync(path.join(dir,'report.json'))) {
+    if (reusable(state,dir,copy,start)) return copy;
+    const backup = fs.mkdtempSync(path.join(dir,'incomplete-'));
+    for (const item of ['checkout','git-data','report.json']) {
+      const from = path.join(dir,item);
+      if (fs.existsSync(from)) fs.renameSync(from,path.join(backup,item));
+    }
+    const pointer = path.join(backup,'checkout','.git');
+    if (fs.lstatSync(pointer,{throwIfNoEntry:false})?.isFile() && fs.existsSync(path.join(backup,'git-data'))) {
+      fs.renameSync(pointer,pointer + '.original');
+      fs.writeFileSync(pointer,'gitdir: ../git-data\n');
+    }
+    console.log('Preserved incomplete builder checkout at ' + backup);
+  }
   fs.mkdirSync(dir,{recursive:true});
   // A private object database and index let the sandbox commit without write access to the primary clone.
   git(state.root,'clone','--quiet','--shared','--no-checkout','--config','core.longpaths=true','--separate-git-dir',path.join(dir,'git-data'),'--',state.root,copy);
   git(copy,'checkout','-q','-B',state.branch,start);
   git(copy,'remote','remove','origin');
-  const identity = /^(.*) <([^>]+)> /.exec(git(state.root,'var','GIT_AUTHOR_IDENT'));
-  ensure(identity,'Configure a Git author in the primary clone and repeat build.');
-  git(copy,'config','user.name',identity[1]);
-  git(copy,'config','user.email',identity[2]);
+  git(copy,'config','user.name',identity.GIT_AUTHOR_NAME);
+  git(copy,'config','user.email',identity.GIT_AUTHOR_EMAIL);
   linkDependencies(state.root,copy);
   return copy;
 }

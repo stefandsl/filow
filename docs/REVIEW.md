@@ -68,3 +68,6 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R56 (2026-11-19, N-08): enable Git long paths before creating private Windows repositories and retain the setting for builder commits. Check: issue a repair packet from a nested gate runtime whose ref lock exceeds MAX_PATH and read its generated brief.
 - R57 (2026-11-19, N-08): identify a mapped executable by its full image path when diagnosing a Windows install lock. Check: on the Windows CI runner, find the live fixture PID and verify an unused file with the same name reports no holder.
 - R58 (2026-11-19, N-08): distinguish a timed-out or failed Windows lock probe from a completed query with no holder. Check: exercise a missing compiler, a live executable and an idle neighboring file on the Windows runner.
+
+- R59 (2026-11-20, N-08): resolve the operator's configured Git identity before planning and forward author and committer values to the builder. Check: use a global name and repository email, then remove the effective name and verify a single actionable HOLD.
+- R60 (2026-11-20, N-08): verify private Git metadata, assigned branch, clean base or authorized slice and linked dependency stamp on resume. Check: interrupt setup before linking dependencies, dirty the checkout, switch branches and replay a valid committed slice.

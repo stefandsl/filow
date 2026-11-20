@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { Hold, ensure, git, gitOutput, hash, inspect, json, now, read, save, storage, withLock, writer } from './worktree.mjs';
+import { Hold, ensure, git, gitOutput, hash, inspect, json, now, operatorIdentity, read, save, storage, withLock, writer } from './worktree.mjs';
 import { editGrant, parse, safeText, stakes, ticketCard } from './plan.mjs';
 import { desktopCodex, desktopFix, loginFix, packet, ready, route } from './brief.mjs';
 import { reviewerFix } from './dispatch.mjs';
@@ -114,7 +114,11 @@ function build(state, tree, dir, options, checkpoint) {
   const file = path.join(dir,'builder',state.repairPacketBase || '', 'report.json');
   const folder = path.dirname(file);
   const privateTree = path.join(folder,'checkout');
-  if (!state.dry && fs.existsSync(path.join(privateTree,'.git')) && fs.existsSync(file)) {
+  if (!state.dry && fs.existsSync(file)) {
+    ensureDependencies(tree.root,dir);
+    builderCheckout(state,folder,state.repairPacketBase || state.base);
+  }
+  if (!state.dry && fs.existsSync(file)) {
     const report = getReport(file);
     const sha = builderResult(state,folder,report);
     actor(report,state.builderRoute);
@@ -228,6 +232,7 @@ export async function run(options, resolveCodex = desktopCodex) {
         ensure(state.step !== 'plan' && !state.planHold, state.planHold || 'Complete provider preflight with ' + next(state,'plan') + '.');
       }
       if (options.verb === 'plan') {
+        if (!state.dry) operatorIdentity(tree.root);
         if (!state.card.paths && options.card) {
           ensure(tree.head === state.base, 'The plan base changed before the card was frozen.');
           state = { ...create(tree,ticketCard(tree.root,state.ticket,options.card),options.dry), run: state.run, writer: writer() };

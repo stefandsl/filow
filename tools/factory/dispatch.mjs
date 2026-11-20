@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
+import { Hold, operatorIdentity } from './worktree.mjs';
 import { privateEnv } from './gates.mjs';
 
 export const reviewerFix = 'Set OPENROUTER_API_KEY or point FILOW_FACTORY_ENV at a dotenv file containing it';
@@ -32,7 +33,7 @@ export function reviewerKey(env) {
   }
 }
 
-export function providerEnv(provider, env, runtime) {
+export function providerEnv(provider, env, runtime, operatorRoot) {
   const child = privateEnv(runtime);
   if (provider === 'Anthropic' || provider === 'Google') {
     const key = reviewerKey(env);
@@ -42,6 +43,7 @@ export function providerEnv(provider, env, runtime) {
     if (key) child.CODEX_API_KEY = key;
     else child.CODEX_HOME = path.resolve(env.FILOW_CODEX_HOME || env.CODEX_HOME || path.join(os.homedir(), '.codex'));
   }
+  if (operatorRoot) Object.assign(child,operatorIdentity(operatorRoot));
   return child;
 }
 
@@ -65,12 +67,14 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
   const [provider, runtime, ...args] = process.argv.slice(2);
   // Previously issued scripts start directly with the executable.
   const step = args[0] === '--step' ? args.splice(0,2)[1] : 'Dispatch';
+  const operatorRoot = step === 'Builder' && args[0] === '--operator-root' ? args.splice(0,2)[1] : undefined;
   const exe = args.shift();
-  const env = providerEnv(provider, process.env, runtime);
+
   const file = path.join(runtime,'..','dispatch.log');
   const finish = startProgress(step, file);
   let code = 1;
   try {
+    const env = providerEnv(provider,process.env,runtime,operatorRoot);
     if (provider === 'OpenAI' || env.OPENROUTER_API_KEY) {
       const child = spawn(exe, args, { env, windowsHide: true, stdio: ['inherit','pipe','ignore'] });
       // Persist only known CLI event names. Payloads and stderr can contain private inputs.
@@ -86,6 +90,8 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
         child.once('close', status => resolve(status ?? 1));
       });
     }
+  } catch (error) {
+    console.error(error instanceof Hold ? error.message : 'Factory dispatch failed to launch.');
   } finally {
     finish(code);
     process.exitCode = code;

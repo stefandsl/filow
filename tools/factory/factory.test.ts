@@ -58,6 +58,7 @@ beforeAll(() => {
     fs.copyFileSync(path.join(source,f),path.join(clone,f));
   }
   fs.writeFileSync(path.join(clone,'.gitignore'),'node_modules/\n');
+  save(path.join(clone,'package.json'),{});
   save(path.join(clone,'package-lock.json'),{});
   fs.writeFileSync(path.join(lab,'install.cjs'),`
     const fs = require('node:fs');
@@ -821,6 +822,53 @@ it('reissues a builder packet on a closed review and holds a ruleless correction
   expect(resume.stderr).toMatch(/HOLD: .*rule.*same commit/i);
   expect(inspect(tree).head).toBe(corrected.head);
 });
+
+it('checks the operator identity before dispatch and forwards it only to the builder', async () => {
+  const { providerEnv } = await import('./dispatch.mjs');
+  const runtime = path.join(lab,'identity test');
+  const config = path.join(lab,'operator.gitconfig');
+  vi.stubEnv('GIT_CONFIG_GLOBAL',config);
+  git(clone,'config','--unset','user.name');
+  try {
+    git(clone,'config','--file',config,'user.name','Operator Name');
+    expect(providerEnv('OpenAI',process.env,runtime,tree)).toMatchObject({
+      GIT_AUTHOR_NAME:'Operator Name',GIT_COMMITTER_NAME:'Operator Name',
+      GIT_AUTHOR_EMAIL:'practice@example.invalid',GIT_COMMITTER_EMAIL:'practice@example.invalid',
+    });
+    expect(providerEnv('OpenAI',process.env,runtime)).not.toHaveProperty('GIT_AUTHOR_NAME');
+    git(clone,'config','user.name','');
+    const result = command('plan',fixture);
+    expect(result.stderr.trim()).toMatch(/^HOLD: [^\r\n]*Git identity[^\r\n]*user.name[^\r\n]*user.email[^\r\n]*$/);
+  } finally { git(clone,'config','user.name','Practice'); }
+},30000);
+
+it('rebuilds an interrupted checkout and reuses only a complete base or committed slice', async () => {
+  const { builderCheckout } = await import('./builder.mjs');
+  const state = {...freshSlice(),root:tree,branch:git(tree,'branch','--show-current')};
+  const dir = path.join(lab,'interrupted checkout');
+  const stamp = path.join('node_modules','.filow-lock-sha256');
+  fs.mkdirSync(path.join(tree,'node_modules'),{recursive:true});
+  fs.writeFileSync(path.join(tree,stamp),hash(fs.readFileSync(path.join(tree,'package-lock.json'))));
+  const prepare = () => builderCheckout(state,dir,state.base);
+  const copy = prepare();
+  fs.unlinkSync(path.join(copy,'node_modules'));
+  prepare();
+  expect(fs.existsSync(path.join(copy,stamp))).toBe(true);
+  fs.writeFileSync(path.join(copy,'unfinished.txt'),'preserve draft');
+  prepare();
+  expect(git(copy,'status','--porcelain')).toBe('');
+  git(copy,'checkout','-qb','wrong');
+  prepare();
+  expect(git(copy,'branch','--show-current')).toBe(state.branch);
+  git(copy,'commit','--allow-empty','-qm','Unrelated');
+  prepare();
+  expect(git(copy,'rev-parse','HEAD')).toBe(state.base);
+  fs.appendFileSync(path.join(copy,state.card.paths[0]),'changed');
+  git(copy,'commit','-qam',state.ticket + ' Record slice','-m','Factory-Run: ' + state.run);
+  const committed = git(copy,'rev-parse','HEAD');
+  prepare();
+  expect(git(copy,'rev-parse','HEAD')).toBe(committed);
+},30000);
 
 it('rejects a dirty builder reply, preserves the ticket and accepts only the ticketed private commit', async () => {
   const { builderCheckout, builderResult } = await import('./builder.mjs');

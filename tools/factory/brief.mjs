@@ -38,7 +38,7 @@ const schemas = {
   Coordinator: 'card', Builder: 'builder', 'Reviewer, blind case': 'blind', 'Reviewer, replay': 'replay', Judge: 'replay',
 };
 
-export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, role, builder = false, runFile }) {
+export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, role, builder = false, operatorRoot, runFile }) {
   ensure(fs.existsSync(schema), 'Missing packet schema: ' + schema);
   const independent = model.via === 'OpenRouter';
   const providerArgs = independent ? ['-c','model_provider=openrouter',
@@ -51,7 +51,7 @@ export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, 
     '-s',builder ? 'workspace-write' : 'read-only',...(builder && runFile ? ['--add-dir',path.join(folder,'git-data')] : []),...providerArgs,'-m',model.model,'-c','model_reasoning_effort=' + model.effort,
     '-c','log_dir=' + path.join(folder,'runtime','logs'),'-c','shell_environment_policy.inherit=all','-c',"shell_environment_policy.exclude=['*KEY*','*TOKEN*','*SECRET*','*PASSWORD*','*AUTH*','*CREDENTIAL*','CODEX_HOME']",'--output-schema',schema,'-o',output,'-'];
   // Resolve credentials in the launcher process each time the printed command runs.
-  const launchArgs = [path.join(import.meta.dirname,'dispatch.mjs'),model.provider,path.join(folder,'runtime'),'--step',role,exe,...args];
+  const launchArgs = [path.join(import.meta.dirname,'dispatch.mjs'),model.provider,path.join(folder,'runtime'),'--step',role,...(builder && operatorRoot ? ['--operator-root',operatorRoot] : []),exe,...args];
   const script = ["$ErrorActionPreference = 'Stop'", "$OutputEncoding = [Text.UTF8Encoding]::new($false)",
     '$briefText = Get-Content -Raw -Encoding UTF8 -LiteralPath ' + quote(brief),
     // Windows PowerShell 5.1 routes redirected native stderr through its error stream.
@@ -109,7 +109,7 @@ export function packet(state, role, folder, instructions, output, resolveCodex =
     console.log('DRY RUN: would dispatch the ' + role + ' packet to ' + model.provider + ' ' + model.model + '.');
   } else if (readyNow) {
     const schema = path.join(import.meta.dirname, schemas[role] + '.schema.json');
-    writeDispatch({ exe, model, cwd, folder, brief, output, schema, role, builder, runFile:state.runFile });
+    writeDispatch({ exe, model, cwd, folder, brief, output, schema, role, builder, operatorRoot:state.root, runFile:state.runFile });
   } else {
     const fix = !exe ? desktopFix : model.provider === 'OpenAI' ? loginFix + '.' : reviewerFix + '.';
     ensure(false, role + ' dispatch unavailable. ' + fix);

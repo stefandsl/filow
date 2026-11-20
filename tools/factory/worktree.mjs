@@ -24,6 +24,20 @@ export function childEnv() {
   return Object.fromEntries(Object.entries(process.env).filter(([k]) =>
     /^(path|pathext|systemdrive|systemroot|computername|windir|comspec|programfiles(?:\(x86\))?|processor_architecture|number_of_processors|os|lang)$/i.test(k)));
 }
+export function operatorIdentity(root) {
+  const configured = key => {
+    const result = spawnSync('git',['config','--get',key],{
+      cwd:root,encoding:'utf8',windowsHide:true,timeout:30000,stdio:['ignore','pipe','pipe'],
+    });
+    const value = result.stdout?.trim();
+    ensure(result.status === 0 && value && !/[\r\n]/.test(value),
+      'Missing Git identity. Configure git config user.name and git config user.email in the operator checkout.');
+    return value;
+  };
+  const name = configured('user.name'), email = configured('user.email');
+  return {GIT_AUTHOR_NAME:name,GIT_AUTHOR_EMAIL:email,GIT_COMMITTER_NAME:name,GIT_COMMITTER_EMAIL:email};
+}
+
 export function git(cwd, ...args) {
   return gitOutput(cwd, ...args).trimEnd();
 }
