@@ -6,6 +6,7 @@ import { useLang } from "@filow/ui";
 import { createWakeCapture } from "@/lib/buddy/wake";
 import { floatMicNode, openSelectedMic } from "@filow/stt";
 import { abandonedNote, createHoldRelease, emptyRecordingNote, micNoteText, openMicrophone, type MicOpening } from "@/lib/buddy/micOpen";
+import { isBubbleCloseCommand } from "@/lib/buddy/close-command";
 import { waitForTranscript } from "@/lib/buddy/transcript-tail";
 import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture, type OkFilowCard, type OkFilowJob, type OkFilowMode, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
@@ -1056,6 +1057,7 @@ export default function OkFilowPanel() {
 
   const wakeCapture = useRef<ReturnType<typeof createWakeCapture> | null>(null);
   const wakeSilenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hadBubble = useRef<Promise<boolean> | undefined>(undefined);
   const startListening = useCallback(async (why: Purpose = "talk", carry?: Float32Array) => {
     const b = okFilowBridge();
     if (!b) return;
@@ -1065,6 +1067,7 @@ export default function OkFilowPanel() {
       if (stopping.current || pendingStop.current !== null) queuedStart.current = why;
       return;
     }
+    hadBubble.current = why !== "dictate" ? b.bubbleOpen?.().catch(() => false) : undefined;
     wakeCapture.current?.stop();
     starting.current = true;
     pendingStop.current = null;
@@ -1340,6 +1343,10 @@ export default function OkFilowPanel() {
       const line = slowMic ? micNoteText(slowMic, t) : t("notHeard");
       b.text(line);
       return setMode("error", { error: line });
+    }
+    if (isBubbleCloseCommand(question) && await hadBubble.current) {
+      b.closeBubbleByVoice?.();
+      return setMode("idle");
     }
     if (pendingMarks.current) pendingMarks.current.heard = Date.now();
     void ask(question);
@@ -1704,6 +1711,10 @@ export default function OkFilowPanel() {
           <label className="okf-row">
             <span>{t("enabled")}</span>
             <input type="checkbox" checked={c.enabled} onChange={(e) => void configure({ enabled: e.target.checked })} />
+          </label>
+          <label className="okf-row">
+            <span>{t("shakeToClose")}</span>
+            <input type="checkbox" checked={c.shakeToClose !== false} onChange={e => void configure({ shakeToClose: e.target.checked })} />
           </label>
           <label className="okf-row">
             <span>{t("showAlways")}</span>

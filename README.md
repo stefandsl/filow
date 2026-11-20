@@ -752,6 +752,8 @@ The local voice switches common English UI words and quoted English screen label
 with the same speaker. It expands dates, times, years, amounts and versions before speaking,
 and keeps a short quiet ending. Russian, Romanian and Japanese number forms still need native review.
 
+Approach an OK Filow bubble to hold it and the pointer still. Click X, press Esc, shake the mouse horizontally, or hold the talk keys and say “close”. You can turn off the shake gesture in the OK Filow panel. Notices and errors disappear after 6 to 20 seconds of reading time, paused on hover or focus. Answers stay available until dismissed or replaced.
+
 Screen marks follow the spoken sentences and keep their earlier positions as an answer grows. The pointer and its label travel together through clear space; a blocked route hides the pointer instead of covering detected text. The answer bubble grows smoothly (without size animation when reduced motion is enabled). The 3D view uses surface anchors and spaced leader lanes, with readable labels in both themes; empty model margins let clicks through.
 
 When a target rectangle is available, the pointer lands on its corner and underlines it, with a visible ring in either theme. Model leaders use wider lanes and prefer anchors inside each visible part. The light model stage has a blue-grey background, stronger shell edges and a compact shadow.

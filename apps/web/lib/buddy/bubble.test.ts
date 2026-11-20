@@ -22,7 +22,7 @@ const overlaps = (at: { x: number; y: number }, size: { width: number; height: n
 describe("where the bubble sits", () => {
   it("keeps eight pixels from every edge", () => {
     expect(BUBBLE_EDGE).toBe(8);
-    expect(BUBBLE_REACH).toBe(96);
+    expect(BUBBLE_REACH).toBe(120);
   });
   it("lower right of the dot when there is room", () => {
     expect(bubblePlacement({ x: 100, y: 100 }, { width: 200, height: 80 }, { width: 1920, height: 1080 })).toEqual({ x: 130, y: 118 });
@@ -94,7 +94,7 @@ describe("the bubble holds still for the pointer", () => {
     expect(bubbleSticks({ x: 880 + BUBBLE_REACH + 1, y: 400 }, rect)).toBe(false);
     expect(bubbleSticks({ x: 600, y: 500 + BUBBLE_REACH + 1 }, rect)).toBe(false);
     // diagonal distance, not a square
-    expect(bubbleSticks({ x: 500 - 80, y: 300 - 80 }, rect)).toBe(false);
+    expect(bubbleSticks({ x: 500 - 90, y: 300 - 90 }, rect)).toBe(false);
     expect(bubbleSticks({ x: 500 - 60, y: 300 - 60 }, rect)).toBe(true);
   });
   it("no pointer on this screen, or no bubble: nothing to hold", () => {

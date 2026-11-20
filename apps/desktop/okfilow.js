@@ -10,7 +10,7 @@ const INPUT_OFF = globalInputOff();
 const globalShortcut = shortcutsFor(electronShortcuts, INPUT_OFF);
 const { keyboardPermission } = require("./mac-permissions");
 const path = require("node:path");
-const { createGestures, chordHeld, ARM_MS } = require("./okfilow-gestures");
+const { shakeStep, createGestures, chordHeld, ARM_MS } = require("./okfilow-gestures");
 const { createReleaseTail, RELEASE_TAIL_MS } = require("./dictation-release");
 const { createHookRetry, describeHookError, QUICK_MS } = require("./okfilow-hook-retry");
 const { loadUiohook } = require("./uiohook");
@@ -48,6 +48,7 @@ const DEFAULTS = {
   provider: "local",
   voice: "system",
   showAlways: false,
+  shakeToClose: true,
   // Dictation's switch lives in settings.dictation (dictation.js); an old okFilow.dictation: false is
   // still read there until the user changes a dictation setting.
   /** Buddy, drawing and highlighter colour (HeyClicky's cursor_color_hex). */
@@ -263,6 +264,8 @@ function createOkFilow(deps) {
   // It goes away by itself once nothing runs any more, whatever keeps the overlays up (marks, the
   // always-on pointer): every overlay is told, the mouse is given back, and the overlays may fade.
   /** The overlays whose bubble has the pointer on it right now (webContents ids). */
+  let shakeSamples = [];
+  const bubbleFocus = new Set();
   const bubbleHover = new Set();
   const bubble = createBubble({
     onPlan: (ms) => { if (QA_SHOTS) logLine(`okfilow qa bubble ${ms === null ? "stays" : `closes in ${ms} ms`} (mode ${mode})`); },
@@ -297,6 +300,9 @@ function createOkFilow(deps) {
     const open = bubble.open();
     if (!open) {
       for (const id of bubbleHover) stopHover.delete(id);
+      shakeSamples = [];
+      bubbleFocus.clear();
+      bubble.setFocus(false);
       bubbleHover.clear();
       bubble.setHover(false);
     }
@@ -326,6 +332,7 @@ function createOkFilow(deps) {
     mediaRects.delete(senderId);
     mediaOn.delete(senderId);
     mouseWas.delete(senderId);
+    if (bubbleFocus.delete(senderId)) bubble.setFocus(bubbleFocus.size > 0);
     if (bubbleHover.delete(senderId)) bubble.setHover(bubbleHover.size > 0);
   }
   /** Rectangle state belongs to this renderer only, including after a crash or reload. */
@@ -345,6 +352,17 @@ function createOkFilow(deps) {
   }
   /** The bubble's close button (an overlay). */
   ipcMain.on("okfilow:bubble:close", (e) => { if (ourSender(e)) bubble.close("button"); });
+  ipcMain.on("okfilow:bubble:focus", (e, focused) => {
+    if (!ourSender(e)) return;
+    if (focused && bubble.open()) bubbleFocus.add(e.sender.id);
+    else bubbleFocus.delete(e.sender.id);
+    bubble.setFocus(bubbleFocus.size > 0);
+  });
+  ipcMain.handle("okfilow:bubble:open", (e) => ourSender(e) && bubble.open());
+  ipcMain.on("okfilow:bubble:voice", (e) => {
+    if (!ourSender(e)) return;
+    if (!bubble.close("voice")) sendOverlays("okfilow:bubble:close", "voice");
+  });
   /** The sentence the voice is on (the panel knows): the overlays keep it in view. */
   ipcMain.on("okfilow:spoken", (e, n) => {
     if (!ourSender(e)) return;
@@ -1291,7 +1309,20 @@ function createOkFilow(deps) {
         // After an unlock or a wake-up Windows often allows the hook again: do not wait out the retry delay.
         for (const ev of ["unlock-screen", "resume"]) powerMonitor.on(ev, () => hookRetry.nudge());
       }
-      uIOhook.on("mousedown", () => {
+      const buttons = new Set();
+      const shakeEnabled = () => bubble.open() && mode !== "opening" && mode !== "listening" && cfg().shakeToClose !== false;
+      uIOhook.on("mouseup", e => buttons.delete(e.button));
+      uIOhook.on("wheel", () => { shakeSamples = []; });
+      uIOhook.on("mousemove", e => {
+        if (buttons.size || !shakeEnabled()) { shakeSamples = []; return; }
+        const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+        const result = shakeStep(shakeSamples, { x: e.x, y: e.y, at: performance.now(), kind: "move" }, display.scaleFactor);
+        shakeSamples = result.samples;
+        if (result.close) bubble.close("shake");
+      });
+      uIOhook.on("mousedown", (e) => {
+        buttons.add(e.button);
+        shakeSamples = [];
         // A click anywhere but on the bubble or the pill, once the answer has ended: the screen may
         // have changed under the marks, so they go (while the answer is told they stay).
         if (!bubbleHover.size && !stopHover.size) answerMarks.screenChanged();

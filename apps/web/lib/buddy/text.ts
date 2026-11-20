@@ -40,6 +40,8 @@ const en = {
   wakeWorking: "Preparing local wake word",
   desktopOnly: "OK Filow runs in the Filow desktop app.",
   close: "Close",
+  shakeToClose: "Shake the mouse to close the bubble",
+  bubbleClosed: "Bubble closed",
   closeAnswer: "Close the answer",
   modelHint: "Drag to turn, scroll to zoom, click a part to ask about it",
   modelAsking: "Asking about {part}…",

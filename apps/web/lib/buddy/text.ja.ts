@@ -35,6 +35,8 @@ export const ja: Record<OkfKey, string> = {
   wakeWorking: "ローカルのウェイクワードを準備中",
   desktopOnly: "OK FilowはFilowのデスクトップアプリで動きます。",
   close: "閉じる",
+  shakeToClose: "マウスを振って吹き出しを閉じる",
+  bubbleClosed: "吹き出しを閉じました",
   closeAnswer: "回答を閉じる",
   modelHint: "ドラッグで回転、スクロールで拡大、パーツをクリックして質問",
   modelAsking: "{part}について質問中…",

@@ -35,6 +35,8 @@ export const ro: Record<OkfKey, string> = {
   wakeWorking: "Pregătesc fraza locală",
   desktopOnly: "OK Filow funcționează în aplicația desktop Filow.",
   close: "Închide",
+  shakeToClose: "Scutură mouse-ul pentru a închide balonul",
+  bubbleClosed: "Balon închis",
   closeAnswer: "Închide răspunsul",
   modelHint: "Trage pentru a roti, derulează pentru zoom, fă clic pe o parte ca să întrebi despre ea",
   modelAsking: "Întreb despre {part}…",

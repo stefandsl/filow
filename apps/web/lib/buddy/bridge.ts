@@ -59,6 +59,7 @@ export type OkFilowStatus = {
   voice: "natural" | "system" | "cloud" | "off";
   /** -1 or absent: automatic by language. Explicit voices: 0-4 female, 5-9 male. */
   naturalVoice?: number;
+  shakeToClose?: boolean;
   showAlways: boolean;
   dictation: boolean;
   color: string;
@@ -265,6 +266,9 @@ export type OkFilowBridge = {
    */
   overlayHover?(on: boolean, onBubble?: boolean): void;
   /** Overlay -> main: the bubble's close button. Main closes the bubble on every overlay (onBubbleClose). Absent in a desktop build older than it. */
+  bubbleOpen?(): Promise<boolean>;
+  closeBubbleByVoice?(): void;
+  bubbleFocus?(on: boolean): void;
   closeBubble?(): void;
   /** Main -> overlays: the bubble goes away now (its time is up, Escape, its close button). */
   onBubbleClose?(fn: (why: string | undefined) => void): Off;

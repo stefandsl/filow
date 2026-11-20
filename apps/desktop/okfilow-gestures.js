@@ -186,4 +186,26 @@ function createGestures(o) {
   };
 }
 
-module.exports = { createGestures, chordHeld, ARM_MS, TAP_MS, DOUBLE_MS, SHORT_MS, DOUBLE_GAP_MS };
+const SHAKE = { legDip: 40, reversals: 3, windowMs: 700 };
+
+/** Native hook coordinates are physical pixels. Only unpressed horizontal moves count. */
+function shakeStep(history, event, scale) {
+  if (event.kind !== "move") return { samples: [], close: false };
+  const samples = history.filter(p => event.at - p.at <= SHAKE.windowMs);
+  samples.push(event);
+  const leg = SHAKE.legDip * scale;
+  let pivot = samples[0], direction = 0, legs = 0;
+  for (const point of samples) {
+    const dx = point.x - pivot.x;
+    if (direction && dx * direction > 0) {
+      pivot = point;
+    } else if (Math.abs(dx) >= leg && Math.abs(dx) >= Math.abs(point.y - pivot.y)) {
+      direction = Math.sign(dx);
+      pivot = point;
+      if (++legs > SHAKE.reversals) return { samples: [], close: true };
+    }
+  }
+  return { samples, close: false };
+}
+
+module.exports = { shakeStep, createGestures, chordHeld, ARM_MS, TAP_MS, DOUBLE_MS, SHORT_MS, DOUBLE_GAP_MS };

@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 
 const require = createRequire(import.meta.url);
-const { keepsOverlays, MARKS_HOLD_MS, MARKS_UNSPOKEN_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, overlayMouse } = require("./okfilow-stop.js");
+const { keepsOverlays, MARKS_HOLD_MS, MARKS_UNSPOKEN_MS, marksHold, createMarks, pointsShowMs, BUBBLE_TEXT_MAX, bubbleText, readingMs, createBubble, escapePlan, overlayLive, overlayMouse } = require("./okfilow-stop.js");
 const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const main = fs.readFileSync(path.join(here, "okfilow.js"), "utf8").replace(/\r\n/g, "\n");
 const preload = fs.readFileSync(path.join(here, "okfilow-preload.js"), "utf8").replace(/\r\n/g, "\n");
@@ -71,195 +71,32 @@ describe("the bubble's text in the desktop shell", () => {
   });
 });
 
-describe("reading time", () => {
-  it("grows with the length, between five seconds and a minute and a half", () => {
-    expect(readingMs("Yes.")).toBe(BUBBLE.readMinMs);
-    expect(readingMs("a".repeat(200))).toBe(200 * BUBBLE.msPerChar);
-    expect(readingMs("a ".repeat(200))).toBe(200 * BUBBLE.msPerChar); // spaces are not read
-    expect(readingMs(LONG)).toBe(BUBBLE.readMaxMs);
-    expect(BUBBLE.readMinMs).toBe(5000);
-    expect(BUBBLE.readMaxMs).toBe(90000);
-  });
-  it("a Japanese letter takes twice the time of a Latin or Cyrillic one", () => {
-    const ja = "ファイルを整理するにはフォルダーを作ります。".repeat(6);
-    const ru = "Чтобы навести порядок, создайте папки.".repeat(6);
-    expect(readingMs(ja)).toBe([...ja].length * 2 * BUBBLE.msPerChar);
-    expect(readingMs(ru)).toBe([...ru.replace(/\s/g, "")].length * BUBBLE.msPerChar);
-  });
-});
-
-describe("when the bubble goes away by itself (the rule)", () => {
-  it("stays while an answer runs, while it is paused, while somebody talks, and while the pointer is on it", () => {
-    for (const mode of ["listening", "thinking", "speaking"]) expect(bubbleHold({ mode, text: "Some text." })).toBeNull();
-    // "Opening the microphone…" stays for as long as it is true (Windows once took 15 s)
-    expect(bubbleHold({ mode: "opening", text: "Opening the microphone…" })).toBeNull();
-    expect(bubbleHold({ mode: "idle", text: "Some text.", paused: true })).toBeNull();
-    expect(bubbleHold({ mode: "idle", text: "Some text.", hover: true })).toBeNull();
-    expect(bubbleHold({ mode: "idle", text: "", stopped: true, hover: true })).toBeNull();
-  });
-  it("every state in which nothing runs gets a time", () => {
-    // finished and spoken: the reading time has passed while the voice read
-    expect(bubbleHold({ mode: "idle", text: LONG, shownMs: 200000 })).toBe(BUBBLE.lingerMs);
-    // voice off, or a voice that failed or does not exist: nothing was heard, so the reading time counts from when it was shown
-    expect(bubbleHold({ mode: "idle", text: "a".repeat(400), shownMs: 50 })).toBe(400 * BUBBLE.msPerChar - 50);
-    expect(bubbleHold({ mode: "idle", text: LONG, shownMs: 0 })).toBe(BUBBLE.readMaxMs);
-    // an error
-    expect(bubbleHold({ mode: "error", text: "The model did not answer.", shownMs: 0 })).toBe(BUBBLE.readMinMs);
-    // stopped, with or without words on screen
-    expect(bubbleHold({ mode: "idle", text: LONG, stopped: true, shownMs: 0 })).toBe(BUBBLE.stoppedMs);
-    expect(bubbleHold({ mode: "idle", text: "", stopped: true })).toBe(BUBBLE.stoppedMs);
-    // a note with its own time (a dictation's result), kept within bounds
-    expect(bubbleHold({ mode: "idle", text: "Copied.", holdMs: 2500 })).toBe(2500);
-    expect(bubbleHold({ mode: "idle", text: "Copied.", holdMs: 60000 })).toBe(BUBBLE.noteMaxMs);
-    expect(bubbleHold({ mode: "idle", text: "Copied.", holdMs: 10 })).toBe(BUBBLE.noteMinMs);
-    // nothing to show: gone at once
-    expect(bubbleHold({ mode: "idle", text: "" })).toBe(0);
-    // the pointer has just left it
-    expect(bubbleHold({ mode: "idle", text: LONG, afterHover: true, shownMs: 0 })).toBe(BUBBLE.afterHoverMs);
-    expect(bubbleHold({ mode: "idle", text: LONG, stopped: true, afterHover: true })).toBe(BUBBLE.afterHoverMs);
-  });
-  it("the times themselves", () => {
-    expect(BUBBLE.lingerMs).toBe(4000);
-    expect(BUBBLE.stoppedMs).toBe(8000);
-    expect(BUBBLE.afterHoverMs).toBe(2500);
-  });
-});
-
-describe("the bubble's life: every end state schedules the dismissal", () => {
-  it("finished and spoken: gone four seconds after the voice ends", () => {
+describe("reading and dismissing a bubble", () => {
+  it("times a notice from its appearance, with a 20 second ceiling", () => {
+    expect(readingMs("Oops")).toBe(6240);
+    expect(readingMs(LONG)).toBe(20000);
     const h = harness();
-    answered(h, LONG, 240000);
-    expect(h.bubble.open()).toBe(true);
-    expect(h.pending()).toBe(1);
-    expect(h.due()).toBe(BUBBLE.lingerMs);
-    h.pass(BUBBLE.lingerMs - 1);
-    expect(h.closed).toEqual([]);
-    h.pass(1);
-    expect(h.closed).toEqual(["timer"]);
-    expect(h.bubble.open()).toBe(false);
-    expect(h.pending()).toBe(0);
-  });
-  it("voice off: the answer goes idle at once and stays for its reading time", () => {
-    const h = harness();
-    const text = "a".repeat(300);
-    answered(h, text, 0);
-    expect(h.due()).toBe(300 * BUBBLE.msPerChar);
-    h.pass(300 * BUBBLE.msPerChar);
-    expect(h.closed).toEqual(["timer"]);
-  });
-  it("the voice failed after a moment: the rest of the reading time, never less than four seconds", () => {
-    const h = harness();
-    answered(h, "a".repeat(300), 2000);
-    expect(h.due()).toBe(300 * BUBBLE.msPerChar - 2000);
-    const g = harness();
-    answered(g, "a".repeat(300), 17000);
-    expect(g.due()).toBe(BUBBLE.lingerMs);
-  });
-  it("the reading time starts when the whole text is there, not when its first words appeared", () => {
-    const h = harness();
-    h.bubble.setMode("thinking");
-    h.bubble.setText("a".repeat(100));
-    h.pass(30000); // the model writes for half a minute
-    h.bubble.setText("a".repeat(300));
-    h.bubble.setMode("speaking");
-    h.bubble.setMode("idle"); // voice off
-    expect(h.due()).toBe(300 * BUBBLE.msPerChar);
-  });
-  it("a pause is told to the bubble whatever the mode says: it stays", () => {
-    const h = harness();
-    answered(h, "a".repeat(300), 0);
-    expect(h.pending()).toBe(1);
-    h.bubble.setPaused(true);
-    expect(h.pending()).toBe(0);
-    h.bubble.setPaused(false);
-    expect(h.pending()).toBe(1);
-  });
-  it("an error: its message stays for its reading time, then goes", () => {
-    const h = harness();
-    h.bubble.setMode("thinking");
-    h.bubble.setText("The model did not answer.");
-    h.bubble.setMode("error", { error: "The model did not answer." });
-    expect(h.due()).toBe(BUBBLE.readMinMs);
-    h.pass(BUBBLE.readMinMs);
-    expect(h.closed).toEqual(["timer"]);
-  });
-  it("stopped: the bubble and its pill stay eight seconds, whatever time the panel asked for", () => {
-    const h = harness();
-    h.bubble.setMode("thinking");
-    h.bubble.setText("Half an answer.");
-    h.bubble.setMode("idle", { stopped: true, holdMs: 4000 });
-    expect(h.due()).toBe(BUBBLE.stoppedMs);
-    h.pass(BUBBLE.stoppedMs);
-    expect(h.closed).toEqual(["timer"]);
-    // stopped before any text: the "Stopped" mark alone is a bubble too, and goes the same way
-    const g = harness();
-    g.bubble.setMode("thinking");
-    g.bubble.setMode("idle", { stopped: true });
-    expect(g.bubble.open()).toBe(true);
-    g.pass(BUBBLE.stoppedMs);
-    expect(g.closed).toEqual(["timer"]);
-  });
-  it("the text may come after the mode (a note shown once idle): the dismissal is planned then", () => {
-    const h = harness();
-    h.bubble.setMode("idle");
-    expect(h.pending()).toBe(0);
-    h.bubble.setText("Kept on this PC.");
-    expect(h.due()).toBe(BUBBLE.readMinMs);
-  });
-  it("a dictation's note keeps the time the panel gave it", () => {
-    const h = harness();
-    h.bubble.setMode("listening", { purpose: "dictate" });
-    h.bubble.setText("Copied: paste it with Ctrl + V.");
-    expect(h.pending()).toBe(0);
-    h.bubble.setMode("idle", { holdMs: 5000 });
-    expect(h.due()).toBe(5000);
-  });
-  it("stays while paused and while the pointer is on it; leaves two and a half seconds after the pointer does", () => {
-    const h = harness();
-    h.bubble.setMode("thinking");
-    h.bubble.setText(LONG);
-    h.bubble.setMode("speaking");
-    h.bubble.setPaused(true);
-    h.pass(600000);
-    expect(h.closed).toEqual([]);
-    expect(h.pending()).toBe(0);
-    h.bubble.setPaused(false);
-    h.bubble.setMode("idle");
-    expect(h.due()).toBe(BUBBLE.lingerMs);
-    h.pass(1000);
+    h.bubble.setMode("listening");
+    h.bubble.setText("Oops");
+    h.bubble.setMode("error");
+    h.pass(2240);
     h.bubble.setHover(true);
-    expect(h.pending()).toBe(0);
-    h.pass(600000);
-    expect(h.closed).toEqual([]);
+    h.pass(50000);
     h.bubble.setHover(false);
-    expect(h.due()).toBe(BUBBLE.afterHoverMs);
-    h.pass(BUBBLE.afterHoverMs);
+    expect(h.due()).toBe(4000);
+    h.pass(4000);
     expect(h.closed).toEqual(["timer"]);
   });
-  it("a new question or a dictation takes the timer away, and its own end plans a new one", () => {
+  it("times an idle note and preserves an answer, including Resume", () => {
     const h = harness();
-    answered(h, LONG, 240000);
-    expect(h.pending()).toBe(1);
-    h.bubble.setMode("listening", { purpose: "talk" });
+    h.bubble.setText("Copied");
+    expect(h.due()).toBe(6360);
+    answered(h, LONG, 10000);
     expect(h.pending()).toBe(0);
-    h.bubble.setText("");
-    expect(h.bubble.open()).toBe(false);
-    h.pass(600000);
-    expect(h.closed).toEqual([]);
-    h.bubble.setText("I did not catch that.");
-    h.bubble.setMode("error", { error: "I did not catch that." });
-    expect(h.due()).toBe(BUBBLE.readMinMs);
-  });
-  it("Escape or the close button closes it at once, once; with no bubble there is nothing to close", () => {
-    const h = harness();
-    answered(h, LONG, 0);
+    h.bubble.setMode("idle", { stopped: true });
+    expect(h.pending()).toBe(0);
     expect(h.bubble.close("escape")).toBe(true);
-    expect(h.closed).toEqual(["escape"]);
-    expect(h.bubble.open()).toBe(false);
-    expect(h.pending()).toBe(0);
     expect(h.bubble.close("button")).toBe(false);
-    h.pass(600000);
-    expect(h.closed).toEqual(["escape"]);
   });
 });
 

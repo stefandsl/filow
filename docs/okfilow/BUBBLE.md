@@ -1,8 +1,7 @@
 # OK Filow: the answer bubble
 
 The bubble is the dark box next to the pointer that shows what OK Filow answers (and, while it
-listens, the waveform or a dictation's words). Mouse and keyboard only: no spoken or typed command
-closes it.
+listens, the waveform or a dictation's words). Use X, Esc, a horizontal mouse shake or a short spoken close command with the talk keys.
 
 ## The whole answer, always
 
@@ -15,9 +14,7 @@ closes it.
   out from what was played for the natural and the cloud voice). While the pointer is on the bubble
   the text does not move by itself: the user is scrolling it.
 - An answer's bubble holds still when the pointer comes to it: it stays where it is while the
-  pointer is on it or within 96 px of it, and follows again once the pointer goes further away
-  (`motion.ts` `bubbleSticks`). It stays by the pointer while the dot flies off to the things the
-  answer points at. While listening it follows the pointer as before.
+  pointer is within 120 CSS pixels. The bubble and buddy hold their displayed positions for the rest of that bubble.
 - Placement (`motion.ts` `bubblePlacement`, `bubbleOnScreen`): lower right of the pointer; to its
   left at the right edge, above it at the bottom edge; always wholly on screen, 8 px from every
   edge; never over the pill (a bubble that would lie over it goes below it).
@@ -33,11 +30,9 @@ keeps the bubble.
 | State | The bubble stays |
 | --- | --- |
 | Listening, thinking, speaking, paused | as long as that lasts |
-| The pointer is on it | as long as it is, then 2.5 s more |
-| Answer finished | 4 s after the end, and never less than its reading time counted from when the whole text was shown. Reading time: 60 ms a letter (120 ms for Japanese, Chinese and Korean letters), between 5 s and 90 s. A spoken answer has usually been on screen that long, so it goes 4 s after the voice; with the voice off, missing or failed it stays for the reading time. |
-| Error | the same rule on the error's text (5 s for a short one) |
-| Stopped (the "Stopped" mark, and Resume on the pill) | 8 s; Resume stays on the panel after that |
-| A dictation's note | the time the panel gives it, between 1 s and 6 s |
+| Hovered or focused | the notice timer pauses until both end |
+| Answer or stopped answer | until dismissed or replaced |
+| Information or error | 6 seconds plus 60 ms per character, up to 20 seconds |
 
 Ways out at any time: Esc, the close button, a new question (spoken or typed) or a dictation, which
 replace the old words at once.

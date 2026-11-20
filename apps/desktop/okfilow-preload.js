@@ -89,6 +89,9 @@ contextBridge.exposeInMainWorld("okFilow", {
   /** Overlay -> main: the pointer is on (or off) the Stop button, so this overlay takes the mouse meanwhile. */
   overlayHover: (on, onBubble) => ipcRenderer.send("okfilow:overlay:hover", on === true, onBubble === true),
   /** The answer bubble: its close button (overlay -> main), main's word that it goes away now, and the sentence the voice is on. */
+  bubbleOpen: () => ipcRenderer.invoke("okfilow:bubble:open"),
+  closeBubbleByVoice: () => ipcRenderer.send("okfilow:bubble:voice"),
+  bubbleFocus: on => ipcRenderer.send("okfilow:bubble:focus", on),
   closeBubble: () => ipcRenderer.send("okfilow:bubble:close"),
   onBubbleClose: on("okfilow:bubble:close"),
   spoken: (index) => ipcRenderer.send("okfilow:spoken", index),

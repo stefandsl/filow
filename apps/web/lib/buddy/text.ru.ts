@@ -35,6 +35,8 @@ export const ru: Record<OkfKey, string> = {
   wakeWorking: "Подготовка локальной ключевой фразы",
   desktopOnly: "OK Filow работает в настольном приложении Filow.",
   close: "Закрыть",
+  shakeToClose: "Встряхните мышь, чтобы закрыть подсказку",
+  bubbleClosed: "Подсказка закрыта",
   closeAnswer: "Закрыть ответ",
   modelHint: "Перетащите, чтобы повернуть, прокрутите, чтобы приблизить, щёлкните по детали, чтобы спросить о ней",
   modelAsking: "Вопрос: {part}…",

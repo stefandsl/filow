@@ -35,6 +35,8 @@ export const it: Record<OkfKey, string> = {
   wakeWorking: "Preparazione della parola locale",
   desktopOnly: "OK Filow funziona nell'app desktop di Filow.",
   close: "Chiudi",
+  shakeToClose: "Scuoti il mouse per chiudere il fumetto",
+  bubbleClosed: "Fumetto chiuso",
   closeAnswer: "Chiudi la risposta",
   modelHint: "Trascina per ruotare, scorri per ingrandire, fai clic su una parte per chiedere cos'è",
   modelAsking: "Chiedo di {part}…",

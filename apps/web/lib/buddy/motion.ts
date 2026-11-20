@@ -206,7 +206,7 @@ export function bubbleOnScreen(at: P, size: { width: number; height: number }, v
 }
 
 /** How far from the bubble the pointer may go before the bubble follows it again. */
-export const BUBBLE_REACH = 96;
+export const BUBBLE_REACH = 120;
 /**
  * Whether an answer's bubble holds still: it does while the pointer is on it or within `reach` of
  * it, so the pointer can go onto it (to scroll it, to close it) instead of pushing it away; a
