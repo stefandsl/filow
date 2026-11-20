@@ -15,6 +15,13 @@ import { ensureDependencies, gateNames, privateEnv, runGates } from './gates.mjs
 import { tmpRoot } from '../../apps/desktop/test-tmp';
 import { daily, decideTrial } from './offline.mjs';
 
+const report = {startTime:100,numTotalTests:1,numPassedTests:1,numFailedTests:0,numPendingTests:0,numTodoTests:0,
+  testResults:[{status:'passed',endTime:120,assertionResults:[{status:'passed'}]}]};
+const fakeReporter = "import fs from 'node:fs'; fs.writeFileSync(process.argv.find(arg=>arg.startsWith('--outputFile=')).slice(13),"+JSON.stringify(JSON.stringify(report))+");";
+function passingGate(name:string, _root:string, _env:unknown, file:string) {
+  if (name==='vitest') save(file,report);
+  return 0;
+}
 const source = process.cwd();
 const lab = tmpRoot('factory');
 const clone = path.join(lab,'clone'), tree = path.join(lab,'ticket tree');
@@ -64,7 +71,7 @@ beforeAll(() => {
     const fs = require('node:fs');
     for (const file of ['electron/install.js','vitest/vitest.mjs']) {
       const target = 'node_modules/' + file;
-      fs.mkdirSync(require('node:path').dirname(target),{recursive:true}); fs.writeFileSync(target,'');
+      fs.mkdirSync(require('node:path').dirname(target),{recursive:true}); fs.writeFileSync(target,file.startsWith('vitest/') ? ${JSON.stringify(fakeReporter)} : '');
     }
     fs.appendFileSync('node_modules/install-count','1');
   `);
@@ -386,9 +393,9 @@ it('a stale green plus a failed launch holds and stops before the next gate', ()
   expect(()=>runGates(state,dir,'verify',()=>{},false,launch)).toThrow(/gate is red/);
   const green = structuredClone(state.gate.receipts);
   const retried:string[] = [];
-  runGates(state,dir,'verify',()=>save(disk,state),true,(name:string)=>{
+  runGates(state,dir,'verify',()=>save(disk,state),true,(...args:Parameters<typeof passingGate>)=>{
     expect(json(disk).gate.status).toBe('running');
-    retried.push(name); return 0;
+    retried.push(args[0]); return passingGate(...args);
   });
   expect(retried).toEqual(gateNames.slice(3));
   expect(state.gate.receipts.slice(0,3)).toEqual(green);
@@ -398,10 +405,39 @@ it('a stale green plus a failed launch holds and stops before the next gate', ()
   const saved = json(completed.path);
   const interrupted = {...json(disk),intent:saved,gate:{phase:'verify',sha:head,status:'running',receipts:[]}};
   const resumed:string[] = [];
-  runGates(interrupted,dir,'verify',()=>{},false,(name:string)=>{resumed.push(name);return 0;});
+  runGates(interrupted,dir,'verify',()=>{},false,(...args:Parameters<typeof passingGate>)=>{resumed.push(args[0]);return passingGate(...args);});
   expect(resumed).toEqual(gateNames.slice(1));
   expect(interrupted.gate.receipts[0]).toEqual(completed);
 });
+
+it.each(['missing','invalid JSON','invalid schema'])('holds a zero exit with a %s Vitest JSON report', kind => {
+  const dir = path.join(lab,'report-'+kind);
+  const electron = path.join(tree,'node_modules/electron/install.js');
+  fs.mkdirSync(path.dirname(electron),{recursive:true}); fs.writeFileSync(electron,'');
+  const state = {root:tree,candidate:inspect(tree).head};
+  const launch = (name:string,_root:string,_env:unknown,file:string) => {
+    if (name==='vitest' && kind!=='missing') fs.writeFileSync(file,kind==='invalid JSON' ? '{' : '{}');
+    return 0;
+  };
+  expect(()=>runGates(state,dir,'baseline',()=>{},false,launch)).toThrow(/Vitest JSON report/);
+  expect(state).toMatchObject({verdict:'HOLD',firstFailure:{name:'vitest',exit:0}});
+});
+
+it('records per-test and file counts from the installed Vitest JSON reporter', () => {
+  const dir = path.join(lab,'real-report'), root = path.join(dir,'fixture');
+  fs.mkdirSync(root,{recursive:true});
+  fs.writeFileSync(path.join(root,'vitest.config.mjs'),'export default {test:{globals:true}}');
+  fs.writeFileSync(path.join(root,'counts.test.js'),"describe('suite',()=>{it('passes',()=>{});it.skip('skipped',()=>{});it.todo('todo')})");
+  const electron = path.join(tree,'node_modules/electron/install.js');
+  fs.mkdirSync(path.dirname(electron),{recursive:true}); fs.writeFileSync(electron,'');
+  fs.writeFileSync(path.join(root,'skipped.test.js'),"it.skip('all skipped',()=>{})");
+  const state:any = {root:tree,candidate:inspect(tree).head};
+  runGates(state,dir,'verify',()=>{},false,(name:string,_root:string,env:NodeJS.ProcessEnv,file:string)=>
+    name==='vitest' ? spawnSync(process.execPath,[path.join(source,'node_modules/vitest/vitest.mjs'),'run',
+      '--reporter=json','--outputFile='+file],{cwd:root,env}).status : 0);
+  expect(json(state.gate.receipts.find((r:{name:string})=>r.name==='vitest').path)).toMatchObject({
+    exit:0,vitest:{tests:{passed:1,failed:0,skipped:2,todo:1},files:{total:2,passed:1,failed:0,skipped:1},durationMs:expect.any(Number)}});
+},30000); // Starts a separate Vitest process to exercise the pinned reporter format.
 
 function packetState(dry = true) {
   const t = inspect(tree);
@@ -648,7 +684,7 @@ it.each(['tracked','ignored','absent'])('runs the generation gate workers with a
   const vitest = path.join(root,'node_modules/vitest/vitest.mjs');
   for (const file of [install,vitest]) fs.mkdirSync(path.dirname(file),{recursive:true});
   fs.writeFileSync(install,'');
-  fs.writeFileSync(vitest,"import fs from 'node:fs'; process.exitCode = Number(fs.existsSync('apps/desktop/vendor/i18n.js') || fs.readFileSync('apps/desktop/vendor/welcome.js','utf8') !== 'generated')");
+  fs.writeFileSync(vitest,fakeReporter+"process.exitCode = Number(fs.existsSync('apps/desktop/vendor/i18n.js') || fs.readFileSync('apps/desktop/vendor/welcome.js','utf8') !== 'generated')");
   const npm = path.join(lab,'fixture-npm.cjs');
   fs.writeFileSync(npm,"if (['vendor','build:welcome'].includes(process.argv[3])) for (const file of ['i18n.js','welcome.js','profile.js']) require('node:fs').writeFileSync('apps/desktop/vendor/'+file,'generated')");
   vi.stubEnv('npm_execpath',npm);
@@ -724,7 +760,7 @@ it.each([1,3])('checks the new-round allowance before touching a completed verif
     const gateState:any = {root:tree,candidate};
     const install = path.join(tree,'node_modules/electron/install.js');
     fs.mkdirSync(path.dirname(install),{recursive:true}); fs.writeFileSync(install,'');
-    runGates(gateState,dir,'verify',()=>{},false,()=>0);
+    runGates(gateState,dir,'verify',()=>{},false,passingGate);
     const gate = gateState.gate;
     save(file,{...saved,step:'complete',candidate,verdict:'PASS',gate,buildEvidence:{...gate,phase:'build'},
       builder:{session:'author'},builderEvidence:{file:builder,digest:hash(fs.readFileSync(builder))},round:rounds.at(-1)});

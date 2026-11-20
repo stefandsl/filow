@@ -72,7 +72,7 @@ export function ensureDependencies(root, dir, install = installDependencies) {
 
 export const gateNames = ['electron install','desktop vendor','remove generated dictionary','vitest','build welcome','typecheck','lint'];
 const commands = ['node node_modules/electron/install.js','npm run vendor -w apps/desktop',
-  'remove apps/desktop/vendor/i18n.js if present','npx vitest run','npm run build:welcome -w apps/desktop','npm run typecheck','npm run lint'];
+  'remove apps/desktop/vendor/i18n.js if present','npx vitest run --reporter=json','npm run build:welcome -w apps/desktop','npm run typecheck','npm run lint'];
 const worker = fileURLToPath(import.meta.url);
 
 // Give each gate sequence its own copy of the candidate. Even tracked bundles and
@@ -100,7 +100,7 @@ export function linkDependencies(root,checkout) {
   }
 }
 
-function execute(name, root, env) {
+function execute(name, root, env, reportFile) {
   const npm = process.env.npm_execpath;
   const node = (...args) => spawnSync(process.execPath, args, {
     cwd: root, env, windowsHide: true, timeout: 25 * 60000, stdio: 'ignore',
@@ -110,18 +110,57 @@ function execute(name, root, env) {
     return 0;
   }
   if (name === 'electron install') return node('node_modules/electron/install.js');
-  if (name === 'vitest') return node('node_modules/vitest/vitest.mjs', 'run');
+  if (name === 'vitest') return node('node_modules/vitest/vitest.mjs', 'run', '--reporter=json', '--outputFile=' + reportFile);
   ensure(npm && fs.existsSync(npm), 'Start the gate through the documented npm command.');
   if (name === 'desktop vendor') return node(npm, 'run', 'vendor', '-w', 'apps/desktop');
   if (name === 'build welcome') return node(npm, 'run', 'build:welcome', '-w', 'apps/desktop');
   return node(npm, 'run', name);
 }
 
+const count = value => Number.isSafeInteger(value) && value >= 0;
+
+function validVitest(summary) {
+  const {tests, files, durationMs} = summary ?? {};
+  return ['passed','failed','skipped','todo'].every(key => count(tests?.[key])) &&
+    ['total','passed','failed','skipped'].every(key => count(files?.[key])) &&
+    files.total === files.passed + files.failed + files.skipped && Number.isFinite(durationMs) && durationMs >= 0;
+}
+
+function summarizeVitest(file) {
+  const report = json(file);
+  const tests = {passed:report.numPassedTests, failed:report.numFailedTests,
+    skipped:report.numPendingTests, todo:report.numTodoTests};
+  const files = {total:report.testResults.length, passed:0, failed:0, skipped:0};
+  let end = report.startTime;
+  for (const result of report.testResults) {
+    ensure(['passed','failed'].includes(result.status) && Number.isFinite(result.endTime), 'Invalid Vitest file result.');
+    // Vitest reports an entirely skipped file as passed at file level.
+    const skipped = result.assertionResults.length > 0 &&
+      result.assertionResults.every(test => ['skipped','pending','todo'].includes(test.status));
+    files[result.status === 'passed' && skipped ? 'skipped' : result.status]++;
+    end = Math.max(end, result.endTime);
+  }
+  const summary = {tests, files, durationMs:end - report.startTime};
+  ensure(Array.isArray(report.testResults) && Number.isFinite(report.startTime) && validVitest(summary) &&
+    Object.values(tests).reduce((a,b) => a+b,0) === report.numTotalTests, 'Invalid Vitest counts.');
+  return summary;
+}
+
 function writeReceipt(intent, env, run) {
   if (fs.existsSync(intent.destination)) return;
   const start = now();
-  const exit = run(intent.name,intent.checkout ?? intent.cwd,env);
-  save(intent.destination,{...intent, command:commands[gateNames.indexOf(intent.name)], start, end:now(), exit, node:process.version});
+  const reportFile = intent.destination + '.vitest.json';
+  if (intent.name === 'vitest') {
+    fs.mkdirSync(path.dirname(reportFile),{recursive:true});
+    fs.rmSync(reportFile,{force:true}); // An interrupted attempt may have left its report.
+  }
+  const exit = run(intent.name,intent.checkout ?? intent.cwd,env,reportFile);
+  const receipt = {...intent, command:commands[gateNames.indexOf(intent.name)], start, end:now(), exit, node:process.version};
+  if (intent.name === 'vitest') {
+    try { receipt.vitest = summarizeVitest(reportFile); }
+    catch { receipt.reportError = 'Vitest JSON report ' + (fs.existsSync(reportFile) ? 'malformed' : 'missing') + ' at ' + reportFile; }
+  }
+  save(intent.destination,receipt);
 }
 
 // The child owns the branch gate lock and writes its receipt even if the coordinator disappears.
@@ -156,6 +195,7 @@ export function runGates(state, dir, phase, checkpoint, retry, run) {
       ensure(hash(read(old.path)) === old.digest && receipt.name === name && receipt.phase === phase &&
         receipt.sha === state.candidate && receipt.exit === 0,
         'Gate receipt changed. Preserve evidence and start a fresh gate.');
+      ensure(name !== 'vitest' || validVitest(receipt.vitest), 'Vitest JSON report counts missing or malformed in saved receipt.');
       continue;
     }
     const pending = state.intent?.phase === phase && state.intent.name === name && state.intent.sha === state.candidate;
@@ -183,10 +223,12 @@ export function runGates(state, dir, phase, checkpoint, retry, run) {
     }
     const receipt = json(file);
     ensure(['id','name','phase','cwd','destination','run','sha'].every(k=>receipt[k] === intent[k]), 'Receipt does not match the saved gate intent.');
-    if (receipt.exit !== 0) {
+    const reportError = name === 'vitest' && !validVitest(receipt.vitest) &&
+      (receipt.reportError || 'Vitest JSON report counts missing or malformed.');
+    if (receipt.exit !== 0 || reportError) {
       g.status = 'failed'; g.failure = name; state.firstFailure ??= receipt;
       checkpoint();
-      ensure(false, 'Gate failed: ' + name + '. Inspect the receipt at ' + file);
+      ensure(false, 'Gate failed: ' + name + '. ' + (reportError ? reportError + '. ' : '') + 'Inspect the receipt at ' + file);
     }
     ensure(inspect(state.root).head === state.candidate, 'Candidate changed during the gate. Return to build.');
     g.receipts.push({ name, path: file, digest: hash(read(file)) });
