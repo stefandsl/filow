@@ -77,6 +77,10 @@ it('shipped hard negatives are verified numbers and reduce a confusable negative
   const shipped = background(path.join(__dirname, 'wake-data'));
   expect(shipped.hard.length).toBe(shipped.hardMeta.windows * 1152);
   expect(shipped.hardMeta.voices).toHaveLength(10);
+  const bare = background(path.join(__dirname, 'wake-data'), true);
+  expect(bare.hardMeta.sha256).not.toBe(shipped.hardMeta.sha256);
+  expect(bare.prefixes).toHaveLength(10);
+  expect(bare.prefixes.every((prefix: Float32Array) => prefix.length && prefix.some(x => x > .05))).toBe(true);
   const positives = Array.from({length: 20}, () => { const x = new Float32Array(1152); x[0] = 1; return x; });
   const data = new Float32Array(3000 * 96);
   for (let i = 0; i < data.length; i += 96) data[i] = -1;

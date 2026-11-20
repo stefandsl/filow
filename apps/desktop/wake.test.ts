@@ -130,11 +130,18 @@ describe("enrolment and downloads", () => {
     let conditions = { ...ready };
     const wake = createWake({ userData: dir, state: () => conditions, changed: vi.fn(), detected: vi.fn(), verifyModelsFn: async () => {}, ensureModelsFn: network,
       createDetectorsFn: async () => ({ feed: async (_samples: unknown, at: number) => ({ at, score: -1, keyword: false, ms: 1 }), reset: async () => {}, stop: vi.fn() }) });
-    expect(wake.status().enabled).toBe(false);
+    expect(wake.status()).toMatchObject({ enabled: false, legacyPhrase: true });
+    const oldSamples = path.join(dir, "wake", "samples");
+    fs.mkdirSync(oldSamples);
+    fs.writeFileSync(path.join(oldSamples, "1.wav"), wav(new Float32Array(16000)));
+    expect(wake.status().recordings).toBe(0);
     await wake.enable("balanced"); expect(wake.status().listening).toBe(true);
     for (let i = 0; i < 30; i++) await wake.feed(new Float32Array(1600));
-    expect(network).not.toHaveBeenCalled(); expect(fs.readdirSync(path.join(dir, "wake"))).toEqual(["profile.json"]);
+    expect(network).not.toHaveBeenCalled(); expect(fs.readdirSync(path.join(dir, "wake"))).toEqual(["profile.json", "samples"]);
     conditions = { ...ready, indicator: false }; wake.reconcile(); expect(wake.status().listening).toBe(false);
+    const fresh = Float32Array.from({length:16000}, (_, i) => .1 * Math.sin(i/8));
+    expect(wake.sample(0, fresh)).toMatchObject({ recordings: 1, trained: true, legacyPhrase: true });
+    expect(fs.existsSync(path.join(dir, "wake", "profile.json"))).toBe(true);
     wake.remove(); expect(fs.existsSync(path.join(dir, "wake"))).toBe(false); expect(wake.status().enabled).toBe(false);
   });
   it("discards an inference finishing after pause and resume", async () => {

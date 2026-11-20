@@ -6,19 +6,7 @@ const { createCaptureWatch } = require("./okfilow-mic");
 const { validateProfile } = require("./wake-head");
 const { canEnable, replayEnrolment } = require("./wake-enrolment");
 const { verifyModels, ensureModels, FILES, NOTICE } = require("./wake-models");
-function wav(samples) {
-  const b = Buffer.alloc(44 + samples.length * 2);
-  b.write("RIFF"); b.writeUInt32LE(b.length - 8, 4); b.write("WAVEfmt ", 8); b.writeUInt32LE(16, 16);
-  b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(16000, 24); b.writeUInt32LE(32000, 28);
-  b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write("data", 36); b.writeUInt32LE(samples.length * 2, 40);
-  samples.forEach((x, i) => b.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x)) * 32767), 44 + 2 * i));
-  return b;
-}
-function readSample(file) {
-  const b = fs.readFileSync(file);
-  if (b.toString("ascii", 0, 4) !== "RIFF" || b.readUInt32LE(24) !== 16000 || b.readUInt16LE(22) !== 1 || b.readUInt16LE(34) !== 16 || b.toString("ascii", 36, 40) !== "data") throw new Error("Invalid enrolment WAV");
-  return Float32Array.from({ length: (b.length - 44) / 2 }, (_, i) => b.readInt16LE(44 + i * 2) / 32768);
-}
+const { readSample, wav } = require("./wake-pcm");
 function rpc(child) {
   let next = 0, closed = false;
   const pending = new Map();
@@ -57,7 +45,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
   let ring = new Float32Array(), profile = null;
   const captureWatch = createCaptureWatch();
   try { const stored = JSON.parse(fs.readFileSync(profileFile, "utf8")); if (validateProfile(stored)) profile = stored; } catch { /* no trained phrase yet */ }
-  const samplesDir = path.join(root, "samples");
+  const samplesDir = path.join(root, "filow-samples");
   const samplesCount = () => Array.from({ length: 5 }, (_, i) => fs.existsSync(path.join(samplesDir, `${i + 1}.wav`))).filter(Boolean).length;
   const snapshot = () => ({ enabled, listening, error, phase, count, testing, recordings: samplesCount(), negatives: [1,2].filter(i=>fs.existsSync(path.join(samplesDir, `negative-${i}.wav`))).length, verification: profile?.verification, trained: Boolean(profile), legacyPhrase: Boolean(profile && !profile.phrase), notice: NOTICE });
   const publish = () => changed(snapshot());
@@ -143,13 +131,21 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     } catch (e) { if (token === epoch) fail(e); }
     finally { if (token === epoch) pending = false; }
   }
+  function enrolmentChanged() {
+    // Old profiles use a separate set of takes and can still be used during migration.
+    if (profile?.phrase) {
+      fs.rmSync(profileFile, { force: true });
+      profile = null;
+    }
+    phase = "enrol"; publish(); return snapshot();
+  }
   function sample(index, pcm) {
     stop();
     if (!Number.isInteger(index) || index < 0 || index >= 5) throw new Error("Invalid enrolment take");
     const reason = checkRecording(pcm); if (reason) throw new Error(reason);
     fs.mkdirSync(samplesDir, { recursive: true });
     fs.writeFileSync(path.join(samplesDir, `${index + 1}.wav`), wav(pcm));
-    fs.rmSync(profileFile, { force: true }); profile = null; phase = "enrol"; publish(); return snapshot();
+    return enrolmentChanged();
   }
   function negative(index, pcm) {
     stop();
@@ -158,9 +154,9 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     const file = path.join(samplesDir, `negative-${index + 1}.wav`);
     if (pcm === null) fs.rmSync(file, { force: true });
     else { const reason = checkRecording(pcm); if(reason) throw new Error(reason); fs.writeFileSync(file,wav(pcm)); }
-    fs.rmSync(profileFile, { force: true }); profile = null; phase = "enrol"; publish(); return snapshot();
+    return enrolmentChanged();
   }
-  async function train() {
+  async function train(mode) {
     stop(); error = ""; phase = "training"; publish(); const token = epoch;
     try {
       await verifyModelsFn(dir);
@@ -178,8 +174,12 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       try { candidate.verification = await replayEnrolment(replay, candidate, recordings, negatives); }
       finally { replay.stop(); }
       if (token !== epoch) return snapshot();
-      profile = candidate;
-      fs.writeFileSync(profileFile, JSON.stringify(profile)); phase = "ready"; publish();
+      if (profile && !profile.phrase && !canEnable(candidate.verification, sensitivity(mode))) {
+        throw new Error("Replay check required: record five new takes and retrain");
+      }
+      fs.writeFileSync(profileFile + ".tmp", JSON.stringify(candidate));
+      fs.renameSync(profileFile + ".tmp", profileFile);
+      profile = candidate; phase = "ready"; publish();
     } catch (e) { if (token === epoch) fail(e); }
     finally { if (token === epoch) { trainer?.stop(); trainer = null; } }
     return snapshot();

@@ -1762,7 +1762,7 @@ function createOkFilow(deps) {
     if (action === "enable") return wake.enable(cfg().wakeSensitivity);
     if (action === "sample") return wake.sample(data?.index, data?.samples);
     if (action === "negative") return wake.negative(data?.index, data?.samples);
-    if (action === "train") return wake.train();
+    if (action === "train") return wake.train(cfg().wakeSensitivity);
     if (action === "delete") return wake.remove();
     if (action === "test") return wake.test(data);
     if (action === "error") { wake.fail(new Error(String(data).slice(0, 240))); return wake.status(); }

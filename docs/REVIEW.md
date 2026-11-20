@@ -78,3 +78,6 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R65 (2026-11-20, N-08): Exercise the packaged Save button and its owned Windows dialog in a fresh profile with a Desktop folder. Check: compare the saved file with the displayed preview and record the screenshot, file hash and startup log on two launches.
 
 - R66 (2026-11-20, wake-filow): match the spoken enrolment prompt to the profile-specific keyword list. Check bare and prefixed phonemes, five localized prompts, and keyword generation for a pre-upgrade profile.
+- R67 (2026-11-20, wake-filow): match hard negatives and training context to every supported prefix. Check held-out bare, OK and Hey calls and near words for each enrolled language.
+- R68 (2026-11-20, wake-filow): keep old enrolment takes out of the new phrase training set. Check an upgraded profile still enables and its old files do not count towards the new five.
+- R69 (2026-11-20, wake-filow): calibrate short phrase verification against ordinary speech as well as the enrolled takes. Check both pipelines on identical timed multilingual speech and report accepts per hour at each sensitivity.

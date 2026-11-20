@@ -14,12 +14,20 @@ const LEGACY_SPELLINGS = Object.freeze([
   "OW2 K EY1 F IH1 L AO1", "AO1 K EY1 F IY1 L OW0", "K EY1 F IY1 L OW0",
 ]);
 // Stress, vowel and liquid variants used by the multilingual enrolment corpus.
-const BARE_SPELLINGS = [...new Set(LEGACY_SPELLINGS.map(s => s.replace(/^.*?K (?:EY|EH)1 /, "")))];
+const BARE_SPELLINGS = [...new Set([
+  ...LEGACY_SPELLINGS.map(s => s.replace(/^.*?K (?:EY|EH)1 /, "")),
+  "F IY1 L AH0", // Reduced unstressed final vowel.
+  "F IH0 L OW1", // Reduced first vowel and final stress.
+])];
 const SPELLINGS = Object.freeze([...LEGACY_SPELLINGS, ...BARE_SPELLINGS,
   ...BARE_SPELLINGS.map(s => `HH EY1 ${s}`),
 ]);
 function keywordText(profile) {
   const spellings = profile.phrase === DEFAULTS.phrase ? SPELLINGS : LEGACY_SPELLINGS;
+  if (!spellings.length || new Set(spellings).size !== spellings.length ||
+      !spellings.every(s => /^[A-Z]+[012]?( [A-Z]+[012]?)+$/.test(s))) {
+    throw new Error("Invalid wake phoneme list");
+  }
   return spellings.map((s, i) => `${s} :2.5 #0.05 @v${i + 1}`).join("\n") + "\n";
 }
 const sensitivity = (v) => ["strict", "balanced", "sensitive"].includes(v) ? v : DEFAULTS.sensitivity;

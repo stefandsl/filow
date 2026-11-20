@@ -2,6 +2,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { readSample } = require("./wake-pcm");
 const { augment } = require("./wake-augmentation");
 const WIDTH = 96, WINDOW = 12, FEATURES = WIDTH * WINDOW;
 const HARD_NEGATIVE_RATE = 0.2;
@@ -10,17 +11,20 @@ function validateProfile(p) {
   return p?.version === 1 && Array.isArray(p.weights) && p.weights.length === FEATURES && p.weights.every(Number.isFinite) && Number.isFinite(p.bias) && p.thresholds &&
     [p.thresholds.loose, p.thresholds.sensitive, p.thresholds.sure].every(Number.isFinite) && p.thresholds.loose <= p.thresholds.sensitive && p.thresholds.sensitive <= p.thresholds.sure;
 }
-function background(dir) {
+function background(dir, bare = false) {
+  const bank = bare ? "phrase-negatives" : "hard-negatives";
   const meta = JSON.parse(fs.readFileSync(path.join(dir, "background.json"), "utf8"));
   const bytes = fs.readFileSync(path.join(dir, "background.bin"));
   if (crypto.createHash("sha256").update(bytes).digest("hex") !== meta.sha256) throw new Error("Wake background checksum mismatch");
   const data = Float32Array.from(new Int8Array(bytes.buffer, bytes.byteOffset, bytes.length), (v) => v / 127);
-  const hardMeta = JSON.parse(fs.readFileSync(path.join(dir, "hard-negatives.json"), "utf8"));
-  const hardBytes = fs.readFileSync(path.join(dir, "hard-negatives.bin"));
+  const hardMeta = JSON.parse(fs.readFileSync(path.join(dir, `${bank}.json`), "utf8"));
+  const hardBytes = fs.readFileSync(path.join(dir, `${bank}.bin`));
   if (crypto.createHash("sha256").update(hardBytes).digest("hex") !== hardMeta.sha256 || hardBytes.length !== hardMeta.windows * FEATURES * 4) throw new Error("Wake hard-negative checksum mismatch");
   const hard = new Float32Array(hardBytes.buffer.slice(hardBytes.byteOffset, hardBytes.byteOffset + hardBytes.length));
   if (!hard.every(Number.isFinite)) throw new Error("Invalid wake hard negatives");
-  return { data, meta, hard, hardMeta };
+  const prefixes = bare ? ["en", "it", "ro", "ru", "ja"].flatMap(lang =>
+    ["ok", "hey"].map(name => readSample(path.join(dir, `prefix-${lang}-${name}.wav`)))) : [];
+  return { data, meta, hard, hardMeta, prefixes };
 }
 function random(seed = 12345) { return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; }
 // Balanced-class stochastic logistic regression with L2 regularization. Training
@@ -64,6 +68,15 @@ function trainHead(positives, bg, options = {}) {
   scores.sort((a, b) => b - a);
   const threshold = (budget) => scores[Math.floor(budget * hours)];
   const result = { version: 1, weights: Array.from(w), bias, thresholds: { loose: threshold(5), sensitive: threshold(0.5), sure: threshold(0.1) }, calibrationHours: hours, background: bg.meta.sha256, hardNegatives: bg.hardMeta?.sha256 };
+  if (bg.prefixes?.length) {
+    // Short keywords resemble ordinary words. Require the enrolled speaker's
+    // score to move toward the lower tail of their positive training windows.
+    const own = positives.map(x => dot(w, x) + bias).sort((a, b) => a - b);
+    for (const [key, fraction] of [["loose", .05], ["sensitive", .1], ["sure", .2]]) {
+      const floor = own[Math.floor(fraction * own.length)];
+      result.thresholds[key] += .3 * Math.max(0, floor - result.thresholds[key]);
+    }
+  }
   if (!validateProfile(result)) throw new Error("Wake training failed");
   return result;
 }
@@ -144,13 +157,22 @@ function speechEnd(samples) {
   for (let f = frames - 1; f >= 0; f--) if (energy[f] > peak * 1e-3) return (f + 1) * 320;
   return samples.length;
 }
-async function positiveWindows(embedding, recordings) {
+async function positiveWindows(embedding, recordings, prefixes = []) {
   if (recordings.length !== 5) throw new Error("Exactly five recordings required");
   const positives = [], rng = random();
   for (const samples of recordings) {
     const end = speechEnd(samples);
+    const start = prefixes.length ? samples.length - speechEnd(samples.slice().reverse()) : 0;
     for (let a = 0; a < 16; a++) {
       const { audio: padded, speed } = augment(samples, a, rng);
+      // Give half of each speaker's examples a spoken prefix. Align it with the
+      // first voiced frame, since microphone enrolment can start with silence.
+      if (prefixes.length && a % 2) {
+        const boundary = 16000 + Math.floor(start / speed) - (a % 3) * 640;
+        const prefix = prefixes[(positives.length + a) % prefixes.length];
+        const tail = prefix.subarray(Math.max(0, prefix.length - boundary));
+        padded.set(tail, boundary - tail.length);
+      }
       const e = await embedding.embed(padded);
       for (const dt of [0.08, 0.16, 0.24, 0.32]) {
         const i = Math.ceil(((1 + end / speed / 16000 + dt - 0.015) / .01 - 76) / 8);
@@ -169,6 +191,6 @@ async function enrol(embedding, recordings, bg, negatives = []) {
     for(let at=0;at+FEATURES<=vectors.length;at+=WIDTH) personal.push(vectors.slice(at,at+FEATURES));
   }
   if(personal.length) bg = { ...bg, hard: Float32Array.from([...(bg.hard || []),...personal.flatMap(x=>Array.from(x))]) };
-  return trainHead(await positiveWindows(embedding, recordings), bg);
+  return trainHead(await positiveWindows(embedding, recordings, bg.prefixes), bg);
 }
 module.exports = { WIDTH, WINDOW, FEATURES, HARD_NEGATIVE_RATE, dot, validateProfile, background, trainHead, createEmbedding, createStream, enrol, speechEnd, positiveWindows };
