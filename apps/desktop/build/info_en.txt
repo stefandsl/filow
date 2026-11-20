@@ -9,6 +9,10 @@ WHAT'S NEW
 All versions: https://github.com/stefandsl/filow-releases/releases
 Report a problem: in Filow, open the Filow menu > Report a problem. Filow saves a report file that you send privately; it sends nothing itself.
 
+# Filow 0.9.44 (Preview)
+
+Filow asks before contacting Hugging Face to download the point-matching model.
+
 # Filow 0.9.43 (Preview)
 
 * OK Filow cards change size as you drag a corner. Drawing cards resize too (#8).

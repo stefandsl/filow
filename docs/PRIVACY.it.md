@@ -202,3 +202,5 @@ Se ti trovi in un altro Paese dell'UE, puoi presentare reclamo alla tua autorit√
 Quando cambia cosa Filow invia o conserva, questa informativa cambia con la stessa versione dell'app
 e cambia la data in alto. L'informativa inclusa nell'app corrisponde sempre a quella versione
 dell'app.
+
+Il modello di confronto facoltativo richiede i file mancanti a Hugging Face solo dopo la tua autorizzazione. La prova privata funziona anche senza il modello.
