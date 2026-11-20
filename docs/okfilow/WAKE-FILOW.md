@@ -20,7 +20,7 @@ Counts above show raw detector performance including profiles that the enrolment
 | ru | yes/yes/yes | yes/yes/yes | 3 | 3 | 3 | 2 | 1 | 0 | 0 / 0 |
 | ja | no/yes/yes | yes/yes/yes | 3 | 1 | 3 | 1 | 0 | 1 | 0 / 0 |
 
-The language breakdown uses Balanced sensitivity. The legacy training bank included translated Hey Filow calls among its negatives. The new bank excludes those calls, adds multilingual synthetic prefixes to half of the positive examples and uses dedicated near-word embeddings. Bare spellings use boost 2.35 and threshold 0.12. Prefixed spellings retain 2.5 and 0.05. All modes require a score from the speaker's trained head. The option to accept Filow alone defaults on for new profiles and can be switched off without retraining. With it off, all three modes also require the spotter to recognize an explicit OK or Hey prefix.
+The language breakdown uses Balanced sensitivity. The legacy training bank included translated Hey Filow calls among its negatives. The new bank excludes those calls, adds multilingual synthetic prefixes to half of the positive examples and uses dedicated near-word embeddings. Bare spellings use boost 2.35 and threshold 0.12. Prefixed spellings retain 2.5 and 0.05. All modes require a score from the speaker's trained head. The option to accept Filow alone defaults on for new profiles and can be switched off without retraining. With it off, all three modes also require the spotter to recognize an explicit OK or Hey prefix. In this mode, boost 1 and threshold 0.4 rejected 15/15 bare clips in a separate spotter-only check, detecting 10/15 OK and 4/5 Hey calls.
 
 ## Reproduction
 

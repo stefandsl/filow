@@ -29,8 +29,9 @@ function keywordText(profile) {
       !spellings.every(s => /^[A-Z]+[012]?( [A-Z]+[012]?)+$/.test(s))) {
     throw new Error("Invalid wake phoneme list");
   }
+  const prefixedTuning = profile.requirePrefix ? ":1 #0.4" : ":2.5 #0.05";
   return spellings.map((s, i) => {
-    const tuning = BARE_SPELLINGS.includes(s) ? ":2.35 #0.12" : ":2.5 #0.05";
+    const tuning = BARE_SPELLINGS.includes(s) ? ":2.35 #0.12" : prefixedTuning;
     return `${s} ${tuning} @v${i + 1}`;
   }).join("\n") + "\n";
 }

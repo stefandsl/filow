@@ -69,7 +69,7 @@ describe("wake privacy defaults", () => {
   it.each(["strict", "balanced", "sensitive"])("requires a prefix even for a confident %s head when opted out", mode => {
     const keywords = require("./wake-policy").keywordText({ phrase: "Filow", requirePrefix: true });
     expect(keywords).not.toMatch(/^F /m);
-    expect(keywords).toMatch(/^HH EY1 F IY1 L OW0 :/m);
+    expect(keywords).toMatch(/^HH EY1 F IY1 L OW0 :1 #0\.4 /m);
     const combiner = createCombiner(thresholds, mode, true);
     expect(combiner.push({ at: 100, score: 99 })).toBe(false);
     expect(combiner.push({ at: 200, keyword: true })).toBe(true);
