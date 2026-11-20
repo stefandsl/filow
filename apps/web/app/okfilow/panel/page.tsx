@@ -1286,9 +1286,13 @@ export default function OkFilowPanel() {
     const sid = session.current;
     /** This recording's microphone was slow to open: what to say if it gave no words. */
     const slowMic = emptyRecordingNote(micOpenMs.current);
-    stopAudio();
+    const finishCapture = async () => {
+      stopAudio();
+      try { await b.stt.stop(); } catch { /* the error already reached onResult */ }
+    };
+    const stopped = finishCapture();
     if (!send) setMode("idle");
-    try { await b.stt.stop(); } catch { /* the error already reached onResult */ }
+    await stopped;
     if (why !== "dictate" && pendingMarks.current) pendingMarks.current.sttStop = Date.now();
     // The worker flushes before acknowledging stop. Allow one turn for final-result IPC.
     await waitForTranscript(() => Boolean(joinTranscript(committed.current, partial.current)), why === "dictate", () => Boolean(queuedStart.current));
