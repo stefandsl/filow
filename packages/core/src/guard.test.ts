@@ -340,3 +340,20 @@ describe("claim guard: a negated point said in other words (TRK-2 held-out set)"
     expect(r.conflict?.kind).toBe("negation");
   });
 });
+import frozen from "../../../tools/autoloop/e2e/n03-cases.json";
+
+describe.each(Object.entries(frozen.journeys))("%s affirmative and corrected claims", (lang, journey) => {
+  const date = lang === "en" ? "Launch date Monday" : "Data avvio lunedì";
+  const restore = lang === "en" ? "Backup restore test" : "Backup: test di ripristino";
+  it("distinguishes the meal from the start and accepts the actual start", () => {
+    expect(checkClaim(date, journey.clips.near.text).ok).toBe(false);
+    expect(checkClaim(date, journey.clips.correction.text).ok).toBe(false);
+    expect(checkClaim(date, journey.clips.resume.text).ok).toBe(true);
+  });
+  it("withdraws a negated test result without borrowing another subject's denial", () => {
+    expect(checkClaim(restore, journey.corrected).ok).toBe(false);
+    expect(checkClaim(restore, journey.partial).ok).toBe(true);
+    const nearby = lang === "en" ? "The restore test passed while the audit has not passed." : "Il test di ripristino è riuscito mentre la verifica non è riuscita.";
+    expect(checkClaim(restore, nearby).ok).toBe(true);
+  });
+});

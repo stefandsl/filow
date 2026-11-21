@@ -7,7 +7,7 @@
 import { contentTokens, FUZZY_MIN, NEGATIONS, STOP, quantitiesFromTokens, sameQuantity, sentences, similarity, tokenize, type Quantity, type Sentence, type Token } from "./text";
 
 export type GuardConflict = {
-  kind: "negation" | "number" | "unit" | "direction";
+  kind: "negation" | "number" | "unit" | "direction" | "subject";
   /** short human-readable reason, e.g. "point says 12%, speech says 21%" */
   detail: string;
 };
@@ -58,6 +58,16 @@ const SCOPE_END = new Set([
 ]);
 /** Words that open a contrasting clause. */
 const CLAUSE_START = new Set(["while", "whereas", "mentre", "but", "ma", "invece", "но", "а", "dar", "iar", "insa"]);
+const START_EVENT = /^(?:launch|rollout|kickoff|avvio|lancio|partenza)$/;
+const MEAL = /^(?:breakfast|lunch|dinner|colazione|pranzo|cena)$/;
+const WEEKDAY = /^(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)$/;
+
+/** A meal explicitly scheduled for the same weekday can sound like the start of a project. */
+function schedulesMeal(words: string[], toks: Token[]): boolean {
+  return words.some(w => START_EVENT.test(w)) && toks.some(t => MEAL.test(t.norm)) &&
+    !toks.some(t => START_EVENT.test(t.norm)) &&
+    toks.some(t => WEEKDAY.test(t.norm) && words.includes(t.norm));
+}
 const SCOPE = 5;
 
 /** Italian words that make a following "mai" (within 3 words) a denial: "non ... mai", "nessuno mai". ("né" is left out: folded it is Romanian "ne", "us".) */
@@ -214,6 +224,13 @@ function read(claim: Claim, sentence: string): Reading {
   const about = parts.filter((c) => c.some((t) => matchesAny(claim.anchors.length ? claim.anchors : claim.words, t.norm)));
   const scope = about.length ? about : parts;
 
+  // A short test label often leaves the successful outcome implicit. Require the test itself
+  // as subject immediately before the denied result, so an audit denied elsewhere still passes.
+  if (!claim.negated && claim.words.includes("test") && about.some(c =>
+    coverage(claim.words, c) >= 0.6 &&
+    /\btest(?: (?:di|del|della|of|the) \w+){0,3} (?:has not passed|did not pass|non e riuscit[oa]|non ha avuto successo)\b/.test(c.map(t => t.norm).join(" "))
+  )) return { conflict: { kind: "negation", detail: "the test result was denied" }, carriesClaim: true, anchored };
+
   // numbers and units, per class: a conflict only when the speech has numbers of a class and none of the point's numbers of that class
   const sq = withNouns(st, quantitiesFromTokens(st).filter((q) => q.kind !== "year"));
   let numberSupport = false;
@@ -298,11 +315,13 @@ export function checkClaim(point: string, transcript: string): ClaimCheck {
     const lexical = coverage(claim.words, toks);
     const sq = quantitiesFromTokens(toks);
     const numberMatch = claim.quantities.some((q) => sq.some((x) => sameQuantity(q, x)));
-    return { s, lexical, relevance: Math.min(1, lexical + (numberMatch ? 0.5 : 0)) };
+    const meal = schedulesMeal(claim.words, toks);
+    return { s, lexical, meal, relevance: meal ? 1 : Math.min(1, lexical + (numberMatch ? 0.5 : 0)) };
   });
   const relevant = scored.filter((x) => x.relevance >= MIN_RELEVANT);
   for (let i = relevant.length - 1; i >= 0; i--) {
     const x = relevant[i];
+    if (x.meal) return { ok: false, evidence: x.s, lexical: round(x.lexical), conflict: { kind: "subject", detail: "the weekday is stated for a meal" } };
     const r = read(claim, x.s.text);
     if (r.conflict && (r.anchored || !claim.anchors.length)) return { ok: false, evidence: x.s, lexical: round(x.lexical), conflict: r.conflict };
     if (!r.conflict && r.carriesClaim) return { ok: true, evidence: x.s, lexical: round(x.lexical) };
