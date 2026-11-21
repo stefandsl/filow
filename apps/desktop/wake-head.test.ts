@@ -77,6 +77,10 @@ it('shipped hard negatives are verified numbers and reduce a confusable negative
   const shipped = background(path.join(__dirname, 'wake-data'));
   expect(shipped.hard.length).toBe(shipped.hardMeta.windows * 1152);
   expect(shipped.hardMeta.voices).toHaveLength(10);
+  const bare = background(path.join(__dirname, 'wake-data'), true);
+  expect(bare.hardMeta.sha256).not.toBe(shipped.hardMeta.sha256);
+  expect(bare.prefixes).toHaveLength(10);
+  expect(bare.prefixes.every((prefix: Float32Array) => prefix.length && prefix.some(x => x > .05))).toBe(true);
   const positives = Array.from({length: 20}, () => { const x = new Float32Array(1152); x[0] = 1; return x; });
   const data = new Float32Array(3000 * 96);
   for (let i = 0; i < data.length; i += 96) data[i] = -1;
@@ -134,4 +138,26 @@ it.skipIf(!process.env.FILOW_WAKE_MODEL_DIR)('matches spike prefix reference vec
       expect(Math.max(...offline.map((v: number, i: number) => Math.abs(v - row.vectors[i])))).toBeLessThan(2e-5);
     }
   } finally { await e.dispose(); }
+});
+
+it("presents each spoken prefix to the embedding model during enrolment", async () => {
+  const prefixes = Array.from({ length: 10 }, (_, i) => Float32Array.of(2 + i));
+  const observed = new Set<number>();
+  const embedding = { embed: async (pcm: Float32Array) => {
+    for (const sample of pcm) if (sample >= 2) observed.add(sample);
+    return new Float32Array(60 * 96);
+  } };
+  await positiveWindows(embedding, Array(5).fill(new Float32Array(16000).fill(.2)), prefixes);
+  expect([...observed].sort((a, b) => a - b)).toEqual(prefixes.map(p => p[0]));
+});
+
+it("includes each original bare take at microphone speed and gain", async () => {
+  const takes = Array.from({ length: 5 }, (_, i) => new Float32Array(16000).fill((i + 1) / 8));
+  const seen = new Set<number>();
+  const embedding = { embed: async (audio: Float32Array) => {
+    if (audio[15999] === 0 && audio[32000] === 0 && audio[16000] === audio[31999]) seen.add(audio[16000]);
+    return new Float32Array(60 * 96);
+  } };
+  await positiveWindows(embedding, takes, [Float32Array.of(2)]);
+  for (const take of takes) expect(seen.has(take[0])).toBe(true);
 });

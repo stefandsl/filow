@@ -1,24 +1,12 @@
 // Experimental opt-in controller. Audio stays in memory except explicit enrolment.
 const fs = require("node:fs");
 const path = require("node:path");
-const { SPELLINGS, blocked, checkRecording, createCombiner, sensitivity, captureAllowed } = require("./wake-policy");
+const { DEFAULTS, keywordText, blocked, checkRecording, profileCombiner, sensitivity, captureAllowed } = require("./wake-policy");
 const { createCaptureWatch } = require("./okfilow-mic");
 const { validateProfile } = require("./wake-head");
-const { canEnable, replayEnrolment } = require("./wake-enrolment");
+const { canEnable, replayEnrolment, prefixFallback } = require("./wake-enrolment");
 const { verifyModels, ensureModels, FILES, NOTICE } = require("./wake-models");
-function wav(samples) {
-  const b = Buffer.alloc(44 + samples.length * 2);
-  b.write("RIFF"); b.writeUInt32LE(b.length - 8, 4); b.write("WAVEfmt ", 8); b.writeUInt32LE(16, 16);
-  b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(16000, 24); b.writeUInt32LE(32000, 28);
-  b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write("data", 36); b.writeUInt32LE(samples.length * 2, 40);
-  samples.forEach((x, i) => b.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x)) * 32767), 44 + 2 * i));
-  return b;
-}
-function readSample(file) {
-  const b = fs.readFileSync(file);
-  if (b.toString("ascii", 0, 4) !== "RIFF" || b.readUInt32LE(24) !== 16000 || b.readUInt16LE(22) !== 1 || b.readUInt16LE(34) !== 16 || b.toString("ascii", 36, 40) !== "data") throw new Error("Invalid enrolment WAV");
-  return Float32Array.from({ length: (b.length - 44) / 2 }, (_, i) => b.readInt16LE(44 + i * 2) / 32768);
-}
+const { readSample, wav } = require("./wake-pcm");
 function rpc(child) {
   let next = 0, closed = false;
   const pending = new Map();
@@ -40,7 +28,7 @@ function rpc(child) {
 }
 async function createDetectors(dir, profile, utilityProcess) {
   const keywords = path.join(dir, "keywords.txt");
-  fs.writeFileSync(keywords, SPELLINGS.map((s, i) => `${s} :2.5 #0.05 @v${i + 1}`).join("\n") + "\n");
+  fs.writeFileSync(keywords, keywordText(profile));
   const head = utilityProcess.fork(path.join(__dirname, "wake-head-worker.js"), [], { stdio: "ignore", serviceName: "Filow wake word" });
   const b = rpc(head);
   try {
@@ -57,9 +45,15 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
   let ring = new Float32Array(), profile = null;
   const captureWatch = createCaptureWatch();
   try { const stored = JSON.parse(fs.readFileSync(profileFile, "utf8")); if (validateProfile(stored)) profile = stored; } catch { /* no trained phrase yet */ }
-  const samplesDir = path.join(root, "samples");
+  function retireOldRecordings() {
+    fs.rmSync(path.join(root, "samples"), { recursive: true, force: true });
+  }
+  if (profile?.phrase === DEFAULTS.phrase) {
+    try { retireOldRecordings(); } catch (e) { error = String(e.message || e).slice(0, 240); }
+  }
+  const samplesDir = path.join(root, "filow-samples");
   const samplesCount = () => Array.from({ length: 5 }, (_, i) => fs.existsSync(path.join(samplesDir, `${i + 1}.wav`))).filter(Boolean).length;
-  const snapshot = () => ({ enabled, listening, error, phase, count, testing, recordings: samplesCount(), negatives: [1,2].filter(i=>fs.existsSync(path.join(samplesDir, `negative-${i}.wav`))).length, verification: profile?.verification, trained: Boolean(profile), notice: NOTICE });
+  const snapshot = () => ({ enabled, listening, error, phase, count, testing, recordings: samplesCount(), negatives: [1,2].filter(i=>fs.existsSync(path.join(samplesDir, `negative-${i}.wav`))).length, prefixFallback: { balanced: prefixFallback(profile, "balanced"), strict: prefixFallback(profile, "strict") }, verification: profile?.verification, trained: Boolean(profile), legacyPhrase: Boolean(profile && !profile.phrase), notice: NOTICE });
   const publish = () => changed(snapshot());
   function stop() {
     captureWatch.reset();
@@ -95,15 +89,18 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     } catch (e) { if (token === epoch) fail(e); }
     return snapshot();
   }
-  async function enable(mode) {
-    stop(); error = ""; const token = epoch;
+  async function enable(mode, allowBare = true) {
+    stop(); error = ""; phase = "checking"; const token = epoch;
     try {
       await verifyModelsFn(dir);
+      if (token !== epoch) return snapshot();
       const saved = JSON.parse(fs.readFileSync(profileFile, "utf8"));
       if (!validateProfile(saved) || saved.models !== FILES.map((f) => f.sha256).join(":")) throw new Error("Record or retrain your wake word for these models");
-      if (!canEnable(saved.verification, sensitivity(mode))) throw new Error("Replay check required: recognise at least 4 of 5 takes and reject personal negatives");
+      const fallback = prefixFallback(saved, sensitivity(mode));
+      if (!fallback && !canEnable(saved.verification, sensitivity(mode))) throw new Error("Replay check required: recognise at least 4 of 5 takes and reject personal negatives");
       profile = saved; phase = "checking"; publish();
-      const loaded = await createDetectorsFn(dir, profile, utilityProcess);
+      const requirePrefix = profile.phrase === DEFAULTS.phrase && (!allowBare || fallback);
+      const loaded = await createDetectorsFn(dir, fallback ? { ...profile, requirePrefix, separatePrefix: true } : { ...profile, requirePrefix }, utilityProcess);
       if (token !== epoch) { loaded.stop(); return snapshot(); }
       detectors = loaded;
       const times = [];
@@ -113,9 +110,13 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       }
       times.sort((a, b) => a - b);
       if (times[94] > 30) throw new Error(`Wake detector too slow: ${Math.round(times[94])} ms per 100 ms block (limit 30 ms)`);
-      await detectors.reset(); combiner = createCombiner(profile.thresholds, sensitivity(mode));
+      await detectors.reset(); combiner = profileCombiner({ ...profile, requirePrefix }, sensitivity(mode));
       enabled = true; phase = "ready"; publish(); await reconcile();
     } catch (e) { if (token === epoch) fail(e); }
+    return snapshot();
+  }
+  function setBare(mode, allowBare) {
+    if (enabled || phase === "checking") return enable(mode, allowBare);
     return snapshot();
   }
   async function feed(samples) {
@@ -143,13 +144,21 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     } catch (e) { if (token === epoch) fail(e); }
     finally { if (token === epoch) pending = false; }
   }
+  function enrolmentChanged() {
+    // Old profiles use a separate set of takes and can still be used during migration.
+    if (profile?.phrase) {
+      fs.rmSync(profileFile, { force: true });
+      profile = null;
+    }
+    phase = "enrol"; publish(); return snapshot();
+  }
   function sample(index, pcm) {
     stop();
     if (!Number.isInteger(index) || index < 0 || index >= 5) throw new Error("Invalid enrolment take");
     const reason = checkRecording(pcm); if (reason) throw new Error(reason);
     fs.mkdirSync(samplesDir, { recursive: true });
     fs.writeFileSync(path.join(samplesDir, `${index + 1}.wav`), wav(pcm));
-    fs.rmSync(profileFile, { force: true }); profile = null; phase = "enrol"; publish(); return snapshot();
+    return enrolmentChanged();
   }
   function negative(index, pcm) {
     stop();
@@ -158,9 +167,9 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     const file = path.join(samplesDir, `negative-${index + 1}.wav`);
     if (pcm === null) fs.rmSync(file, { force: true });
     else { const reason = checkRecording(pcm); if(reason) throw new Error(reason); fs.writeFileSync(file,wav(pcm)); }
-    fs.rmSync(profileFile, { force: true }); profile = null; phase = "enrol"; publish(); return snapshot();
+    return enrolmentChanged();
   }
-  async function train() {
+  async function train(mode) {
     stop(); error = ""; phase = "training"; publish(); const token = epoch;
     try {
       await verifyModelsFn(dir);
@@ -173,18 +182,33 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       const got = await trainer.call({ type: "train", recordings, negatives, background: path.join(__dirname, "wake-data") }, 120000);
       if (token !== epoch) return snapshot();
       if (!validateProfile(got.profile)) throw new Error("Invalid trained wake word");
-      const candidate = { ...got.profile, models: FILES.map((f) => f.sha256).join(":"), createdAt: new Date().toISOString() };
+      const candidate = { ...got.profile, phrase: DEFAULTS.phrase, models: FILES.map((f) => f.sha256).join(":"), createdAt: new Date().toISOString() };
       const replay = await createDetectorsFn(dir, candidate, utilityProcess);
       try { candidate.verification = await replayEnrolment(replay, candidate, recordings, negatives); }
       finally { replay.stop(); }
       if (token !== epoch) return snapshot();
+      if (negatives.length && ["balanced", "strict"].some(m => !canEnable(candidate.verification, m))) {
+        const prefixed = { ...candidate, requirePrefix: true, separatePrefix: true };
+        const detector = await createDetectorsFn(dir, prefixed, utilityProcess);
+        try {
+          const checks = await replayEnrolment(detector, prefixed, [], negatives);
+          candidate.prefixNegatives = Object.fromEntries(Object.entries(checks).map(([m, row]) => [m, row.negativeAccepts]));
+        } finally { detector.stop(); }
+        if (token !== epoch) return snapshot();
+      }
+      if (profile && !profile.phrase && !canEnable(candidate.verification, sensitivity(mode))) {
+        throw new Error("Replay check required: record five new takes and retrain");
+      }
+      fs.writeFileSync(profileFile + ".tmp", JSON.stringify(candidate));
+      fs.renameSync(profileFile + ".tmp", profileFile);
       profile = candidate;
-      fs.writeFileSync(profileFile, JSON.stringify(profile)); phase = "ready"; publish();
+      retireOldRecordings();
+      phase = "ready"; publish();
     } catch (e) { if (token === epoch) fail(e); }
     finally { if (token === epoch) { trainer?.stop(); trainer = null; } }
     return snapshot();
   }
   function remove() { stop(); fs.rmSync(root, { recursive: true, force: true }); profile = null; error = ""; publish(); return snapshot(); }
-  return { status: snapshot, setup, enable, stop, fail, feed, reconcile, sample, negative, train, remove, test(on) { testing = on === true; count = 0; publish(); return snapshot(); } };
+  return { status: snapshot, setup, enable, setBare, stop, fail, feed, reconcile, sample, negative, train, remove, test(on) { testing = on === true; count = 0; publish(); return snapshot(); } };
 }
 module.exports = { createWake, createDetectors, wav, readSample };

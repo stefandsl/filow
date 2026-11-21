@@ -39,6 +39,7 @@ it("guards every startup boundary and only cleans up the obsolete backend", () =
   for (const operation of ['loadReadiness()', 'fetchPlan({ probe: false, apply: true })', 'preopenMic(pushLog)', 'probeMic(attempt)', 'b.start(handlers)']) {
     expect(source).toContain(`await attempt.wait(${operation})`);
   }
+  expect(source).not.toContain('gate.optionalDownload');
   expect(source).not.toContain('probe: true');
   // the on-device matcher's model load is a startup boundary too
   expect(source).toContain('await attempt.wait(loadGate(');

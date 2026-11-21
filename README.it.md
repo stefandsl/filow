@@ -1,5 +1,5 @@
 <p align="right"><a href="README.md">English</a> · <strong>Italiano</strong></p>
-Ramo sperimentale: la **parola di attivazione OK Filow** è disattivata per
+Ramo sperimentale: la **parola di attivazione Filow** è disattivata per
 impostazione predefinita. Le Impostazioni offrono l'avviso sui modelli ufficiali
 (35,3 MB), cinque registrazioni da accettare o ripetere, addestramento, prova dal
 vivo, riaddestramento ed eliminazione. Strict richiede entrambi i rilevatori locali;
@@ -9,6 +9,7 @@ chiuso, sessioni e presentazioni interrompono l'ascolto. La frase non interrompe
 la voce e non apre finestre per domande successive. L'audio resta in memoria,
 tranne le cinque registrazioni nel profilo dell'app. Il comando di eliminazione
 rimuove registrazioni e modello personale. Vedi [prove e limiti](docs/okfilow/WAKE-WORD.md).
+Di’ **Filow** da solo. Puoi anche dire OK Filow o Hey Filow. I profili esistenti mantengono la frase precedente finché non registri cinque nuovi esempi e ripeti l’addestramento. Dopo il nuovo addestramento, Filow elimina le vecchie registrazioni. Se le cinque registrazioni non superano la verifica del solo nome in modalità Balanced o Strict, le Impostazioni richiedono automaticamente OK Filow per quella sensibilità. Disattiva **Consenti Filow da solo** per richiedere OK o Hey prima del nome.
 
 Il riaddestramento ora include esempi numerici di frasi simili ma diverse dalla
 frase di attivazione. Puoi registrare anche due frasi negative facoltative, salvate
@@ -853,3 +854,5 @@ Una risposta locale viene riprovata una volta solo se non contiene parole né se
 Le risposte locali richiedono Ollama 0.9.0 o successivo per le API, oltre all'eventuale versione minima superiore richiesta dal modello scelto. La configurazione e le risposte controllano il server in esecuzione; una versione vecchia o un runtime irraggiungibile ricevono una spiegazione con le istruzioni per risolvere.
 
 Le Impostazioni offrono la cancellazione dei modelli solo per download completati e registrati da Filow nel profilo corrente, con server e digest corrispondenti. I modelli preesistenti, modificati o di proprietà non verificata vengono conservati. Il profilo registra anche l'avvio e il completamento dell'installazione del runtime; disinstallare Filow continua a conservare runtime e modelli per impostazione predefinita. Queste protezioni non automatizzano la rimozione del runtime o la pulizia tramite il programma di disinstallazione.
+
+Il modello di confronto facoltativo richiede i file mancanti a Hugging Face solo dopo la tua autorizzazione. La prova privata funziona anche senza il modello.

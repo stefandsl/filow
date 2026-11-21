@@ -7,7 +7,7 @@ import { engineHeaders } from "./useSession";
 import { pageOutbound } from "./usePageOutbound";
 import { getDecisionProvider, getGateMode, getLang } from "@/lib/prefs";
 import { localizeFreeLlmError } from "@/lib/freellm";
-import { browserEmbed, gateAvailable, preparePoints } from "@/lib/gate/client";
+import { browserEmbed, gateAvailable, hasGateGrant, preparePoints } from "@/lib/gate/client";
 
 /**
  * Decide through the Next.js API route on the same origin, with the provider chosen in Settings.
@@ -112,7 +112,7 @@ export function useEngine() {
     let live = true;
     let started = false;
     const prepare = () => {
-      if (started || !bullets.length || !gateAvailable()) return;
+      if (started || !bullets.length || !gateAvailable() || !hasGateGrant()) return;
       started = true;
       preparePoints(bullets, lang).then(
         (pv) => {

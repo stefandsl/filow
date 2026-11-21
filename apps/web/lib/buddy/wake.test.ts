@@ -35,3 +35,44 @@ describe("wake capture cancellation", () => {
     } finally { vi.useRealTimers(); }
   });
 });
+
+it("serializes a short capture burst and discards buffered blocks on stop", async () => {
+  let chunk!: (pcm: ArrayBuffer) => void;
+  let finish!: () => void;
+  const wakeFeed = vi.fn((_samples: Float32Array) => new Promise<void>(resolve => { finish = resolve; }));
+  const capture = createWakeCapture({ wakeFeed } as unknown as OkFilowBridge, async (_rate, fn) => {
+    chunk = fn;
+    return { stop: vi.fn() };
+  });
+  await capture.set(true);
+  for (const value of [1, 2, 3]) chunk(new Int16Array(1600).fill(value).buffer);
+  expect(wakeFeed).toHaveBeenCalledTimes(1);
+  finish();
+  await vi.waitFor(() => expect(wakeFeed).toHaveBeenCalledTimes(2));
+  expect(wakeFeed.mock.calls[1][0][0]).toBe(2 / 32768);
+  capture.stop();
+  finish();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(wakeFeed).toHaveBeenCalledTimes(2);
+});
+
+it("drops the oldest queued audio and keeps listening across a backlog", async () => {
+  let chunk!: (pcm: ArrayBuffer) => void;
+  let release!: () => void;
+  const stop = vi.fn(), wakeAction = vi.fn();
+  const wakeFeed = vi.fn(async (_block: Float32Array) => {});
+  wakeFeed.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
+  const capture = createWakeCapture({ wakeFeed, wakeAction } as unknown as OkFilowBridge, async (_rate, fn) => {
+    chunk = fn;
+    return { stop };
+  });
+  await capture.set(true);
+  for (let i = 1; i <= 8; i++) chunk(new Int16Array([i]).buffer);
+  release();
+  await vi.waitFor(() => expect(wakeFeed).toHaveBeenCalledTimes(3));
+  expect(wakeFeed.mock.calls.map(([block]) => block[0] * 32768)).toEqual([1, 7, 8]);
+  expect(capture.droppedBlocks).toBe(5);
+  expect(stop).not.toHaveBeenCalled();
+  expect(wakeAction).not.toHaveBeenCalled();
+  capture.stop();
+});

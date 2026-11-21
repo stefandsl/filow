@@ -9,6 +9,12 @@ WHAT'S NEW
 All versions: https://github.com/stefandsl/filow-releases/releases
 Report a problem: in Filow, open the Filow menu > Report a problem. Filow saves a report file that you send privately; it sends nothing itself.
 
+# Filow 0.9.44 (Preview)
+
+Filow asks before contacting Hugging Face to download the point-matching model. If you used the pre-filter before, allow the download once in Settings.
+
+Say just "Filow" to wake the assistant; "OK Filow" and "Hey Filow" still work. Filow keeps up to two optional example recordings you accept, and deletes the old phrase's recordings after retraining.
+
 # Filow 0.9.43 (Preview)
 
 * OK Filow cards change size as you drag a corner. Drawing cards resize too (#8).

@@ -431,6 +431,8 @@ export const en = {
   "gate.off": "Off: ask the model about every open point",
   "gate.on": "On: ask only about the points the speech resembles",
   "gate.hint": "A small multilingual sentence model on this PC (120 MB, downloaded once) scores every open point against what was just said; the decision model gets only the plausible ones and is not called at all when nothing matches. Measured on the demo corpus (two runs each, cloud model): 3 of 17 model calls skipped, recall 0.78 to 0.89 gated against 0.56 to 0.78 direct, no false starts either way, latency within the provider's own variance (docs/gauntlet/BASELINE.md).",
+  "gate.allowDownload": "Allow this browser to download the matching model (about 120 MB) from Hugging Face when files are missing? Your script stays on this device. Cancel to continue without the download.",
+  "gate.upgradeNotice": "The pre-filter now waits for your permission to download missing model files.",
   "gate.download": "Download the pre-filter model",
   "gate.ready": "Pre-filter model ready",
   "start.modeAsk": "Ask every time",

@@ -2,7 +2,6 @@
 const { parentPort, workerData } = require("node:worker_threads");
 const path = require("node:path");
 const sherpa = require("sherpa-onnx-node");
-const { SPELLINGS } = require("./wake-policy");
 function createSpotter(dir, keywords) {
 const kws = new sherpa.KeywordSpotter({
   featConfig: { sampleRate: 16000, featureDim: 80 },
@@ -16,7 +15,6 @@ const kws = new sherpa.KeywordSpotter({
   },
   keywordsFile: keywords, maxActivePaths: 16, keywordsScore: 2.5, keywordsThreshold: 0.05,
 });
-if (SPELLINGS.length !== 15) throw new Error("Expected 15 wake spellings");
 let stream = kws.createStream();
 let startAt = null;
 return {
@@ -26,17 +24,20 @@ return {
   const started = performance.now();
   stream.acceptWaveform({ samples: m.samples, sampleRate: 16000 });
   let keyword = false;
-  let phraseEndMs;
+  let phraseEndMs, prefixEndMs;
   while (kws.isReady(stream)) {
     kws.decode(stream);
     const result = kws.getResult(stream);
     if (result.keyword) {
       keyword = true;
-      if (Array.isArray(result.timestamps) && result.timestamps.length) phraseEndMs = startAt + Math.max(...result.timestamps) * 1000 + 80;
+      const end = Array.isArray(result.timestamps) && result.timestamps.length
+        ? startAt + Math.max(...result.timestamps) * 1000 + 80 : m.at;
+      if (result.keyword.startsWith("prefix")) prefixEndMs = end;
+      else phraseEndMs = end;
       kws.reset(stream);
     }
   }
-  return { id: m.id, at: m.at, keyword, phraseEndMs, ms: performance.now() - started };
+  return { id: m.id, at: m.at, keyword, phraseEndMs, prefixEndMs, ms: performance.now() - started };
  }
 };
 }

@@ -17,7 +17,7 @@ class FakeWorker {
 beforeEach(() => {
   FakeWorker.made = [];
   vi.resetModules();
-  vi.stubGlobal("window", {});
+  vi.stubGlobal("window", { confirm: () => true });
   vi.stubGlobal("Worker", FakeWorker);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -55,4 +55,34 @@ describe("the pre-filter model download", () => {
     void loadGate();
     expect(FakeWorker.made).toHaveLength(2);
   });
+});
+
+it("keeps an ungranted embedding request private and declines a named download", async () => {
+  const confirm = vi.fn(() => false);
+  vi.stubGlobal("window", { confirm });
+  const { browserEmbed, loadGate } = await import("./client");
+  const embedding = browserEmbed(["private script"]).catch(() => []);
+  expect(FakeWorker.made).toHaveLength(0);
+  await embedding;
+  expect(confirm).not.toHaveBeenCalled();
+  await expect(loadGate()).rejects.toMatchObject({ name: "AbortError" });
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Hugging Face"));
+  expect(FakeWorker.made).toHaveLength(0);
+});
+
+it("shows the Settings grant note once for previous pre-filter use", async () => {
+  const { takeGateUpgradeNotice } = await import("./client");
+  const values: Record<string, string> = {};
+  vi.stubGlobal("localStorage", Object.assign(values, {
+    getItem: (k: string) => values[k] ?? null,
+    setItem: (k: string, v: string) => { values[k] = v; },
+  }));
+  expect(takeGateUpgradeNotice(false)).toBe(false);
+  for (const previous of ["cached", "vectors", "explicit"]) {
+    if (previous === "vectors") values["gate:points:old"] = "{}";
+    if (previous === "explicit") values["prefs:gate"] = "on";
+    expect(takeGateUpgradeNotice(previous === "cached")).toBe(true);
+    expect(takeGateUpgradeNotice(true)).toBe(false);
+    for (const k of Object.keys(values)) if (typeof values[k] === "string") delete values[k];
+  }
 });

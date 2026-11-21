@@ -1,15 +1,15 @@
 # Filow privacy policy
 
-Experimental branch addition: the opt-in OK Filow wake word processes audio only
+Experimental branch addition: the opt-in Filow wake word processes audio only
 on this computer, in memory. It never opens the microphone without a visible
-listening indicator and a one-click Off control. Only the five enrollment
-recordings you accept are saved in the app profile, with the trained personal
-head. Settings can delete both. Model downloads require an explicit source,
+listening indicator and a one-click Off control. The app profile stores the five accepted enrollment takes, up to two optional
+negative examples you accept and the personal detector. Successful retraining
+removes the previous phrase’s recordings. Settings can delete all wake data. Model downloads require an explicit source,
 size and licence notice; listening makes no network requests. After detection,
 the ordinary question retains its existing provider and outbound consent rules.
 See [wake-word evidence](okfilow/WAKE-WORD.md).
 
-Last updated: 10 November 2026. This text describes what the Filow app really does, checked against
+Last updated: 20 November 2026. This text describes what the Filow app really does, checked against
 its code (the full technical list is docs/okfilow/OUTBOUND.md in Filow's source code). It is also
 available in Italian: set Filow's language to Italian.
 
@@ -112,6 +112,8 @@ OK Filow's settings. Cloud features use your own account with that company.
 | Spelling check in text boxes, on Linux only | no content of yours: the window's built-in spelling checker may download its dictionary | Google, which hosts the dictionaries for Chromium (not yet checked on a Linux desktop) |
 | FreeLLMAPI, when you chose it (OK Filow answers, take tracking, script writing and translation) | the same content as the cloud feature it replaces: your question and pictures of your screens, the words you spoke (masked as above), your script or slides | your own FreeLLMAPI router, then a free AI provider the router picks for each request |
 | "Check connection" in Settings > FreeLLMAPI (no notice: nothing of yours is in it) | a request for the router's list of models | your FreeLLMAPI router only |
+
+The matching model requests missing files from Hugging Face only with your permission.
 
 OpenRouter passes your request to a company that runs the model. For Google's models that is Google;
 for other models it can be another company that OpenRouter picks.
