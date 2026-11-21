@@ -118,7 +118,7 @@ export type OkFilowCapture = {
 };
 
 type Off = () => void;
-export type WakeStatus = { enabled: boolean; listening: boolean; error: string; phase: string; count: number; testing: boolean; legacyPhrase?: boolean; recordings: number; negatives?: number; verification?: Record<string, { total: number; recognised: number; negatives: number; negativeAccepts: number }>; trained: boolean; notice: { bytes: number; source: string; licence: string } };
+export type WakeStatus = { enabled: boolean; listening: boolean; error: string; phase: string; count: number; testing: boolean; legacyPhrase?: boolean; prefixFallback?: Record<string, boolean>; recordings: number; negatives?: number; verification?: Record<string, { total: number; recognised: number; negatives: number; negativeAccepts: number }>; trained: boolean; notice: { bytes: number; source: string; licence: string } };
 export type WakeAction = "status" | "off" | "setup" | "enable" | "sample" | "negative" | "train" | "delete" | "test" | "error";
 export type WakeApi = { wakeAction?(action: WakeAction, data?: unknown): Promise<WakeStatus> };
 

@@ -237,3 +237,18 @@ it("switches an active spotter to prefix-required and leaves an idle one off", a
   expect(wake.status().listening).toBe(true);
   wake.stop();
 });
+
+it.each(["balanced", "strict"])("automatically loads the prefix detector for an ineligible %s bare profile", async mode => {
+  const dir = temp(), root = path.join(dir, "wake");
+  fs.mkdirSync(root);
+  const p = { phrase: "Filow", version: 1, weights: Array(1152).fill(0), bias: 0, thresholds,
+    verification: { [mode]: { recognised: 2, total: 5, negatives: 0, negativeAccepts: 0 } },
+    models: FILES.map((f: { sha256: string }) => f.sha256).join(":") };
+  fs.writeFileSync(path.join(root, "profile.json"), JSON.stringify(p));
+  const load = vi.fn(async () => ({ feed: async () => ({ ms: 1 }), reset: async () => {}, stop: vi.fn() }));
+  const wake = createWake({ userData: dir, state: () => ready, changed: vi.fn(), detected: vi.fn(),
+    verifyModelsFn: async () => {}, createDetectorsFn: load });
+  expect(await wake.enable(mode)).toMatchObject({ listening: true, prefixFallback: { [mode]: true } });
+  expect(load).toHaveBeenCalledWith(expect.anything(), { ...p, requirePrefix: true }, undefined);
+  wake.stop();
+});

@@ -1,6 +1,7 @@
 import type { OkfKey } from "./text";
 
 export const ro: Record<OkfKey, string> = {
+  wakePrefixFallback: "La această sensibilitate, înregistrările nu au trecut testul pentru Filow fără prefix. Spune OK Filow.",
   wakeBare: "Permite doar numele Filow (dezactivează pentru a cere OK sau Hey înainte de Filow)",
   wakeLegacy: "Fraza anterioară funcționează în continuare. Pentru a o schimba, înregistrează Filow de cinci ori și repetă antrenarea.",
   wakeNegative: "Înregistrează o propoziție obișnuită (opțional)",

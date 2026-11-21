@@ -4,7 +4,7 @@ const path = require("node:path");
 const { DEFAULTS, keywordText, blocked, checkRecording, profileCombiner, sensitivity, captureAllowed } = require("./wake-policy");
 const { createCaptureWatch } = require("./okfilow-mic");
 const { validateProfile } = require("./wake-head");
-const { canEnable, replayEnrolment } = require("./wake-enrolment");
+const { canEnable, replayEnrolment, prefixFallback } = require("./wake-enrolment");
 const { verifyModels, ensureModels, FILES, NOTICE } = require("./wake-models");
 const { readSample, wav } = require("./wake-pcm");
 function rpc(child) {
@@ -53,7 +53,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
   }
   const samplesDir = path.join(root, "filow-samples");
   const samplesCount = () => Array.from({ length: 5 }, (_, i) => fs.existsSync(path.join(samplesDir, `${i + 1}.wav`))).filter(Boolean).length;
-  const snapshot = () => ({ enabled, listening, error, phase, count, testing, recordings: samplesCount(), negatives: [1,2].filter(i=>fs.existsSync(path.join(samplesDir, `negative-${i}.wav`))).length, verification: profile?.verification, trained: Boolean(profile), legacyPhrase: Boolean(profile && !profile.phrase), notice: NOTICE });
+  const snapshot = () => ({ enabled, listening, error, phase, count, testing, recordings: samplesCount(), negatives: [1,2].filter(i=>fs.existsSync(path.join(samplesDir, `negative-${i}.wav`))).length, prefixFallback: { balanced: prefixFallback(profile, "balanced"), strict: prefixFallback(profile, "strict") }, verification: profile?.verification, trained: Boolean(profile), legacyPhrase: Boolean(profile && !profile.phrase), notice: NOTICE });
   const publish = () => changed(snapshot());
   function stop() {
     captureWatch.reset();
@@ -96,9 +96,10 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       if (token !== epoch) return snapshot();
       const saved = JSON.parse(fs.readFileSync(profileFile, "utf8"));
       if (!validateProfile(saved) || saved.models !== FILES.map((f) => f.sha256).join(":")) throw new Error("Record or retrain your wake word for these models");
-      if (!canEnable(saved.verification, sensitivity(mode))) throw new Error("Replay check required: recognise at least 4 of 5 takes and reject personal negatives");
+      const fallback = prefixFallback(saved, sensitivity(mode));
+      if (!fallback && !canEnable(saved.verification, sensitivity(mode))) throw new Error("Replay check required: recognise at least 4 of 5 takes and reject personal negatives");
       profile = saved; phase = "checking"; publish();
-      const requirePrefix = profile.phrase === DEFAULTS.phrase && !allowBare;
+      const requirePrefix = profile.phrase === DEFAULTS.phrase && (!allowBare || fallback);
       const loaded = await createDetectorsFn(dir, { ...profile, requirePrefix }, utilityProcess);
       if (token !== epoch) { loaded.stop(); return snapshot(); }
       detectors = loaded;
@@ -186,6 +187,15 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       try { candidate.verification = await replayEnrolment(replay, candidate, recordings, negatives); }
       finally { replay.stop(); }
       if (token !== epoch) return snapshot();
+      if (negatives.length && ["balanced", "strict"].some(m => !canEnable(candidate.verification, m))) {
+        const prefixed = { ...candidate, requirePrefix: true };
+        const detector = await createDetectorsFn(dir, prefixed, utilityProcess);
+        try {
+          const checks = await replayEnrolment(detector, prefixed, [], negatives);
+          candidate.prefixNegatives = Object.fromEntries(Object.entries(checks).map(([m, row]) => [m, row.negativeAccepts]));
+        } finally { detector.stop(); }
+        if (token !== epoch) return snapshot();
+      }
       if (profile && !profile.phrase && !canEnable(candidate.verification, sensitivity(mode))) {
         throw new Error("Replay check required: record five new takes and retrain");
       }

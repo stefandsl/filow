@@ -1,6 +1,7 @@
 import type { OkfKey } from "./text";
 
 export const ja: Record<OkfKey, string> = {
+  wakePrefixFallback: "この感度では「Filow」だけの録音が確認テストに通らなかったため、「OK Filow」と呼んでください。",
   wakeBare: "Filow だけで起動する（オフにすると Filow の前に OK または Hey が必要です）",
   wakeLegacy: "以前のフレーズも使えます。切り替えるには、Filow を5回録音して再学習してください。",
   wakeNegative: "普通の文を録音（任意）",

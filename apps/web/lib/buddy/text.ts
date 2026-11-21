@@ -6,6 +6,7 @@ import { ro } from "./text.ro";
 import { ja } from "./text.ja";
 
 const en = {
+  wakePrefixFallback: "Your recordings did not pass for Filow alone at this sensitivity. Say OK Filow.",
   wakeBare: "Allow Filow alone (turn off to require OK or Hey before Filow)",
   wakeLegacy: "Your previous phrase still works. To switch, record Filow five times and retrain.",
   wakeNegative: "Record an ordinary sentence (optional)",

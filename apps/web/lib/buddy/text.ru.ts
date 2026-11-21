@@ -1,6 +1,7 @@
 import type { OkfKey } from "./text";
 
 export const ru: Record<OkfKey, string> = {
+  wakePrefixFallback: "При этой чувствительности записи не прошли проверку для одного слова Filow. Скажите «OK Filow».",
   wakeBare: "Реагировать на одно слово Filow (выключите, чтобы перед Filow требовалось OK или Hey)",
   wakeLegacy: "Прежняя фраза по-прежнему работает. Для смены фразы запишите Filow пять раз и повторите обучение.",
   wakeNegative: "Записать обычное предложение (необязательно)",

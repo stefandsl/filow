@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { keywordText, profileCombiner } = require("../../apps/desktop/wake-policy");
 const { createEmbedding, createStream, enrol, background } = require("../../apps/desktop/wake-head");
-const { replayEnrolment, canEnable } = require("../../apps/desktop/wake-enrolment");
+const { replayEnrolment, canEnable, prefixFallback } = require("../../apps/desktop/wake-enrolment");
 const { readSample } = require("../../apps/desktop/wake-pcm");
 const [models, clips, speech, out, minutes = 6, language, offset = 0, variant, manifestHash] = process.argv.slice(2);
 const modes = ["strict", "balanced", "sensitive"];
@@ -47,8 +47,8 @@ async function run() {
         const profile = await enrol(embedding, recordings, background(data, bare));
         if (bare) profile.phrase = "Filow";
         const file = path.join(out, `keywords-${lang}-${phrase}.txt`);
-        const spotter = () => {
-          fs.writeFileSync(file, keywordText(profile));
+        const spotter = (settings = profile) => {
+          fs.writeFileSync(file, keywordText(settings));
           return createSpotter(models, file);
         };
         let kws = spotter();
@@ -63,7 +63,10 @@ async function run() {
           profile.requirePrefix = true;
           kws = spotter();
         }
-        const counts = Object.fromEntries(modes.map(m => [m, { enabled: canEnable(verification, m), bare: 0, ok: 0, hey: 0, near: 0, normal: 0 }]));
+        profile.verification = verification;
+        const fallbackModes = modes.filter(m => phrase === "bare" && prefixFallback(profile, m));
+        const prefixSpotter = fallbackModes.length ? spotter({ ...profile, requirePrefix: true }) : null;
+        const counts = Object.fromEntries(modes.map(m => [m, { enabled: canEnable(verification, m) || fallbackModes.includes(m), prefixFallback: fallbackModes.includes(m), bare: 0, ok: 0, hey: 0, near: 0, normal: 0 }]));
         const totals = { bare: 0, ok: 0, hey: 0, near: 0 };
         let seconds = 0;
         for (const test of tests) {
@@ -74,14 +77,16 @@ async function run() {
           const audio = normal ? pcm : new Float32Array(32000 + pcm.length);
           if (!normal) audio.set(pcm, 16000);
           detector.reset();
-          const combiners = modes.map(m => profileCombiner(profile, m));
+          prefixSpotter?.reset();
+          const combiners = modes.map(m => profileCombiner({ ...profile, requirePrefix: profile.requirePrefix || fallbackModes.includes(m) }, m));
           const fired = new Set();
           for (let i = 0; i < audio.length; i += 1600) {
             const samples = new Float32Array(1600);
             samples.set(audio.subarray(i, i + 1600));
             const event = await detector.feed(samples, (i + 1600) / 16);
+            const prefixEvent = prefixSpotter && { ...event, ...prefixSpotter.feed({ samples, at: event.at }) };
             for (const [j, mode] of modes.entries()) {
-              if (combiners[j].push(event) && (normal || !fired.has(mode))) {
+              if (combiners[j].push(fallbackModes.includes(mode) ? prefixEvent : event) && (normal || !fired.has(mode))) {
                 counts[mode][test.kind]++;
                 fired.add(mode);
               }

@@ -101,3 +101,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R87 (2026-11-21, wake-filow): keep host paths and chosen port numbers in private packaged receipts. Check: the public evaluation names the isolation method and measurements, and contains no workstation paths or assigned ports.
 - R88 (2026-11-21, wake-filow): supersede R84 on backlog overflow. Check: delay one inference for eight blocks and verify capture delivers the first and newest two in order.
 - R89 (2026-11-21, wake-filow): accept caller-selected volumes for packaged QA. Check: supply separate executable and profile volumes and reject an existing profile.
+- R90 (2026-11-21, wake-filow): include the original microphone takes during bare training and keep Balanced available through prefix recognition when bare replay misses. Check: trace five clean inputs and enable an ineligible bare profile through Settings.
+- R91 (2026-11-21, wake-filow): select Strict eligibility per spoken form. Check: enable Strict on a failed bare replay, require the prefix and measure all forms under the effective detector.

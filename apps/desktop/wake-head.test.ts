@@ -150,3 +150,14 @@ it("presents each spoken prefix to the embedding model during enrolment", async 
   await positiveWindows(embedding, Array(5).fill(new Float32Array(16000).fill(.2)), prefixes);
   expect([...observed].sort((a, b) => a - b)).toEqual(prefixes.map(p => p[0]));
 });
+
+it("includes each original bare take at microphone speed and gain", async () => {
+  const takes = Array.from({ length: 5 }, (_, i) => new Float32Array(16000).fill((i + 1) / 8));
+  const seen = new Set<number>();
+  const embedding = { embed: async (audio: Float32Array) => {
+    if (audio[15999] === 0 && audio[32000] === 0 && audio[16000] === audio[31999]) seen.add(audio[16000]);
+    return new Float32Array(60 * 96);
+  } };
+  await positiveWindows(embedding, takes, [Float32Array.of(2)]);
+  for (const take of takes) expect(seen.has(take[0])).toBe(true);
+});

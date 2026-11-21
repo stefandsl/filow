@@ -3,6 +3,15 @@ function canEnable(result, mode = 'balanced') {
   const row = result?.[mode];
   return row?.total === 5 && row.recognised >= 4 && row.negativeAccepts === 0;
 }
+// Bare takes cannot demonstrate a prefixed call. Keep the four-of-five gate
+// for bare listening and use the prefix spotter with the same personal head
+// when only bare recognition failed. A personal negative must still be rejected.
+function prefixFallback(profile, mode) {
+  const row = profile?.verification?.[mode];
+  if (profile?.phrase !== "Filow" || !["balanced", "strict"].includes(mode) ||
+      row?.total !== 5 || !Number.isInteger(row.recognised) || row.recognised < 0 || canEnable(profile.verification, mode)) return false;
+  return (profile.prefixNegatives?.[mode] ?? row.negativeAccepts) === 0;
+}
 async function replayEnrolment(detectors, profile, recordings, negatives = []) {
   const result = Object.fromEntries(['strict','balanced','sensitive'].map(mode => [mode,{total:recordings.length,recognised:0,negatives:negatives.length,negativeAccepts:0}]));
   for (const [index, pcm] of [...recordings,...negatives].entries()) {
@@ -19,4 +28,4 @@ async function replayEnrolment(detectors, profile, recordings, negatives = []) {
   }
   return result;
 }
-module.exports = { canEnable, replayEnrolment };
+module.exports = { canEnable, replayEnrolment, prefixFallback };

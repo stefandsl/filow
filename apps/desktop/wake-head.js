@@ -176,8 +176,15 @@ async function positiveWindows(embedding, recordings, prefixes = []) {
   for (const samples of recordings) {
     const end = speechEnd(samples);
     const start = prefixes.length ? samples.length - speechEnd(samples.slice().reverse()) : 0;
-    for (let a = 0; a < 16; a++) {
-      const { audio: padded, speed } = augment(samples, a, rng);
+    // Augmentations change speed, gain or context. Include the exact microphone
+    // take as a clean positive for the personal bare head.
+    const variants = prefixes.length ? 17 : 16;
+    for (let a = 0; a < variants; a++) {
+      const original = a === 16;
+      const { audio: padded, speed } = original
+        ? { audio: new Float32Array(16000 + samples.length + 9600), speed: 1 }
+        : augment(samples, a, rng);
+      if (original) padded.set(samples, 16000);
       // Give half of each speaker's examples a spoken prefix. Align it with the
       // first voiced frame, since microphone enrolment can start with silence.
       if (prefixes.length && a % 2) {

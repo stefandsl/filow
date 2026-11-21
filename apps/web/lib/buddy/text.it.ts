@@ -1,6 +1,7 @@
 import type { OkfKey } from "./text";
 
 export const it: Record<OkfKey, string> = {
+  wakePrefixFallback: "A questa sensibilità le registrazioni non hanno superato la prova con il solo nome. Di’ OK Filow.",
   wakeBare: "Consenti Filow da solo (disattiva per richiedere OK o Hey prima di Filow)",
   wakeLegacy: "La frase precedente funziona ancora. Per cambiarla, registra Filow cinque volte e ripeti l’addestramento.",
   wakeNegative: "Registra una frase comune (facoltativo)",
