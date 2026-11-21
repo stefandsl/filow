@@ -235,7 +235,9 @@ export class Engine {
 
   // ---- inputs -----------------------------------------------------------------
   feed(e: TranscriptEvent): void {
+    let withdrawn: string[] = [];
     if (e.committed) {
+      if (this.o.guard) withdrawn = this.reconcileCorrection(e.committed);
       this.committed = (this.committed + e.committed).slice(-COMMITTED_CAP);
       this.committedTotal += e.committed.length;
       this.segs.push({ end: this.committedTotal, at: this.o.now() });
@@ -248,8 +250,39 @@ export class Engine {
     }
     if (e.partial !== undefined || e.committed) this.partial = e.partial ?? "";
     const tail = this.transcript.slice(-TAIL);
-    if (tail !== this.state.transcriptTail) this.update((s) => (s.transcriptTail = tail));
+    if (tail !== this.state.transcriptTail || withdrawn.length) this.update((s) => {
+      s.transcriptTail = tail;
+      for (const id of withdrawn) s.points[id] = { status: "waiting", confidence: 0 };
+    });
     if (e.partial !== undefined || e.committed) this.hintFromPartial();
+  }
+
+  /** Account for a correction even if its first version was already accepted or is in flight. */
+  private reconcileCorrection(final: string): string[] {
+    const { script, sectionIdx, points } = this.state;
+    const cue = /(?:^|[.!?,]\s*|^sorry[, ]+)\s*(?:sorry[, ]+)?(?:i mean|mi correggo)\b/i.exec(final);
+    const from = cue ? cue.index + cue[0].length : 0;
+    const correction = final.slice(from);
+    const withdrawn: string[] = [];
+    let revise = Boolean(cue);
+    for (const b of script.sections[sectionIdx]?.bullets ?? []) {
+      const automatic = points[b.id]?.evidence?.source === "model";
+      if (!automatic && !this.inFlight && !this.streak[b.id] && !this.held.has(b.id)) continue;
+      const check = checkClaim(b.text, correction);
+      // Another event can have the same date. It only retracts a previous event when the
+      // speaker explicitly replaces it. A direct denial of the same claim needs no cue.
+      if (check.ok || (check.conflict?.kind === "subject" && !cue)) continue;
+      if (automatic) withdrawn.push(b.id);
+      delete this.streak[b.id];
+      this.held.delete(b.id);
+      revise = true;
+    }
+    if (revise) {
+      this.invalidate();
+      this.fences.set(sectionIdx, this.committedTotal + from);
+      this.lastSent = "";
+    }
+    return withdrawn;
   }
 
   /**
@@ -722,7 +755,7 @@ export class Engine {
         }
         st.points[d.id] = flip
           ? { status: "started", confidence: d.confidence, startedAt: now, evidence: this.evidenceFor(checks.get(d.id)!, req.transcript, windowAbs, d, data.model) }
-          : { status: "waiting", confidence: d.confidence, ...(cur.active && stillHot.has(d.id) ? { active: true } : {}) };
+          : { status: "waiting", confidence: rejected.has(d.id) ? 0 : d.confidence, ...(cur.active && stillHot.has(d.id) ? { active: true } : {}) };
       }
     });
     this.checkCap();

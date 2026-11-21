@@ -83,6 +83,37 @@ describe("script-scoped place", () => {
 });
 
 describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries", (_lang, journey) => {
+  it("withdraws contradicted automatic evidence and preserves independent marks", async () => {
+    const { e } = makeEngine([{ s1b2: 0.98 }]);
+    e.loadScript(parseScript(journey.script));
+    e.dispatch({ type: "anchor", idx: 1 });
+    e.dispatch({ type: "markStarted", id: "s1b0" });
+    e.feed({ committed: journey.partial + " " });
+    await e.tick();
+    expect(e.getState().points.s1b2.evidence?.source).toBe("model");
+    for (let i = 0; i < 2; i++) {
+      e.feed({ committed: journey.corrected + " ", partial: "" });
+      await e.tick();
+      expect(e.getState().points.s1b2).toEqual({ status: "waiting", confidence: 0 });
+      expect(e.getState().points.s1b0.evidence?.source).toBe("manual");
+    }
+  });
+  it("drops a late vote made before the speaker explicitly corrected the date", async () => {
+    let reply!: (value: DecideResponse) => void;
+    const { e } = makeEngine([], 0, { decide: () => new Promise(resolve => { reply = resolve; }) });
+    e.loadScript(parseScript(journey.script));
+    e.feed({ committed: journey.clips.resume.text.replace(/[.]$/, " ") });
+    const pending = e.tick();
+    e.feed({ committed: journey.clips.correction.text.split(". ")[1] });
+    const vote = { decisions: [{ id: "s0b2", started: true, confidence: 1 }], model: "test", cost: 0, latencyMs: 1 };
+    reply(vote);
+    await pending;
+    expect(e.getState().points.s0b2?.status ?? "waiting").toBe("waiting");
+    const fresh = e.tick();
+    reply(vote);
+    await fresh;
+    expect(e.getState().points.s0b2).toEqual({ status: "waiting", confidence: 0 });
+  });
   it("keeps the presenter's reopen through old words, navigation and recovery", async () => {
     const { e } = makeEngine([{ s0b1: 0.96 }]);
     const script = parseScript(journey.script);
