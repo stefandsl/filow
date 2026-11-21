@@ -196,6 +196,12 @@ it("keeps a legacy profile and its recordings until a replacement passes replay"
   expect(await wake.train("balanced")).toMatchObject({ legacyPhrase: false, recordings: 5, error: "" });
   expect(fs.existsSync(old)).toBe(false);
   expect(JSON.parse(fs.readFileSync(file, "utf8")).phrase).toBe("Filow");
+  // Recover a process exit after the atomic rename but before removing old audio.
+  fs.mkdirSync(old);
+  fs.writeFileSync(path.join(old, "1.wav"), wav(pcm));
+  const reopened = createWake({ userData: dir, state: () => ready, changed: vi.fn(), detected: vi.fn() });
+  expect(reopened.status()).toMatchObject({ trained: true, recordings: 5 });
+  expect(fs.existsSync(old)).toBe(false);
 });
 
 it("excludes the unprefixed English word hero from new keywords", () => {

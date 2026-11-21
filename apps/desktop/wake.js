@@ -45,6 +45,12 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
   let ring = new Float32Array(), profile = null;
   const captureWatch = createCaptureWatch();
   try { const stored = JSON.parse(fs.readFileSync(profileFile, "utf8")); if (validateProfile(stored)) profile = stored; } catch { /* no trained phrase yet */ }
+  function retireOldRecordings() {
+    fs.rmSync(path.join(root, "samples"), { recursive: true, force: true });
+  }
+  if (profile?.phrase === DEFAULTS.phrase) {
+    try { retireOldRecordings(); } catch (e) { error = String(e.message || e).slice(0, 240); }
+  }
   const samplesDir = path.join(root, "filow-samples");
   const samplesCount = () => Array.from({ length: 5 }, (_, i) => fs.existsSync(path.join(samplesDir, `${i + 1}.wav`))).filter(Boolean).length;
   const snapshot = () => ({ enabled, listening, error, phase, count, testing, recordings: samplesCount(), negatives: [1,2].filter(i=>fs.existsSync(path.join(samplesDir, `negative-${i}.wav`))).length, verification: profile?.verification, trained: Boolean(profile), legacyPhrase: Boolean(profile && !profile.phrase), notice: NOTICE });
@@ -186,7 +192,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       fs.writeFileSync(profileFile + ".tmp", JSON.stringify(candidate));
       fs.renameSync(profileFile + ".tmp", profileFile);
       profile = candidate;
-      fs.rmSync(path.join(root, "samples"), { recursive: true, force: true });
+      retireOldRecordings();
       phase = "ready"; publish();
     } catch (e) { if (token === epoch) fail(e); }
     finally { if (token === epoch) { trainer?.stop(); trainer = null; } }

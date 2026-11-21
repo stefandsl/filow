@@ -28,6 +28,20 @@ phrases = {
     "ru": ("Фило", "Окей Фило", "Эй Фило", ["филе", "фильм", "видео", "филин"]),
     "ja": ("フィロー", "オーケー、フィロー", "ねえ、フィロー", ["ヒーロー", "広い", "ビデオ", "黄色"]),
 }
+# Alternate pronunciations used in the original local synthetic corpus.
+alternate_ok = {
+    "en": ["OK Filow.", "Okay Filow."], "it": ["OK Filo.", "Okay Filou."],
+    "ru": ["Окей, Фило.", "Окей Филоу."], "ro": ["OK Filo.", "Okei Filou."],
+    "ja": ["オーケー、フィロー。", "オッケー フィロ。"],
+}
+
+def render(text, lang, sid, rate, file):
+    cfg = so.GenerationConfig()
+    cfg.sid, cfg.speed, cfg.num_steps, cfg.extra = sid, rate, 8, {"lang": lang}
+    audio = tts.generate(text, cfg)
+    samples = soxr.resample(np.asarray(audio.samples), audio.sample_rate, 16000)
+    sf.write(file, .5 * samples / np.max(np.abs(samples)), 16000, subtype="PCM_16")
+
 for sid, (lang, (bare, ok, hey, near)) in enumerate(phrases.items()):
     dest = args.out / lang
     dest.mkdir(parents=True, exist_ok=True)
@@ -48,8 +62,12 @@ for sid, (lang, (bare, ok, hey, near)) in enumerate(phrases.items()):
         for i, rate in enumerate(rates):
             if args.training_calls:
                 sid = 8 + i % 2
-            cfg = so.GenerationConfig()
-            cfg.sid, cfg.speed, cfg.num_steps, cfg.extra = sid, rate, 8, {"lang": lang}
-            audio = tts.generate(text, cfg)
-            samples = soxr.resample(np.array(audio.samples), audio.sample_rate, 16000)
-            sf.write(dest / f"{kind}-{i}.wav", .5 * samples / np.max(np.abs(samples)), 16000, subtype="PCM_16")
+            render(text, lang, sid, rate, dest / f"{kind}-{i}.wav")
+    if args.training_calls:
+        other = args.out / "pos"
+        other.mkdir(exist_ok=True)
+        for speaker in (8, 9):
+            for rate in (.85, 1., 1.15):
+                for index, text in enumerate(alternate_ok[lang]):
+                    name = f"supertonic_v{speaker}_{lang}_pos{index}_s{int(rate * 100)}.wav"
+                    render(text, lang, speaker, rate, other / name)

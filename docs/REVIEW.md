@@ -96,3 +96,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R82 (2026-11-21, wake-filow): keep each interrupted-checkout scenario independent so its timeout measures one recovery. Check: exercise all five failures with real Git, then inspect dependencies, branch, working tree and commit.
 - R83 (2026-11-21, wake-filow): lint packaged replay callbacks in their Node harness. Check: run ESLint on the harness and exercise the same callbacks in the packaged renderer.
 - R84 (2026-11-21, wake-filow): serialize wake inference and bound capture jitter to two pending 100 ms blocks. Check: release a delayed inference, verify ordering, stop with a queued block, and exhaust the buffer to verify overload still closes capture.
+- R85 (2026-11-21, wake-filow): finish retiring old recordings after an interrupted migration. Check: reopen a valid new profile with an orphaned old sample and verify only the current takes survive.

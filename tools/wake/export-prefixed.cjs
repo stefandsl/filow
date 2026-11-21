@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { createEmbedding, speechEnd, FEATURES, WIDTH } = require("../../apps/desktop/wake-head");
 const { readSample } = require("../../apps/desktop/wake-pcm");
-const [models, clips, original, dest] = process.argv.slice(2);
+const [models, clips, dest, original = clips] = process.argv.slice(2);
 async function run() {
   const embedding = await createEmbedding(models);
   const chunks = [];

@@ -83,6 +83,25 @@ async function run() {
     if (trained.error || !trained.trained) throw new Error("Packaged training failed: " + trained.error);
     const config = await panel.evaluate(() => globalThis.okFilow.status());
     if (config.wakeBare !== true || config.wakeSensitivity !== "balanced") throw new Error("Unexpected defaults");
+    const base = "http://127.0.0.1:" + web;
+    let settings;
+    for (let i = 0; i < 60 && !settings; i++) {
+      settings = ctx.pages().find(p => p.url() === base + "/");
+      if (!settings) await wait(500);
+    }
+    if (!settings) throw new Error("Packaged Settings window unavailable");
+    await settings.goto(base + "/settings/local");
+    const checkbox = settings.getByRole("checkbox", { name: /Filow.*Hey/ });
+    await checkbox.waitFor();
+    if (!await checkbox.isChecked()) throw new Error("Default checkbox is off");
+    for (const theme of ["light", "dark"]) {
+      await settings.evaluate(value => {
+        globalThis.localStorage.setItem("prefs:theme", value);
+        globalThis.document.documentElement.dataset.theme = value;
+      }, theme);
+      await checkbox.scrollIntoViewIfNeeded();
+      await settings.screenshot({ path: path.join(root, theme + ".png") });
+    }
     const report = { ports, defaults: { bare: config.wakeBare, sensitivity: config.wakeSensitivity }, cases: [] };
     await action("test", true);
     await action("enable");
@@ -120,13 +139,19 @@ async function run() {
     await replay("near0-0.wav", 0);
     await replay("bare-6.wav", 1);
     await replay("ok-6.wav", 1);
-    await panel.evaluate(() => globalThis.okFilow.configure({ wakeBare: false }));
-    await panel.waitForFunction(async () => (await globalThis.okFilow.wakeAction("status")).listening);
+    await checkbox.uncheck();
+    await panel.waitForFunction(async expected => {
+      const state = await globalThis.okFilow.status();
+      return state.wakeBare === expected && state.wake?.listening;
+    }, false);
     await replay("bare-6.wav", 0);
     await replay("bare-6.wav", 0);
     await replay("ok-6.wav", 1);
-    await panel.evaluate(() => globalThis.okFilow.configure({ wakeBare: true }));
-    await panel.waitForFunction(async () => (await globalThis.okFilow.wakeAction("status")).listening);
+    await checkbox.check();
+    await panel.waitForFunction(async () => {
+      const state = await globalThis.okFilow.status();
+      return state.wakeBare && state.wake?.listening;
+    });
     await action("test", false);
     await replay("bare-6.wav", 1, true);
   } finally {

@@ -1,5 +1,5 @@
 // node phrase-eval.cjs MODELS CLIPS SPEECH OUT [minutes] [lang] [offset] [ok|bare|prefix]
-// With SPEECH set to "frozen", verify CLIPS/manifest.json and replay its exact files.
+// With SPEECH set to "frozen", append the frozen manifest SHA-256 after the variant.
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
