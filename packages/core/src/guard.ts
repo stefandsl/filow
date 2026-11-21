@@ -22,6 +22,24 @@ export type ClaimCheck = {
   conflict?: GuardConflict;
 };
 
+/** Resolve a short owner label against an entire affirmative statement. Both the person
+ * and the team must match literally. A changed name, a question or a general mention
+ * leaves the original decision question intact. The actual provider still casts the vote.
+ */
+export function spokenOwnerPoint(label: string, final: string): boolean {
+  const text = final.trim().replace(/[.!]$/, "").toLowerCase();
+  const point = label.trim().toLowerCase();
+  const en = /^([\p{L} -]+) (?:owner|lead) ([\p{L}'’-]+)$/u.exec(point);
+  if (en) {
+    const said = /^([\p{L}'’-]+) (?:leads|manages|runs|heads) (?:the )?([\p{L} -]+?) team$/u.exec(text);
+    return !!said && said[1] === en[2] && said[2] === en[1];
+  }
+  const it = /^(?:responsabile|referente) ([\p{L} -]+) ([\p{L}'’-]+)$/u.exec(point);
+  if (!it) return false;
+  const said = /^([\p{L}'’-]+) (?:guida|dirige|gestisce) (?:il gruppo|il team|la squadra) di ([\p{L} -]+)$/u.exec(text);
+  return !!said && said[1] === it[2] && said[2] === it[1];
+}
+
 // ---- word lists -----------------------------------------------------------------------------------
 
 const UP = /^(aument\w*|cresc\w*|crebb\w*|salit[oaie]|salgono|salire|salira|saliranno|rialz\w*|incrementat\w*|balz\w*|impenn\w*|schizzat\w*|raddoppi\w*|triplica\w*|rose|rise[sn]?|rising|increas\w*|grew|grow|grows|growing|grown|climb\w*|jump\w*|soar\w*|surg\w*|spik\w*|rocket\w*|higher|raise[ds]?|raising|doubled|tripled)$/;

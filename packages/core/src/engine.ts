@@ -3,7 +3,7 @@
 import { compare, type Operation } from "fast-json-patch";
 import type { DecideRequest, DecideResponse, Decision, Verification } from "./api";
 import { lexicalScores } from "./gate";
-import { checkClaim, type ClaimCheck } from "./guard";
+import { checkClaim, spokenOwnerPoint, type ClaimCheck } from "./guard";
 import { sentences } from "./text";
 import { parseScript, scriptIdentity } from "./script";
 import { isScreenScript, sectionFromSummary, type ScreenNote } from "./screen";
@@ -686,9 +686,12 @@ export class Engine {
     this.inFlight = true;
     this.lastSent = windowText;
     this.lastCallAt = now;
+    const ownerMatches = this.lastFinal && windowText.endsWith(this.lastFinal)
+      ? section.bullets.filter(b => spokenOwnerPoint(b.text, this.lastFinal)) : [];
+    const owner = ownerMatches.length === 1 ? ownerMatches[0] : null;
     const req: DecideRequest = {
       transcript: windowText,
-      bullets: open,
+      bullets: owner ? open.map(b => b.id === owner.id ? { ...b, text: this.lastFinal } : b) : open,
       sectionTitle: section.title,
       covered: section.bullets.filter((b) => s.points[b.id]?.status === "started").map((b) => b.text),
       upcoming: s.script.sections[s.sectionIdx + 1]?.bullets.map((b) => b.text) ?? [],

@@ -3,6 +3,7 @@ import { Engine, missedPoints } from "./engine";
 import { parseScript } from "./script";
 import type { DecideRequest, DecideResponse } from "./api";
 import frozen from "../../../tools/autoloop/e2e/n03-cases.json";
+import { matcherDecide } from "./matcher";
 
 const SCRIPT = parseScript(`# Intro
 - hello everyone
@@ -135,6 +136,24 @@ describe("script-scoped place", () => {
 });
 
 describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries", (_lang, journey) => {
+  it("matches a named owner expressed as a verb and keeps other people and general mentions open", async () => {
+    // Exercise the real matcher's lexical stage in isolation from embeddings and hardware.
+    const decide = matcherDecide(async () => [new Float32Array(1)], () => ({ key: "lexical", ids: [], vectors: [] }));
+    const { e } = makeEngine([], 0, { decide });
+    const owner = _lang === "en" ? "Maya" : "Giulia";
+    for (const [label, line, done] of [
+      [owner, journey.ambiguous, false],
+      [owner, journey.clips.alias.text.replace(owner, "Elena"), false],
+      [owner, journey.clips.alias.text, true],
+      ["Rita", journey.clips.alias.text.replace(owner, "Rita"), true],
+    ] as const) {
+      e.loadScript(parseScript(journey.script.replace(owner, label)));
+      e.feed({ committed: line });
+      await e.tick();
+      expect(Object.keys(e.getState().points).filter(id => e.getState().points[id].status === "started"), line).toEqual(done ? ["s0b1"] : []);
+      if (done) expect(e.getState().points.s0b1.evidence).toMatchObject({ quote: line });
+    }
+  });
   it("withdraws contradicted automatic evidence and preserves independent marks", async () => {
     const { e } = makeEngine([{ s1b2: 0.98 }]);
     e.loadScript(parseScript(journey.script));
