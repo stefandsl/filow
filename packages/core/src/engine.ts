@@ -3,6 +3,7 @@
 import { compare, type Operation } from "fast-json-patch";
 import type { DecideRequest, DecideResponse, Decision, Verification } from "./api";
 import { lexicalScores } from "./gate";
+import { TENTATIVE_CONFIDENCE } from "./anchor";
 import { checkClaim, spokenOwnerPoint, type ClaimCheck } from "./guard";
 import { sentences } from "./text";
 import { parseScript, scriptIdentity } from "./script";
@@ -757,12 +758,13 @@ export class Engine {
     const rejected = new Set<string>();
     for (const d of data.decisions) {
       const b = asked.get(d.id);
-      if (!b || !d.started || d.confidence < this.o.threshold) continue;
+      const confirming = d.started && d.confidence >= this.o.threshold;
+      if (!b || (!confirming && (!this.o.guard || d.confidence < TENTATIVE_CONFIDENCE))) continue;
       const check = checkClaim(b.text, req.transcript);
       checks.set(d.id, check);
       if (this.o.guard && !check.ok) {
         rejected.add(d.id);
-        this.o.onGuard?.(d.id, check);
+        if (confirming) this.o.onGuard?.(d.id, check);
       }
     }
     this.unmentioned = data.unmentioned ?? [];

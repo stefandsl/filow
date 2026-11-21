@@ -4,6 +4,7 @@ import { parseScript } from "./script";
 import type { DecideRequest, DecideResponse } from "./api";
 import frozen from "../../../tools/autoloop/e2e/n03-cases.json";
 import { matcherDecide } from "./matcher";
+import { pointDisplayState } from "./anchor";
 
 const SCRIPT = parseScript(`# Intro
 - hello everyone
@@ -152,6 +153,17 @@ describe("script-scoped place", () => {
 });
 
 describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries", (_lang, journey) => {
+  it("withdraws the visual hint even when the model returns a weak positive score on the correction", async () => {
+    const { e } = makeEngine([{ s0b2: 0.48 }]);
+    e.loadScript(parseScript(journey.script));
+    e.feed({ partial: journey.clips.resume.text });
+    expect(pointDisplayState(e.getState().points.s0b2)).toBe("active");
+    e.feed({ committed: journey.clips.correction.text, partial: "" });
+    await e.tick();
+    expect(pointDisplayState(e.getState().points.s0b2)).toBe("waiting");
+    e.feed({ partial: journey.clips.resume.text });
+    expect(pointDisplayState(e.getState().points.s0b2)).toBe("active");
+  });
   it("matches a named owner expressed as a verb and keeps other people and general mentions open", async () => {
     // Exercise the real matcher's lexical stage in isolation from embeddings and hardware.
     const decide = matcherDecide(async () => [new Float32Array(1)], () => ({ key: "lexical", ids: [], vectors: [] }));

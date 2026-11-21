@@ -4,11 +4,13 @@
 import { contentTokens, quantities, similarity, tokenize, FUZZY_MIN } from "./text";
 import type { Command, PointState, SessionState } from "./types";
 
+export const TENTATIVE_CONFIDENCE = 0.3;
+
 export function pointDisplayState(point?: PointState) {
   if (point?.status === "started") return "done";
   if (point?.status === "missed") return "missed";
   if (point?.reopened) return "reopened";
-  return point && (point.active || point.confidence >= 0.3) ? "active" : "waiting";
+  return point && (point.active || point.confidence >= TENTATIVE_CONFIDENCE) ? "active" : "waiting";
 }
 
 export type ClickerMove = "next" | "prev";
