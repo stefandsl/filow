@@ -49,6 +49,10 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
     if (!inner || !outer) return;
     return observeBubbleSize(inner, outer);
   }, []);
+  // Each monitor has an overlay. Keep live words in overlay state for a monitor change,
+  // and only lay them out on the monitor that displays the listening bubble.
+  const listening = mode === "listening";
+  const showContent = !listening || shown;
   const answer = answerInBubble(mode, text, stopped);
   return (
     <div
@@ -60,16 +64,16 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
       style={{ width: width ? `${width}px` : undefined, maxWidth: width ? "calc(100vw - 16px)" : undefined }}
     >
       <div ref={content} className="okf-bubble-content" style={{ width: width ? `${Math.max(120, width - 28)}px` : text.length > 40 ? "min(352px, calc(100vw - 44px))" : undefined, maxWidth: width ? "none" : undefined }}>
-      {mode === "listening" && (
+      {listening && shown && (
         <span className="okf-wave" aria-hidden>{BARS.map((b, i) => <i key={i} style={{ height: `${4 + Math.round(level * b * 18)}px` }} />)}</span>
       )}
       {mode === "thinking" && <span className="okf-spin" aria-hidden />}
-      {(text || stopped) && (
+      {showContent && (text || stopped) && (
         <div className="okf-bubble-body">
           {/* Every sentence is here, whole: the room scrolls, the text is never cut. (The panel holds the same answer for screen readers.) */}
           {text && (
             <div ref={textRef} className="okf-text" aria-hidden data-testid="okf-bubble-text" onScroll={(e: UIEvent<HTMLDivElement>) => markMore(e.currentTarget)}>
-              {sentenceParts(text).map((part, i) => {
+              {listening ? text : sentenceParts(text).map((part, i) => {
                 // The spacing after a sentence stays outside its span, so the mark on the spoken sentence ends with its last letter.
                 const body = part.trimEnd();
                 return <Fragment key={i}><span data-s={i} className={i === spoken ? "okf-said" : undefined}>{body}</span>{part.slice(body.length)}</Fragment>;

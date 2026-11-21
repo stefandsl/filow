@@ -188,7 +188,7 @@ export default function OkFilowOverlay() {
       }) ?? (() => {}),
       b.onSpoken?.((n) => setSpoken(Number.isInteger(n) ? n : -1)) ?? (() => {}),
       b.outbound?.onChange(setOut) ?? (() => {}),
-      b.onLevel(setLevel),
+      b.onLevel(value => { if (holds.current.shown) setLevel(value); }),
       b.onCursor((p, owner, generation = 0) => {
         if (bubbleGeneration.current !== generation || owner === false) holds.current.detached = false;
         bubbleGeneration.current = generation;

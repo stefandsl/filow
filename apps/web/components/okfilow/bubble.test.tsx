@@ -145,6 +145,18 @@ describe("an answer's bubble and the waveform", () => {
     expect(renderToStaticMarkup(<AnswerBubble mode="speaking" text="Text." stopped={false} shown t={t} onClose={noop} />)).toContain('class="okf-bubble okf-bubble--answer"');
     expect(renderToStaticMarkup(<AnswerBubble mode="listening" text="" stopped={false} shown level={0.5} t={t} onClose={noop} />)).toContain('<div class="okf-bubble"');
   });
+  it("updates a live transcript on its visible display without spoken-sentence markup", () => {
+    const draw = (shown: boolean) => renderToStaticMarkup(
+      <AnswerBubble mode="listening" text={LONG.en} level={0.7} shown={shown} stopped={false} t={t} onClose={noop} />
+    );
+    const hidden = draw(false);
+    expect(hidden).not.toContain("okf-wave");
+    expect(hidden).not.toContain(LONG.en.slice(-40));
+    const visible = draw(true);
+    expect(textOf(visible)).toContain(LONG.en);
+    expect(visible).toContain("okf-wave");
+    expect(visible).not.toContain("data-s=");
+  });
   it("hidden, error and the spinner as before", () => {
     expect(renderToStaticMarkup(<AnswerBubble mode="error" text="It failed." stopped={false} shown={false} t={t} onClose={noop} />)).toContain('class="okf-bubble okf-hidden okf-bubble--error okf-bubble--answer"');
     expect(renderToStaticMarkup(<AnswerBubble mode="thinking" text="" stopped={false} shown t={t} onClose={noop} />)).toContain('<span class="okf-spin" aria-hidden="true"></span>');
