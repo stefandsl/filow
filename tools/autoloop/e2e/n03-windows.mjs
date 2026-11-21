@@ -81,6 +81,13 @@ export function score(receipt, sha) {
       const wrong = done.filter(id => !requiredDone[label].includes(id));
       const missing = requiredDone[label].filter(id => !done.includes(id));
       if (wrong.length || missing.length) issues.push(`${surface}/${label}/state`);
+      if (label === "correction" && current.get("s0b2") === "active") issues.push(`${surface}/correction/hint`);
+      if (surface === "phonePoints") {
+        const desktop = rows(c.points);
+        for (const [id, state] of current) {
+          if (desktop && desktop.get(id) !== state) issues.push(`${label}/${id}/surfaces`);
+        }
+      }
       const eligible = label === "noise" || previous && (target[label] ? previous.get(target[label]) !== "done" :
         !wrong.some(id => previous.get(id) === "done"));
       const recognized = c.words.some(w => w.committed?.trim());

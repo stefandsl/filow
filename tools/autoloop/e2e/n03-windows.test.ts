@@ -27,6 +27,20 @@ describe("N-03 Windows capture scoring", () => {
     r.clips[1].points[2][1] = "done";
     assert.ok(score(r, sha).issues.includes("points/point/state"));
   });
+  it("rejects a hint left on either surface after the corrected final", () => {
+    const r = fixture();
+    const correction = r.clips.find(c => c.label === "correction")!;
+    correction.points[2][1] = "active";
+    correction.phonePoints[2][1] = "active";
+    const result = score(r, sha);
+    assert.ok(result.issues.includes("points/correction/hint"));
+    assert.ok(result.issues.includes("phonePoints/correction/hint"));
+  });
+  it("compares tentative states on paired rows as well as done states", () => {
+    const r = fixture();
+    r.clips[2].phonePoints[1][1] = "active";
+    assert.ok(score(r, sha).issues.includes("digress/s0b1/surfaces"));
+  });
   it("rejects a missing phone surface and zero noise opportunities", () => {
     const r = fixture();
     r.clips[0].phonePoints = [];
