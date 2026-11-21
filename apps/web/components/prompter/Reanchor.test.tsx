@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DISPLAY, parseScript, type SessionState } from "@filow/core";
+import { DEFAULT_DISPLAY, Engine, parseScript, type SessionState } from "@filow/core";
+import { takeRecorder } from "../TimerClock";
 import { LangProvider, StageView } from "@filow/ui";
 import { PointsList } from "./PointsList";
 import { keyBelongsToControl } from "./useReanchor";
@@ -9,6 +10,25 @@ import { ReanchorNotice } from "./ReanchorNotice";
 
 const el = (matches: boolean, editable = false) => ({ closest: () => (matches ? {} : null), isContentEditable: editable }) as unknown as EventTarget;
 const doc = (dialogOpen: boolean) => ({ querySelector: () => (dialogOpen ? {} : null) }) as unknown as Document;
+
+it("publishes the recovered section in the first load observed by the real rehearsal clock", () => {
+  const engine = () => new Engine({ decide: async () => ({ decisions: [], latencyMs: 0, cost: 0, model: "test" }) });
+  const script = parseScript("# One\n- Pilot\n- Owner\n# Two\n- Review");
+  const old = engine();
+  old.loadScript(script);
+  old.dispatch({ type: "reopen", id: "s0b1" });
+  old.dispatch({ type: "anchor", idx: 1 });
+  old.dispatch({ type: "markStarted", id: "s1b0" });
+  const fresh = engine();
+  takeRecorder(fresh);
+  const seen: SessionState[] = [];
+  fresh.subscribe(s => seen.push(s));
+  fresh.loadScript({ script, place: old.committedPlace() });
+  expect(seen).toHaveLength(1);
+  expect(seen[0]).toMatchObject({ sectionIdx: 1, engine: { recording: false }, points: {
+    s0b1: { reopened: true }, s1b0: { evidence: { source: "manual" } },
+  } });
+});
 
 describe("clicker keys and controls", () => {
   it("leaves the keys to text fields, lists, menus, sliders and open dialogs", () => {

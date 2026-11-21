@@ -272,7 +272,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       }
     }
     setScriptText(text);
-    engine.loadScript(script, saved);
+    engine.loadScript({ script, place: saved });
     persistPlace();
     setPlaceReady(true);
   }, [engine, persistPlace]);

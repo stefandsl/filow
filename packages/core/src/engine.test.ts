@@ -122,7 +122,7 @@ describe("script-scoped place", () => {
     e.dispatch({ type: "markStarted", id: "s0b1" });
     e.dispatch({ type: "anchor", idx: 1, pointId: "s1b0" });
     const fresh = makeEngine().e;
-    fresh.loadScript(parseScript(text.replaceAll("\n", "\r\n")), e.committedPlace());
+    fresh.loadScript({ script: parseScript(text.replaceAll("\n", "\r\n")), place: e.committedPlace() });
     expect(fresh.getState()).toMatchObject({
       sectionIdx: 1, here: "s1b0", points: {
         s0b0: { status: "missed" }, s0b1: { status: "started", evidence: { source: "manual" } },
@@ -143,7 +143,7 @@ describe("script-scoped place", () => {
     const ambiguous = parseScript(text);
     ambiguous.sections[0].bullets[1].id = "s0b0";
     for (const script of [parseScript(text.replace("Same", "Edited")), parseScript("# Two\n- Finish\n# One\n- Same\n- Same"), ambiguous]) {
-      e.loadScript(script, saved);
+      e.loadScript({ script, place: saved });
       expect(e.getState().points).toEqual({});
     }
     e.dispatch({ type: "markStarted", id: "s0b0" });
@@ -214,7 +214,7 @@ describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries",
     e.dispatch({ type: "anchor", idx: 1 });
     expect(e.getState().points.s0b1).toMatchObject({ status: "waiting", reopened: true });
     const saved = e.committedPlace();
-    e.loadScript(script, saved);
+    e.loadScript({ script, place: saved });
     expect(e.getState().points.s0b1).toMatchObject({ status: "waiting", reopened: true });
     e.dispatch({ type: "anchor", idx: 0 });
     e.dispatch({ type: "resetSection" });

@@ -223,10 +223,14 @@ export class Engine {
     return { scriptKey: this.scriptKey, sectionId: script.sections[sectionIdx].id, ...(here ? { here } : {}), points: committed };
   }
 
-  loadScript(script: Script, saved?: CommittedPlace | null): void {
+  loadScript(input: Script | { script: Script; place: CommittedPlace | null }): void {
+    // The rehearsal recorder forwards one load argument. Keep the script and its
+    // optional recovered place together so every observer sees one correct first state.
+    const script = "script" in input ? input.script : input;
+    const saved = "script" in input ? input.place : null;
     this.invalidate();
     this.scriptKey = scriptIdentity(script);
-    const sectionIdx = saved?.scriptKey === this.scriptKey ? script.sections.findIndex(s => s.id === saved.sectionId) : -1;
+    const sectionIdx = saved && saved.scriptKey === this.scriptKey ? script.sections.findIndex(s => s.id === saved.sectionId) : -1;
     const restored = saved && sectionIdx >= 0 &&
       (!saved.here || script.sections[sectionIdx].bullets.some(b => b.id === saved.here)) &&
       Object.keys(saved.points).every(id => script.sections.some(s => s.bullets.some(b => b.id === id)));
