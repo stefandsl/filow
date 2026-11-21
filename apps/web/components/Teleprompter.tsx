@@ -500,7 +500,13 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         return;
       }
       const handlers = {
-        onTranscript: (e: { committed?: string; partial?: string }) => { if (attempt.isCurrent()) { reanchor.heard(e); rehearsal.transcript(e); engine.feed(e); } }, // a named section first: the words of the same segment then count for it
+        onTranscript: (e: { committed?: string; partial?: string }) => {
+          if (!attempt.isCurrent()) return;
+          engine.feed(e, () => {
+            reanchor.heard(e); // fresh speech names its section before its words are scored there
+            rehearsal.transcript(e);
+          });
+        },
         onError: (m: string) => {
           if (!attempt.isCurrent()) return;
           pushLog(`error: ${m}`);

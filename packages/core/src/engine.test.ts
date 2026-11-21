@@ -47,6 +47,22 @@ const BIG = parseScript(`# One
 `);
 
 describe("script-scoped place", () => {
+  it("runs speech navigation only for accepted input, before deciding it in the new section", () => {
+    const { e } = makeEngine();
+    e.start();
+    const navigate = vi.fn(() => e.dispatch({ type: "anchor", idx: 1 }));
+    e.feed({ partial: "Body" });
+    e.dispatch({ type: "resetSection" });
+    e.feed({ committed: "Body", partial: "" }, navigate);
+    expect(navigate).not.toHaveBeenCalled();
+    e.stop();
+    e.feed({ committed: "Body", partial: "" }, navigate);
+    expect(navigate).not.toHaveBeenCalled();
+    e.start();
+    e.feed({ committed: "Body. The decision model.", partial: "" }, navigate);
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(e.getState().sectionIdx).toBe(1);
+  });
   it("routes a phone Start and Stop through the registered microphone owner", () => {
     const { e } = makeEngine();
     const start = vi.fn();

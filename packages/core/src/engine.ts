@@ -247,13 +247,17 @@ export class Engine {
   }
 
   // ---- inputs -----------------------------------------------------------------
-  feed(e: TranscriptEvent): void {
+  feed(e: TranscriptEvent, onAccepted?: () => void): void {
     if (this.paused || (e.committed && e.committed.trim() === this.resetDuplicate && !this.partial.trim())) return;
     if (e.partial?.trim() || e.committed) this.resetDuplicate = "";
+    // A final already in progress at Reset belongs to the old section. It advances the
+    // transcript fence below, but cannot navigate, trigger a correction or enter rehearsal.
+    const accepted = this.fenceNextCommit === null;
+    if (accepted) onAccepted?.();
     let withdrawn: string[] = [];
     if (e.committed) {
       this.lastFinal = e.committed.trim();
-      if (this.o.guard) withdrawn = this.reconcileCorrection(e.committed);
+      if (accepted && this.o.guard) withdrawn = this.reconcileCorrection(e.committed);
       this.committed = (this.committed + e.committed).slice(-COMMITTED_CAP);
       this.committedTotal += e.committed.length;
       this.segs.push({ end: this.committedTotal, at: this.o.now() });
