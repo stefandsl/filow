@@ -1169,6 +1169,8 @@ export const ja: Dictionary = {
   "about.fileCrash": "クラッシュファイルは含まれていません：{count}個（{size}MB）。",
   "about.fileSystem": "このコンピューターとFilow",
   "about.fileTake": "前回のセッションのログ",
+  "about.deleteLog": "起動ログ、クラッシュファイル、音声入力履歴を削除",
+  "about.confirmDelete": "削除すると元に戻せません。",
   "about.fileLog": "起動ログ（末尾の行）",
   "about.fileDictation": "音声入力とキー",
   "about.fileNoTake": "（Filowの起動後、セッションはありません）",

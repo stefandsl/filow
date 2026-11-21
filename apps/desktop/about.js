@@ -17,14 +17,14 @@ const { t: sharedText } = require("./vendor/i18n");
 const ABOUT_KEYS = ["tabAbout", "tabReport", "version", "fact1", "fact2", "fact3", "fact4", "configFolder", "openFolder", "todo", "policyMissing", "policyEnglish",
   "issueIntro", "issueHeading", "issuePublic", "issueOpen", "issueOpened", "issueFailed", "issueTitle", "issueTitleBare", "issueCut", "issueEarlier", "describe", "describeHint", "contents", "masked", "build", "devBuild",
   "crashNone", "crashSome", "openCrash", "save", "copy", "close", "saved", "copied", "saveFailed", "saveTitle", "loading",
-  "fileTitle", "fileMade", "fileWhat", "fileNone", "fileCrash", "fileSystem", "fileDictation", "fileTake", "fileLog", "fileNoTake"];
+  "deleteLog", "confirmDelete", "fileTitle", "fileMade", "fileWhat", "fileNone", "fileCrash", "fileSystem", "fileDictation", "fileTake", "fileLog", "fileNoTake"];
 
 
 const fill = (text, vars = {}) => text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 /** Every text of the window in one language, {placeholders} left for the page to fill. */
 const textFor = (lang) => ({
   ...Object.fromEntries(ABOUT_KEYS.map((k) => [k, sharedText(`about.${k}`, lang)])),
-  deleteLog: sharedText("settings.deleteLabel", lang, { name: [sharedText("about.fileLog", lang), sharedText("about.fileDictation", lang)].join(" / ") }),
+  cancel: sharedText("common.cancel", lang),
   retry: sharedText("easy.retry", lang),
 });
 
@@ -297,7 +297,13 @@ function createAboutPages(deps) {
     sections = await deps.collectReport();
     return { preview: fileText(""), crash: crash() };
   });
-  handle("report:clear", () => {
+  handle("report:clear", async () => {
+    const tx = textFor(deps.lang());
+    const answer = await dialog.showMessageBox(win, {
+      type: "warning", message: tx.deleteLog, detail: tx.confirmDelete,
+      buttons: [tx.cancel, tx.deleteLog], defaultId: 0, cancelId: 0,
+    });
+    if (answer.response !== 1) return false;
     sections = null;
     deps.clearDiagnostics();
     return true;

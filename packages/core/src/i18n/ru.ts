@@ -1157,6 +1157,8 @@ export const ru: Dictionary = {
   "about.fileCrash": "Файлы сбоев не включены: {count} ({size} МБ).",
   "about.fileSystem": "Этот компьютер и Filow",
   "about.fileTake": "Журнал последнего прогона",
+  "about.deleteLog": "Удалить журнал запуска, файлы сбоев и историю диктовки",
+  "about.confirmDelete": "Это действие нельзя отменить.",
   "about.fileLog": "Журнал запуска (последние строки)",
   "about.fileDictation": "Диктовка и клавиши",
   "about.fileNoTake": "(с момента запуска Filow прогонов не было)",

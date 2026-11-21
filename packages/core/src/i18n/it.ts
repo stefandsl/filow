@@ -1159,6 +1159,8 @@ export const it: Dictionary = {
   "about.fileCrash": "File di crash non inclusi: {count} ({size} MB).",
   "about.fileSystem": "Questo computer e Filow",
   "about.fileTake": "Registro dell'ultima sessione",
+  "about.deleteLog": "Elimina il registro di avvio, i file di arresto anomalo e la cronologia della dettatura",
+  "about.confirmDelete": "Questa operazione è irreversibile.",
   "about.fileLog": "Registro di avvio (ultime righe)",
   "about.fileDictation": "Dettatura e tasti",
   "about.fileNoTake": "(nessuna sessione da quando Filow è partito)",

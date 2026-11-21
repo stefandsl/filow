@@ -1169,6 +1169,8 @@ export const en = {
   "about.fileCrash": "Crash files not included: {count} ({size} MB).",
   "about.fileSystem": "This computer and Filow",
   "about.fileTake": "Log of the last take",
+  "about.deleteLog": "Delete the start-up log, crash files and dictation history",
+  "about.confirmDelete": "This deletion cannot be undone.",
   "about.fileLog": "Start-up log (last lines)",
   "about.fileDictation": "Dictation and keys",
   "about.fileNoTake": "(no take since Filow started)",

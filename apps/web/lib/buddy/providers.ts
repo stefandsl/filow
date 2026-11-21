@@ -5,7 +5,7 @@ import { withLocalDate } from "../../../desktop/prompt-date";
 // go back to the bubble.
 import { isPhoneQuestionForModel, isSetupPreference, resolveSetup, type ResolvedSetup } from "@filow/core";
 import { OLLAMA_URL, clefTarget } from "@/lib/decide/clef";
-import { openRouterChatUrl, reasoningFor, withProvider } from "@/lib/openrouter";
+import { openRouterHeaders, openRouterChatUrl, reasoningFor, withProvider } from "@/lib/openrouter";
 import { WHITEBOARD_MODELS, isWhiteboardModel } from "@/lib/whiteboard/models";
 import { askRecipient, consentKey, freellmRecipient, type Recipient } from "./outbound";
 import { freellmStream, requireFreeLlm } from "@/lib/freellm";
@@ -396,11 +396,7 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
   const res = await fetch(openRouterChatUrl(), {
     method: "POST",
     signal,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "X-Title": "Filow",
-    },
+    headers: openRouterHeaders(apiKey),
     body: JSON.stringify({
       model: shape?.model || BUDDY_CLOUD_MODEL(),
       stream: true,

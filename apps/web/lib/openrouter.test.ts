@@ -1,3 +1,4 @@
+import { createServer, type IncomingHttpHeaders } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fallbackModels, openRouterChat, openRouterProvider, reasoningFor, routedModels } from "./openrouter";
 import { OPENROUTER_DECISION_MODEL } from "./decide/openrouter";
@@ -9,6 +10,35 @@ const ok = (model: string) => new Response(JSON.stringify({ model, choices: [{ m
 
 describe("openRouterChat", () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps the desktop origin out of real text, vision and assistant requests", async () => {
+    const received: IncomingHttpHeaders[] = [];
+    const receiver = createServer((req, res) => {
+      received.push(req.headers);
+      req.resume();
+      res.end(received.length === 3 ? "data: [DONE]\n\n" : '{"choices":[]}');
+    });
+    try {
+      await new Promise<void>((resolve, reject) => receiver.once("error", reject).listen(0, "127.0.0.1", resolve));
+      const address = receiver.address();
+      if (!address || typeof address === "string") throw new Error("Missing receiver port");
+      vi.stubEnv("OPENROUTER_BASE_URL", `http://127.0.0.1:${address.port}`);
+      vi.stubEnv("OPENROUTER_API_KEY", "fixture");
+      vi.stubEnv("PUBLIC_ORIGIN", "http://192.168.71.26:5314");
+      for (const kind of ["text", "vision"] as const) await openRouterChat("openai/model", kind, {});
+      const consent = consentKey("ask", buddyCloudRecipient());
+      for await (const part of askBuddy("cloud", { question: "q", images: [], screens: [], consent })) void part;
+      expect(received).toHaveLength(3);
+      for (const headers of received) {
+        expect(JSON.stringify(headers)).not.toContain("192.168.71.26");
+        expect(Object.keys(headers)).not.toEqual(expect.arrayContaining(["http-referer"]));
+        expect(headers).toMatchObject({ authorization: "Bearer fixture", "x-title": "Filow" });
+      }
+    } finally {
+      vi.unstubAllEnvs();
+      await new Promise<void>(resolve => receiver.close(() => resolve()));
+    }
+  });
 
   it("sends the model list with fallbacks and retries a 429", async () => {
     process.env.OPENROUTER_API_KEY = "k";

@@ -5,6 +5,11 @@
 
 import { makerHosts, sameMaker } from "@/lib/buddy/outbound";
 
+/** Provider attribution must never include the desktop address. */
+export function openRouterHeaders(apiKey: string) {
+  return { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "X-Title": "Filow" };
+}
+
 /** Extra models tried after the configured one. Override with OPENROUTER_FALLBACK_MODELS (comma list). */
 export function fallbackModels(kind: "text" | "vision"): string[] {
   const env = process.env.OPENROUTER_FALLBACK_MODELS;
@@ -94,12 +99,7 @@ export async function openRouterChat(model: string, kind: "text" | "vision", pay
   for (let attempt = 0; attempt <= retries; attempt++) {
     const res = await fetch(openRouterChatUrl(), {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.PUBLIC_ORIGIN || "http://localhost:4747",
-        "X-Title": "Filow",
-      },
+      headers: openRouterHeaders(apiKey),
       body: JSON.stringify({
         model: models[0],
         models,

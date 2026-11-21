@@ -113,9 +113,13 @@
     const copy = el("button", { type: "button", class: "btn", text: tx.copy, disabled: true, onclick: async () => { await api.copy(description); say(tx.copied); } });
     const clear = el("button", { type: "button", id: "clear-diagnostics", class: "btn", text: tx.deleteLog, disabled: true, onclick: async () => {
       clear.disabled = true;
-      clearTimeout(previewTimer);
       try {
-        await api.clearDiagnostics();
+        if (!(await api.clearDiagnostics())) {
+          clear.disabled = false;
+          clear.focus();
+          return;
+        }
+        clearTimeout(previewTimer);
         render("report", true);
       } catch {
         clear.disabled = false;

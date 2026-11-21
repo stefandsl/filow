@@ -1159,6 +1159,8 @@ export const ro: Dictionary = {
   "about.fileCrash": "Fișiere de avarie neincluse: {count} ({size} MB).",
   "about.fileSystem": "Acest computer și Filow",
   "about.fileTake": "Jurnalul ultimei sesiuni",
+  "about.deleteLog": "Șterge jurnalul de pornire, fișierele de blocare și istoricul dictării",
+  "about.confirmDelete": "Ștergerea este ireversibilă.",
   "about.fileLog": "Jurnal de pornire (ultimele rânduri)",
   "about.fileDictation": "Dictare și taste",
   "about.fileNoTake": "(nicio sesiune de când a pornit Filow)",

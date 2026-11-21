@@ -243,7 +243,8 @@ describe("the About and privacy window", () => {
     const written: Array<[string, string]> = [];
     const deps = {
       BrowserWindow: Win, ipcMain: { handle: (c: string, fn: (event: unknown, ...args: unknown[]) => unknown) => { handlers[c] = fn; } },
-      dialog: { showSaveDialog: vi.fn(async () => ({ canceled: false, filePath: "D:/out/report.txt" })) },
+      clearDiagnostics: vi.fn(),
+      dialog: { showMessageBox: vi.fn(async () => ({ response: 0 })), showSaveDialog: vi.fn(async () => ({ canceled: false, filePath: "D:/out/report.txt" })) },
       clipboard: { writeText: vi.fn() }, shell: { openPath: vi.fn() }, openExternalSafe: vi.fn(), logLine: vi.fn(),
       fs: { existsSync: () => false, readFileSync: () => "# Policy\n\nText.", readdirSync: () => [], statSync: () => ({ size: 0 }), writeFileSync: (f: string, t: string) => { written.push([f, t]); } },
       path, pageFile: "about.html", preload: "about-preload.js", lang: () => "en", theme: () => "dark", icon: () => "icon.ico",
@@ -254,6 +255,26 @@ describe("the About and privacy window", () => {
     const call = (channel: string, win: { webContents: unknown }, ...args: unknown[]) => handlers[channel]({ sender: win.webContents }, ...args);
     return { pages, deps, windows, handlers, call, written };
   }
+  it.each([
+    ["en", /crash/i, /log/i, /dictation/i, /cannot be undone/i],
+    ["it", /arresto anomalo/i, /registro/i, /dettatura/i, /irreversibile/i],
+    ["ro", /blocare/i, /jurnal/i, /dictării/i, /ireversibilă/i],
+    ["ru", /сбо/i, /журнал/i, /диктовки/i, /отменить/i],
+    ["ja", /クラッシュ/, /ログ/, /音声入力/, /元に戻せません/],
+  ] as const)("names all diagnostics and confirms before deletion in %s", async (lang, crash, log, dictation, permanent) => {
+    const s = setup(); s.deps.lang = () => lang;
+    const win = s.pages.open("report");
+    const words = textFor(lang);
+    for (const term of [crash, log, dictation]) expect(words.deleteLog).toMatch(term);
+    expect(await s.call("report:clear", win)).toBe(false);
+    expect(s.deps.clearDiagnostics).not.toHaveBeenCalled();
+    expect(s.deps.dialog.showMessageBox).toHaveBeenCalledWith(win, expect.objectContaining({
+      message: words.deleteLog, detail: expect.stringMatching(permanent), cancelId: 0, defaultId: 0,
+    }));
+    s.deps.dialog.showMessageBox.mockResolvedValueOnce({ response: 1 });
+    expect(await s.call("report:clear", win)).toBe(true);
+    expect(s.deps.clearDiagnostics).toHaveBeenCalledTimes(1);
+  });
   it("keeps the window on its own page: links go to the system browser, new windows are refused", () => {
     const s = setup(); const w = s.pages.open("about");
     const event = { preventDefault: vi.fn() };
