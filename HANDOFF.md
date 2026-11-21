@@ -50,6 +50,32 @@ The disk probe found section two in the saved file immediately before terminatio
 
 Main switched from a USB microphone to a virtual capture input in 1,519 ms (EN) and 1,520 ms (IT) following simulated track-ended and device-change events. Physical unplugging and Bluetooth remain owner checks. Exact-candidate packaging, paired replays including fresh speech after each fault, native matcher scores, both endpoint trials, the thirty-minute resource comparison and factory CI remain open. The focused tests cover changed-script rejection, evidence, manual reopen, muted restoration and rejection of stale speech and commands.
 
+### Follow-up on the recorded failures
+
+On packaged preview `3b6c51f21e32d6b71e04c06427020770d56a9416`, the corrected date and the lunch phrase each produced zero wrong ticks in one opportunity per language. Both screens returned to waiting after the correction. The canonical owner line completed Giulia's point (1/1). English recognition changed Maya's name and the point stayed open (0/1). Each language completed the pilot and the later positive launch-date line (2/2).
+
+The expanded paced-audio set exercised four positive aliases, four ambiguous remarks, four near phrases and three 20-second noise clips per language and build. The paired rows agreed on all 15 observations in each run. The table counts correct target ticks for aliases and wrong ticks for each negative class.
+
+| Class | Main EN | Preview EN | Main IT | Preview IT |
+|---|---|---|---|---|
+| Positive aliases | 1/4 | 1/4 | 4/4 | 4/4 |
+| Ambiguous remarks | 0/4 | 0/4 | 0/4 | 0/4 |
+| Near phrases | 2/4 | 1/4 | 2/4 | 1/4 |
+| Noise | 0/3, 0/min | 0/3, 0/min | 0/3, 0/min | 0/3, 0/min |
+
+The English recognizer changed the name in three expanded alias clips. The preview also accepted an unset launch date in English and a Tuesday launch explicitly excluding Monday in Italian. R170 and R171 reproduce both date failures with the recognized words and check confirmed dates and unrelated denials. These two changes await packaged replay.
+
+The same preview ran one trial per fault. Times are milliseconds from the interruption.
+
+| Fault | Desktop | Phone | Deliberate continuation | Observation |
+|---|---:|---:|---:|---|
+| Speech worker | 324 | 359 | 9,314 | Presenter restarted capture |
+| Relay listener | 623 | 5,865 | 6,040 | One re-pair, recording continued |
+| Renderer | 1,168 | 1,169 | 6,141 | Start control visible before continuation, one re-pair in the trial |
+| Main | 5,671 | 6,535 | 6,554 | Start control visible before continuation, one re-pair |
+
+R172 routes confirmed relay loss through Stop before a replacement session is published. The mounted-session test checks capture stops once, the presenter's reopen survives, and an ordinary reconnect keeps listening. In separate endpoint tests, the preview paused on simulated loss and resumed on the second input in 2,069 ms (EN) and 1,846 ms (IT). Physical Bluetooth, actual unplugging, exact-candidate native measurements including the thirty-minute hold, and factory gates remain pending.
+
 ## N-01 | Working baseline, 20 November 2026
 
 The operator observed `stefandsl/filow` at **`44569cfaad1bd2036871dda478e7e9d750d30f1f`** on `origin/main` at 07:49:15.712 UTC. The primary checkout, assigned `ticket/n01` worktree and private builder checkout all started at that SHA with zero tracked changes and zero untracked files. Hold the comparison if the baseline moves or unexplained edits appear. All seven prepared Windows checks passed on that commit. The earlier prepared run had 4,217 passes and 12 skips. [Delivery plan](docs/PLAN.md)
