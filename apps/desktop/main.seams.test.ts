@@ -90,7 +90,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     ;({ applyOffline, loadSettings, wireScreenSense, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
        setTakeLive, loadUpdater, installUpdate, setUpdateState, setMainWin: (win, shown = false) => { mainWin = win; mainWasShown = shown; }, setLang: lang => { settings.lang = lang; },
-       guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
+       guardNavigation, endTakeWithPage, APP_URL, publicSession: () => currentSession, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
        setTrackingSession: session => { sttSession = session; },
        offerLocalAi, offerFirewall, welcomeSetup, registerHotkey, permissionFor, copyText: text => clipboard.writeText(text), settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
        onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; }, buildMenu, st,
@@ -309,6 +309,25 @@ describe("N-02 LAN pairing on first use and upgrade", () => {
     await f.api.checkForUpdates({ manual: true });
     expect(f.checkForUpdates).toHaveBeenCalledOnce();
   });
+});
+
+it("retains a renderer relay identity only in the live main process, scoped to the same server", () => {
+  const f = fixture();
+  const frame = { url: f.api.APP_URL };
+  const win = { webContents: { mainFrame: frame, isDestroyed: () => false }, isDestroyed: () => false };
+  f.api.setMainWin(win);
+  f.api.wireScreenSense();
+  const event = { sender: win.webContents, senderFrame: frame };
+  const url = "http://relay.example.test";
+  const credentials = { id: "test-id", engineToken: "test-only" };
+  const read = () => f.ipcHandlers["session:resume"](event, url);
+  expect(read()).toBeNull();
+  f.ipcHandlers["session:remember"](event, url, credentials);
+  expect(read()).toEqual(credentials);
+  expect(f.ipcHandlers["session:resume"](event, url + "/other")).toBeNull();
+  f.ipcListeners["session:report"](event, { id: credentials.id, code: "test-code" });
+  expect(f.api.publicSession()).toEqual({ id: credentials.id, code: "test-code" });
+  expect(() => f.ipcHandlers["session:resume"]({ sender: {}, senderFrame: frame }, url)).toThrow();
 });
 
 describe("N-02 public link consent and lifetime", () => {

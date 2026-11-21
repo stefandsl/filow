@@ -619,6 +619,18 @@ function wireScreenSense() {
   // the script editor's local translation found Ollama stopped: start what is installed, download nothing
   appOn("localai:start", () => startOllamaIfWanted("the editor needs Ollama to translate", { needed: true }));
   let checkpoint;
+  // Only the main prompter can reconnect its engine after a renderer crash. This lives
+  // for this process only, separate from the public session info and the place on disk.
+  let relayIdentity = null;
+  appHandle("session:remember", (event, url, identity) => {
+    if (event.sender !== mainWin?.webContents || typeof url !== "string" ||
+        typeof identity?.id !== "string" || typeof identity?.engineToken !== "string") throw new Error("Denied");
+    relayIdentity = { url, id: identity.id, engineToken: identity.engineToken };
+  });
+  appHandle("session:resume", (event, url) => {
+    if (event.sender !== mainWin?.webContents) throw new Error("Denied");
+    return relayIdentity && relayIdentity.url === url ? { id: relayIdentity.id, engineToken: relayIdentity.engineToken } : null;
+  });
   appHandle("take:openPlace", (event, key) => {
     if (event.sender !== mainWin?.webContents) throw new Error("Denied");
     checkpoint ??= require("./take-checkpoint").createTakeCheckpoint(userData);

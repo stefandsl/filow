@@ -131,17 +131,36 @@ export function useSession(engine: Engine, ready = true) {
     (async () => {
       const serverUrl = sessionServerUrl();
       const password = storedPassword();
+      const identity = desktopBridge()?.relayIdentity;
       try {
-        const res = await fetch(`${serverUrl}/api/session`, {
-          method: "POST",
-          headers: password ? { "X-Access-Password": password } : {},
-        });
-        if (res.status === 401) {
-          setError("session server needs the access password");
-          return;
+        const saved = await identity?.resume(serverUrl);
+        if (cancelled) return;
+        let created: Pick<SessionInfo, "id" | "code" | "engineToken"> & { codeExpiresAt?: number } | undefined;
+        if (saved) {
+          const reply = await fetch(`${serverUrl}/api/session/${encodeURIComponent(saved.id)}/code`, {
+            method: "POST", redirect: "error", headers: { Authorization: `Bearer ${saved.engineToken}` },
+          });
+          if (cancelled) return;
+          if (reply.ok) {
+            const { code, codeExpiresAt, controlEpoch } = await reply.json();
+            if (cancelled) return;
+            engine.resumeControlEpoch(controlEpoch);
+            created = { ...saved, code, codeExpiresAt };
+          } else if (reply.status !== 401 && reply.status !== 404) throw new Error("relay unavailable");
         }
-        if (!res.ok) throw new Error(`session create failed (${res.status})`);
-        const created = (await res.json()) as { id: string; code: string; codeExpiresAt?: number; engineToken: string };
+        if (!created) {
+          const res = await fetch(`${serverUrl}/api/session`, {
+            method: "POST", headers: password ? { "X-Access-Password": password } : {},
+          });
+          if (res.status === 401) {
+            setError("session server needs the access password");
+            return;
+          }
+          if (!res.ok) throw new Error(`session create failed (${res.status})`);
+          created = await res.json() as Pick<SessionInfo, "id" | "code" | "engineToken" | "codeExpiresAt">;
+          if (cancelled) return;
+          await identity?.remember(serverUrl, { id: created.id, engineToken: created.engineToken });
+        }
         if (cancelled) return;
         engineTokenStore.token = created.engineToken;
         const mirrorUrl = phoneLink(created.code, phoneTargets(loadedTargets(), remoteRef.current));
@@ -204,7 +223,7 @@ export function useSession(engine: Engine, ready = true) {
         setError(null);
       } catch {
         if (!cancelled) setError(`session server unreachable at ${serverUrl}`);
-        if (relayAttempt) replaceLostSession();
+        if (relayAttempt || identity) replaceLostSession();
       }
     })();
     return () => {

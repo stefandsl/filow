@@ -5,6 +5,10 @@
  * 3. Otherwise: same host, port 4748 (dev).
  */
 export type DesktopBridge = {
+  relayIdentity?: {
+    remember(url: string, identity: { id: string; engineToken: string }): Promise<void>;
+    resume(url: string): Promise<{ id: string; engineToken: string } | null>;
+  };
   takePlace?: {
     begin(key: string): Promise<{ writer: string; place: Omit<import("@filow/core").CommittedPlace, "scriptKey"> | null }>;
     save(writer: string, version: number, place: Omit<import("@filow/core").CommittedPlace, "scriptKey">): Promise<boolean>;

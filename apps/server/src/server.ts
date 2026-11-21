@@ -485,7 +485,7 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
       }
       if (req.method === "POST" && m[2] === "/code") {
         if (!isEngine) return json(res, 401, { error: "engine token required" });
-        return json(res, 200, issueCode(s));
+        return json(res, 200, { ...issueCode(s), controlEpoch: (s.lastState as { controlEpoch?: number } | null)?.controlEpoch });
       }
       if (req.method === "POST" && m[2] === "/script") {
         // A new script only from the engine or a controller the presenter accepted on the PC, never as a flood.

@@ -177,6 +177,12 @@ export class Engine {
   getState(): SessionState {
     return this.state;
   }
+  /** A replacement renderer reconnecting to a surviving relay retires its predecessor's controls. */
+  resumeControlEpoch(previous: number): void {
+    if (Number.isSafeInteger(previous) && previous >= (this.state.controlEpoch ?? 0)) {
+      this.update(s => { s.controlEpoch = previous + 1; });
+    }
+  }
   get transcript(): string {
     return (this.committed + " " + this.partial).trim();
   }
