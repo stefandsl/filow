@@ -17,6 +17,10 @@ In both languages the launch date was already green before the near phrase. The 
 
 Recheck the supplied WAV directory with `node tools/autoloop/e2e/n03-windows.mjs fixtures <directory>`. For each private receipt run `node tools/autoloop/e2e/n03-windows.mjs score <receipt.json> d22031efab8086a5e7dda79cf844bbda4dbdd25b`. Both exit 1. The receipts contain desktop rows, submitted frame counts and recognizer events. They lack per-clip digests, paired rows and fault observations. Use the same external driver, speech model, PCM bytes and schedule for the candidate.
 
+A separate replay through `Engine.feed` used a synthetic decision that recognizes the written owner's name in the committed window. In EN and IT only `s0b1` completed on the owner line and its evidence quoted that line. Reopen followed by the general backup sentence completed `s0b1` a second time from the old words. In section two, the positive restore-test partial set the hint on `s1b2`; the corrected final with an empty partial left the hint active. The unrelated manual mark on `s1b1` survived. These observations cover engine state only.
+
+The pinned bb source is `get-bb/bb` at `28cdd915db441933646c0e07543ddc05efa1b43f`, `packages/templates/src/templates/bb-guide-thread-messaging.md`. Its explicit thread identity is the pattern requested for point references. Its LICENSE names Michael Yong, copyright 2026, under MIT. Packaging the attribution and checking the built notice belong with the implementation.
+
 ## N-01 | Working baseline, 20 November 2026
 
 The operator observed `stefandsl/filow` at **`44569cfaad1bd2036871dda478e7e9d750d30f1f`** on `origin/main` at 07:49:15.712 UTC. The primary checkout, assigned `ticket/n01` worktree and private builder checkout all started at that SHA with zero tracked changes and zero untracked files. Hold the comparison if the baseline moves or unexplained edits appear. All seven prepared Windows checks passed on that commit. The earlier prepared run had 4,217 passes and 12 skips. [Delivery plan](docs/PLAN.md)
