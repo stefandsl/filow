@@ -7,7 +7,7 @@ import { createSessionServer, type SessionServer } from "../../../apps/server/sr
 import { connect, type SessionClient } from "./index";
 
 let server: SessionServer;
-let proxy: net.Server;
+let proxy: net.Server | undefined;
 let client: SessionClient | null = null;
 const closeCodes: number[] = [];
 class Recording extends WebSocket {
@@ -25,7 +25,8 @@ afterEach(async () => {
   for (const p of pairs) { p.down.destroy(); p.up.destroy(); }
   pairs.length = 0;
   closeCodes.length = 0;
-  await new Promise<void>((r) => proxy.close(() => r()));
+  if (proxy) await new Promise<void>((r) => proxy!.close(() => r()));
+  proxy = undefined;
   await server.close();
 });
 
@@ -37,6 +38,34 @@ const waitFor = (ok: () => boolean, ms: number) =>
   });
 
 describe("engine reconnect after a network break (C18)", () => {
+  it("recognizes a restarted relay and permits a fresh pairing and confirmed command", async () => {
+    server = createSessionServer();
+    await new Promise<void>(r => server.httpServer.listen(0, "127.0.0.1", r));
+    const { port } = server.address();
+    const serverUrl = `http://127.0.0.1:${port}`;
+    const create = async () => (await (await fetch(serverUrl + "/api/session", { method: "POST" })).json()) as { id: string; engineToken: string; code: string };
+    const session = await create();
+    const events: string[] = [];
+    const attach = (s: typeof session) => connect({ serverUrl, WebSocketImpl: WS,
+      session: { id: s.id, token: s.engineToken, role: "engine" }, onStatus: (_, detail) => events.push(detail ?? ""),
+      onPairRequest: req => client?.decidePair(req.token, "controller") });
+    client = await attach(session);
+    await server.close();
+    server = createSessionServer();
+    await new Promise<void>(r => server.httpServer.listen(port, "127.0.0.1", r));
+    expect(await waitFor(() => events.includes("session lost"), 3000)).toBe(true);
+    client.close();
+    const fresh = await create();
+    client = await attach(fresh);
+    let count = 0;
+    client.onCommand((_cmd, ack) => { count++; ack({ ok: true }); });
+    const phone = await connect({ code: fresh.code, serverUrl, WebSocketImpl: WS });
+    try {
+      expect(await waitFor(() => phone.role === "controller", 1000)).toBe(true);
+      expect(await phone.send({ type: "nextSection" })).toEqual({ ok: true, error: undefined });
+      expect(count).toBe(1);
+    } finally { phone.close(); }
+  }, 10_000); // Wait for an actual Windows listener restart, reconnect backoff and a new pairing.
   it("keeps retrying after a 4001 refusal and takes the session back once the relay dropped the old socket", async () => {
     // Keepalive far away: the relay still thinks the old engine socket is OPEN (its real ping is 15 s).
     server = createSessionServer({ pingMs: 60_000 });

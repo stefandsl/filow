@@ -464,6 +464,9 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
       const auth = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
       const isEngine = auth === "" ? false : verifyEngine(auth, s.id);
       const pairing = pairingOf(s, auth);
+      if (req.method === "GET" && !m[2]) {
+        return isEngine || pairing ? json(res, 200, { ok: true }) : json(res, 401, { error: "pairing required" });
+      }
       if (req.method === "DELETE" && !m[2]) {
         if (!isEngine) return json(res, 401, { error: "engine token required" });
         destroy(s, "ended");

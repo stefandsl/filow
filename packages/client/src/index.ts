@@ -243,6 +243,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
         );
       };
       sock.onmessage = (ev) => {
+        if (closedByUser || ws !== sock) return;
         let msg: Record<string, unknown>;
         try {
           msg = JSON.parse(String(ev.data));
@@ -318,7 +319,9 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
             const from: CommandFrom | undefined = raw
               ? { id: String(raw.id ?? ""), device: String(raw.device ?? ""), ...(raw.peer === "app" || raw.peer === "lan" || raw.peer === "remote" ? { peer: raw.peer } : {}) }
               : undefined;
-            commandHandler?.(msg.cmd as Command, (r) => sock.send(JSON.stringify({ t: "ack", id, ...r })), from);
+            commandHandler?.(msg.cmd as Command, (r) => {
+              if (!closedByUser && ws === sock && sock.readyState === 1) sock.send(JSON.stringify({ t: "ack", id, ...r }));
+            }, from);
             break;
           }
           case "resync":
@@ -353,17 +356,38 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
       sock.onerror = () => {
         if (!welcomed) reject(new Error("websocket error"));
       };
-      sock.onclose = (ev) => {
+      sock.onclose = async (ev) => {
+        if (ws !== sock) return;
+        ws = null;
+        for (const complete of pending.values()) complete({ ok: false, error: "not connected" });
+        pending.clear();
         // Protocol refusals: do not retry. Except 4001 once this engine has had the session: after a break the
         // relay may still hold our old, half-open socket until its keepalive drops it, so keep trying.
         const fatal = ev.code >= 4000 && ev.code < 5000 && !(ev.code === 4001 && everWelcomed);
         if (!welcomed) reject(new Error(ev.reason || `closed (${ev.code})`));
+        if (!closedByUser && everWelcomed) {
+          let lost = ev.reason === "server closing" || ev.reason === "session expired" || ev.reason === "engine gone";
+          if (!welcomed && ev.code === 1006) {
+            // Browsers hide the HTTP response to a failed upgrade. Distinguish an erased
+            // session from a temporarily unavailable relay before replacing a pairing.
+            try {
+              const probe = await f(`${base}/api/session/${encodeURIComponent(client.id)}`, {
+                headers: { Authorization: `Bearer ${client.token}` }, cache: "no-store", signal: AbortSignal.timeout(3000),
+              });
+              lost = probe.status === 404 && (await probe.json()).error === "unknown session";
+            } catch { /* the relay may still be down */ }
+          }
+          if (lost && !closedByUser) {
+            setStatus("closed", "session lost");
+            return;
+          }
+        }
         if (closedByUser || fatal || opts.reconnect === false || !everWelcomed) {
           setStatus("closed", ev.reason || undefined);
           return;
         }
         setStatus("connecting", "reconnecting");
-        setTimeout(() => void open().catch(() => undefined), backoff);
+        setTimeout(() => { if (!closedByUser) void open().catch(() => undefined); }, backoff);
         backoff = Math.min(backoff * 2, 8000);
       };
     });

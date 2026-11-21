@@ -64,6 +64,7 @@ function storedPassword(): string {
 export function useSession(engine: Engine, ready = true) {
   const [info, setInfo] = useState<SessionInfo | null>(null);
   const [status, setStatus] = useState<string>("offline");
+  const [relayAttempt, setRelayAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pairRequests, setPairRequests] = useState<PairRequest[]>([]);
   // Every pairing, as the session server reports it: the devices list (components/PairedDevices.tsx).
@@ -116,6 +117,17 @@ export function useSession(engine: Engine, ready = true) {
     if (!ready) return;
     let cancelled = false;
     let unsub: (() => void) | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const replaceLostSession = () => {
+      if (cancelled || retry) return;
+      setInfo(null);
+      devicesRef.current = [];
+      setDevices([]);
+      setPairRequests([]);
+      okFilowSettingsBridge()?.phoneAskers?.([]);
+      engineTokenStore.token = null;
+      retry = setTimeout(() => setRelayAttempt(n => n + 1), Math.min(8000, 500 * (relayAttempt + 1)));
+    };
     (async () => {
       const serverUrl = sessionServerUrl();
       const password = storedPassword();
@@ -139,7 +151,11 @@ export function useSession(engine: Engine, ready = true) {
         const client = await connect({
           serverUrl,
           session: { id: created.id, token: created.engineToken, role: "engine" },
-          onStatus: (s, d) => setStatus(d ? `${s}: ${d}` : s),
+          onStatus: (s, d) => {
+            if (cancelled) return;
+            setStatus(d ? `${s}: ${d}` : s);
+            if (s === "closed" && d === "session lost") replaceLostSession();
+          },
           onPairRequest: (req) => {
             setPairRequests((r) => (r.some((p) => p.token === req.token) ? r : [...r, req]));
             void newCode(); // that code is spent; have the next one ready
@@ -188,15 +204,17 @@ export function useSession(engine: Engine, ready = true) {
         setError(null);
       } catch {
         if (!cancelled) setError(`session server unreachable at ${serverUrl}`);
+        if (relayAttempt) replaceLostSession();
       }
     })();
     return () => {
       cancelled = true;
+      clearTimeout(retry);
       unsub?.();
       clientRef.current?.close();
       clientRef.current = null;
     };
-  }, [engine, newCode, ready]);
+  }, [engine, newCode, ready, relayAttempt]);
 
   return { info, status, error, pairRequests, decidePair, newCode, devices, revokeDevice, allowAsk, approveDevice };
 }

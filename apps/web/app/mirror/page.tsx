@@ -74,9 +74,10 @@ function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
           if (d === "pending") setPending(true);
           if (s === "closed" && d && /rejected/.test(d)) setError(t("mirror.rejected"));
           // The presenter revoked this device, or its pairing ran out: the stage and the Ask box go, the code box comes back.
-          if (s === "closed" && d && /revoked|pairing expired|bad token/.test(d)) {
+          if (s === "closed" && d && /revoked|pairing expired|bad token|session lost/.test(d)) {
             setError(t(/revoked/.test(d) ? "mirror.revoked" : "mirror.expired"));
             setClient(null);
+            setPending(false);
             setState(null);
             setCanAsk(false);
             setRole("");
