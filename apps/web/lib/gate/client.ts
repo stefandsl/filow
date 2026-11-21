@@ -113,6 +113,18 @@ export const browserEmbed: Embedder = async (texts) => {
 
 const CACHE_PREFIX = "gate:points:";
 
+/** The old default was on even for fresh profiles. Only actual use or an explicit opt-in counts. */
+export function takeGateUpgradeNotice(cached: boolean): boolean {
+  try {
+    const seen = "gate:grantNoticeSeen";
+    if (hasGateGrant() || localStorage.getItem(seen) || localStorage.getItem("prefs:gate") === "off") return false;
+    if (!cached && localStorage.getItem("prefs:gate") !== "on" &&
+        !Object.keys(localStorage).some((key) => key.startsWith(CACHE_PREFIX))) return false;
+    localStorage.setItem(seen, "1");
+    return true;
+  } catch { return false; }
+}
+
 function readCache(key: string): PointVectors | null {
   try {
     const raw = localStorage.getItem(CACHE_PREFIX + key);

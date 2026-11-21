@@ -1,8 +1,7 @@
 # OK Filow: the answer bubble
 
 The bubble is the dark box next to the pointer that shows what OK Filow answers (and, while it
-listens, the waveform or a dictation's words). Mouse and keyboard only: no spoken or typed command
-closes it.
+listens, the waveform or a dictation's words). Use X, Esc, a horizontal mouse shake or a short spoken close command with the talk keys.
 
 ## The whole answer, always
 
@@ -15,9 +14,7 @@ closes it.
   out from what was played for the natural and the cloud voice). While the pointer is on the bubble
   the text does not move by itself: the user is scrolling it.
 - An answer's bubble holds still when the pointer comes to it: it stays where it is while the
-  pointer is on it or within 96 px of it, and follows again once the pointer goes further away
-  (`motion.ts` `bubbleSticks`). It stays by the pointer while the dot flies off to the things the
-  answer points at. While listening it follows the pointer as before.
+  pointer is within 120 CSS pixels. The bubble and buddy hold their displayed positions for the rest of that bubble.
 - Placement (`motion.ts` `bubblePlacement`, `bubbleOnScreen`): lower right of the pointer; to its
   left at the right edge, above it at the bottom edge; always wholly on screen, 8 px from every
   edge; never over the pill (a bubble that would lie over it goes below it).
@@ -27,23 +24,24 @@ closes it.
 ## When it goes away
 
 The rule is one pure function, `okfilow-stop.js` `bubbleHold`, driven by `createBubble` in the main
-process. Whatever keeps the overlays on screen (cards, "always show the pointer") never
-keeps the bubble.
+process. Cards, media and Resume keep their answer available. The always-visible pointer has its own lifetime.
 
 | State | The bubble stays |
 | --- | --- |
 | Listening, thinking, speaking, paused | as long as that lasts |
-| The pointer is on it | as long as it is, then 2.5 s more |
-| Answer finished | 4 s after the end, and never less than its reading time counted from when the whole text was shown. Reading time: 60 ms a letter (120 ms for Japanese, Chinese and Korean letters), between 5 s and 90 s. A spoken answer has usually been on screen that long, so it goes 4 s after the voice; with the voice off, missing or failed it stays for the reading time. |
-| Error | the same rule on the error's text (5 s for a short one) |
-| Stopped (the "Stopped" mark, and Resume on the pill) | 8 s; Resume stays on the panel after that |
-| A dictation's note | the time the panel gives it, between 1 s and 6 s |
+| Hovered | the reading timer resumes with its remaining time once the pointer leaves (replaces the old 2.5 s after hover) |
+| Finished or stopped answer with text | 60 ms per unit, bounded to 5-90 s, less time already shown with a minimum 4 s linger |
+| Stopped before text arrived | 8 s |
+| Answer with cards, media or Resume | until dismissed or replaced |
+| Dictation note | the panel requests 2.5, 4.5, 5 or 6 seconds, bounded to 1-6 s |
+| Information or error | 6 seconds plus 60 ms per unit, up to 20 seconds |
+
+Whitespace counts as zero units. Japanese, Chinese and Korean wide characters count as two. Other characters count as one.
 
 Ways out at any time: Esc, the close button, a new question (spoken or typed) or a dictation, which
 replace the old words at once.
 
-- Esc while an answer runs stops it. Esc with no answer running closes the bubble and wipes the
-  marks (`escapePlan`). So a second Esc after a stop closes what the first one left.
+- Esc dismisses the bubble and stops an active answer while the foreground app receives the same key.
 - The close button (top right corner of the bubble, named "Close the answer" in the five languages)
   closes the bubble on every screen, and the answer's marks with it.
 - An answer's marks (boxes, circles, arrows, underlines and their labels) last as long as they are
@@ -62,11 +60,7 @@ replace the old words at once.
 
 ## Keyboard
 
-The overlay window is never focusable: it must not take the keyboard from the app in use. So the
-close button cannot be reached with Tab. The keyboard's way is Esc, which reaches OK Filow through
-the keyboard hook from any app, and the panel, which shows the whole answer in an ordinary window.
-If Windows refuses the hook (the panel says so), Esc works only while the panel has the keyboard:
-the bubble then still goes by itself, and the close button works with the mouse.
+Clicking the bubble or its X keeps keyboard focus in the current app. Filow observes Escape passively while answering, listening, dictating, or showing a model, pinned items or a bubble. An active answer stops first. Otherwise Escape closes the model, pinned items or bubble in that order. A second press within 700 ms clears all three. Filow removes the listener when idle with nothing shown.
 
 ## Where it lives
 

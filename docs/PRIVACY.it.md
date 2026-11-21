@@ -1,10 +1,12 @@
 # Informativa sulla privacy di Filow
 
-Aggiunta del ramo sperimentale: la parola di attivazione OK Filow, facoltativa,
+Aggiunta del ramo sperimentale: la parola di attivazione Filow, facoltativa,
 elabora l'audio solo in memoria su questo computer. Il microfono non si apre senza
 un indicatore di ascolto visibile e un comando per disattivarlo con un clic.
-Si salvano solo le cinque registrazioni accettate, nel profilo dell'app, insieme
-al modello personale. Le Impostazioni possono eliminare entrambi. Per scaricare
+Il profilo salva le cinque registrazioni accettate, fino a due esempi negativi
+facoltativi accettati e il modello personale. Dopo il nuovo addestramento, Filow
+elimina le registrazioni della frase precedente. Nelle Impostazioni puoi eliminare
+tutti i dati della parola di attivazione. Per scaricare
 i modelli serve accettare l'avviso con fonte, dimensioni e licenza; l'ascolto non
 effettua richieste di rete. Dopo il riconoscimento, la domanda ordinaria conserva
 le regole del fornitore e del consenso all'invio già previste.
@@ -117,6 +119,8 @@ sì nelle impostazioni di OK Filow. Le funzioni cloud usano il tuo account press
 | FreeLLMAPI, quando lo hai scelto (risposte di OK Filow, tracciamento della ripresa, scrittura e traduzione dei copioni) | gli stessi contenuti della funzione cloud che sostituisce: la domanda e le immagini dei tuoi schermi, le parole pronunciate (mascherate come sopra), il copione o le slide | il tuo router FreeLLMAPI, poi un fornitore di AI gratuito che il router sceglie per ogni richiesta |
 | "Verifica la connessione" in Impostazioni > FreeLLMAPI (senza avviso: non contiene nulla di tuo) | una richiesta dell'elenco dei modelli del router | solo il tuo router FreeLLMAPI |
 
+Il modello di confronto richiede i file mancanti a Hugging Face solo con il tuo consenso.
+
 OpenRouter passa la tua richiesta a un'azienda che fa girare il modello. Per i modelli di Google è
 Google; per altri modelli può essere un'altra azienda scelta da OpenRouter.
 
@@ -205,5 +209,3 @@ Se ti trovi in un altro Paese dell'UE, puoi presentare reclamo alla tua autorit�
 Quando cambia cosa Filow invia o conserva, questa informativa cambia con la stessa versione dell'app
 e cambia la data in alto. L'informativa inclusa nell'app corrisponde sempre a quella versione
 dell'app.
-
-Il modello di confronto facoltativo richiede i file mancanti a Hugging Face solo dopo la tua autorizzazione. La prova privata funziona anche senza il modello.

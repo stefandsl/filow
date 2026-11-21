@@ -204,6 +204,28 @@ Use an existing fixture or saved lesson. Approve the slice when the reply's reve
 
 - **Requests** R-178
 
+### X-14 Act in another app through one measured driver
+
+**Goal.** After N-04's grant gate works, let the user ask Filow for one small action in another app and see it done, confirmed by a fresh read of that app. Every action passes one `ActionDriver` interface and Filow's own grant gate. The eval chooses the driver: [agent-desktop](https://github.com/vercel-labs/agent-desktop) headless (pinned tag, built and signed by us, MCP stdio child), Windows-MCP, or Filow's own UI Automation act helper. Keep Filow's read-only screen helper for pointing. No driver ships in the default download until it passes. Build on N-04, X-02 and X-04.
+
+**Acceptance test.** On a clean non-admin Windows 11 profile with loopback-only network, run a fixed 30-task set at 100%, 125% and 150% DPI. Each positive task ends with the effect read back from the app. Decline, a changed window, classmate speech, assistant audio, Stop before and during dispatch, an elevated target, a password field and Filow's own window each prevent any input. After Stop no input reaches any app. Headless actions never change the presenter's foreground window or pointer.
+
+**Verification.** Five repeats per task per driver with one fixed planner model. Report success rate, steps, median and p95 latency, wrong actions, focus steals, effect after Stop, refusals and bytes that left the PC, per driver. Pass with zero wrong actions, zero effect after Stop, 100% refusals, at least 90% success on tasks with a rich accessibility tree and a median action of at most 500 ms. A driver that steals focus fails; do not patch around it in prompts. Each dispatch needs a fresh snapshot id. Record the chosen driver, pinned version, SHA256 and the SmartScreen and Smart App Control result. Snapshots stay local and out of logs.
+
+**License.** agent-desktop is Apache-2.0. Keep its notice with any copied or vendored code and pin the revision.
+
+- **Requests** R-179
+
+### X-15 Win back wake recall at the default setting
+
+**Goal.** The Filow wake word merged with fewer detections at Balanced than the previous detector on the same held-out set: Filow 16/30 against 27/30, OK Filow 25/30 against 30/30, Hey Filow 20/30 against 26/30. Italian and Japanese profiles never wake on Filow alone. Restore recall without losing the gains (0 against 4 false wakes in 6 hours, 7 against 12 near-word accepts).
+
+**Acceptance test.** On a new held-out set that no tuning saw, Balanced detects at least as many calls as the previous detector for every form and every language, with no more false wakes per hour and no more near-word accepts. Settings never advises a change that lowers a user's measured recall. The automatic fallback to OK Filow has a test that fails without it.
+
+**Verification.** Freeze the new set before any tuning and record its hash. Report form x sensitivity x language for the new and the previous detector, false wakes per hour over at least 6 hours, and near-word accepts. Packaged replay through the capture seam.
+
+- **Requests** R-180
+
 ## Later/Icebox
 
 Return to these for the named decision or evidence.
@@ -472,6 +494,8 @@ Request statuses come from the owner's private request register (not in the repo
 | R-176 | Open | [X-09](#x-09-pilot-google-voices-and-translated-captions) |
 | R-177 | Open | [X-12](#x-12-give-speech-fixes-a-reproducible-enit-scorecard) |
 | R-178 | Open | [X-13](#x-13-continue-a-decision-or-factory-assignment-when-an-approved-model-runs-out-of-quota) |
+| R-179 | Open | [X-14](#x-14-act-in-another-app-through-one-measured-driver) |
+| R-180 | Open | [X-15](#x-15-win-back-wake-recall-at-the-default-setting) |
 
 </details>
 

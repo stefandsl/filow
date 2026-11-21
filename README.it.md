@@ -1,5 +1,5 @@
 <p align="right"><a href="README.md">English</a> · <strong>Italiano</strong></p>
-Ramo sperimentale: la **parola di attivazione OK Filow** è disattivata per
+Ramo sperimentale: la **parola di attivazione Filow** è disattivata per
 impostazione predefinita. Le Impostazioni offrono l'avviso sui modelli ufficiali
 (35,3 MB), cinque registrazioni da accettare o ripetere, addestramento, prova dal
 vivo, riaddestramento ed eliminazione. Strict richiede entrambi i rilevatori locali;
@@ -9,6 +9,7 @@ chiuso, sessioni e presentazioni interrompono l'ascolto. La frase non interrompe
 la voce e non apre finestre per domande successive. L'audio resta in memoria,
 tranne le cinque registrazioni nel profilo dell'app. Il comando di eliminazione
 rimuove registrazioni e modello personale. Vedi [prove e limiti](docs/okfilow/WAKE-WORD.md).
+Di’ **Filow** da solo. Puoi anche dire OK Filow o Hey Filow. I profili esistenti mantengono la frase precedente finché non registri cinque nuovi esempi e ripeti l’addestramento. Dopo il nuovo addestramento, Filow elimina le vecchie registrazioni. Se le cinque registrazioni non superano la verifica del solo nome in modalità Balanced o Strict, le Impostazioni richiedono automaticamente OK Filow per quella sensibilità. Disattiva **Consenti Filow da solo** per richiedere OK o Hey prima del nome.
 
 Il riaddestramento ora include esempi numerici di frasi simili ma diverse dalla
 frase di attivazione. Puoi registrare anche due frasi negative facoltative, salvate
@@ -769,6 +770,8 @@ La voce locale pronuncia in inglese i termini comuni dell'interfaccia e le etich
 citate dallo schermo, mantenendo la stessa voce. Espande date, orari, anni, importi e versioni
 prima di parlare e conserva una breve coda silenziosa. Le forme numeriche russe, rumene e
 giapponesi richiedono ancora una revisione madrelingua.
+
+Avvicina il mouse al fumetto di OK Filow per fermare sia il fumetto sia il puntatore. Fai clic sulla X, premi Esc, scuoti il mouse in orizzontale oppure tieni premuti i tasti per parlare e di’ «chiudi». Esc raggiunge anche l'app in primo piano e interrompe la risposta vocale. Facendo clic sul fumetto o sulla X, il focus della tastiera resta in quell'app. Puoi disattivare il gesto nel pannello di OK Filow. Avvisi ed errori scompaiono dopo 6-20 secondi di lettura. Le risposte concluse o interrotte si chiudono dopo il tempo di lettura. Se ci sono schede, contenuti multimediali o il comando Riprendi, la risposta resta aperta. Il passaggio del mouse sospende il conto alla rovescia.
 
 I segni sullo schermo seguono le frasi pronunciate e mantengono le posizioni precedenti mentre la risposta cresce. Il puntatore e la sua etichetta si muovono insieme nello spazio libero; se il percorso è occupato, il puntatore viene nascosto per non coprire il testo rilevato. Il fumetto cresce gradualmente (senza animare le dimensioni quando è attiva la riduzione del movimento). La vista 3D usa punti sulle superfici e linee distanziate, con etichette leggibili in entrambi i temi; i margini vuoti lasciano passare i clic.
 

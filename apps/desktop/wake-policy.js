@@ -1,18 +1,45 @@
 // Experimental wake word policy. No device, disk or network access in this module.
 const DEFAULTS = Object.freeze({
-  enabled: false, phrase: "OK Filow", longerPhrase: false, sensitivity: "balanced",
+  enabled: false, phrase: "Filow", longerPhrase: false, sensitivity: "balanced",
   followUpMs: 0, interruptSpeech: false, offDuringTake: true, offDuringSlideshow: true,
   eyeStopsWake: true, pauseStopsWake: true, bundleModels: false, retainRecordings: true,
   recordings: 5, threads: 1, reopenMs: 600, agreementMs: 1200, cooldownMs: 2000,
   sampleRate: 16000, blockSamples: 1600, ringSamples: 32000,
 });
-const SPELLINGS = Object.freeze([
+const LEGACY_SPELLINGS = Object.freeze([
   "OW2 K EY1 F IY1 L OW0", "OW1 K EY1 F IY1 L OW1", "OW2 K EY1 F IH1 L OW0",
   "OW2 K EY1 F AY1 L OW0", "OW2 K EY1 F IY1 L AO1", "AO1 K EY1 F IY1 L AO0",
   "AO1 K EH1 F IY1 L AO1", "OW2 K EY1 F IY0 L OW1", "OW2 K EY1 F IY1 R OW0",
   "OW2 K EY1 HH IY1 R OW0", "OW2 K EY1 F IY1 L UW0", "AH0 K EY1 F IY1 L OW0",
   "OW2 K EY1 F IH1 L AO1", "AO1 K EY1 F IY1 L OW0", "K EY1 F IY1 L OW0",
 ]);
+// Stress, vowel and liquid variants used by the multilingual enrolment corpus.
+const BARE_SPELLINGS = [...new Set([
+  ...LEGACY_SPELLINGS.map(s => s.replace(/^.*?K (?:EY|EH)1 /, "")).filter(s => s !== "HH IY1 R OW0"),
+  "F IY1 L AH0", // Reduced unstressed final vowel.
+  "F IH0 L OW1", // Reduced first vowel and final stress.
+])];
+const SPELLINGS = Object.freeze([...LEGACY_SPELLINGS, ...BARE_SPELLINGS,
+  ...BARE_SPELLINGS.map(s => `HH EY1 ${s}`),
+]);
+function keywordText(profile) {
+  let spellings = profile.phrase === DEFAULTS.phrase ? SPELLINGS : LEGACY_SPELLINGS;
+  if (profile.requirePrefix) spellings = spellings.filter(s => !BARE_SPELLINGS.includes(s));
+  if (!spellings.length || new Set(spellings).size !== spellings.length ||
+      !spellings.every(s => /^[A-Z]+[012]?( [A-Z]+[012]?)+$/.test(s))) {
+    throw new Error("Invalid wake phoneme list");
+  }
+  const prefixedTuning = profile.requirePrefix ? ":1 #0.4" : ":2.5 #0.05";
+  // The personal head recognises the name. For accent fallback the spotter
+  // may independently confirm the OK prefix, using the existing vowels.
+  const prefixes = profile.requirePrefix && profile.separatePrefix
+    ? [...new Set(LEGACY_SPELLINGS.map(s => s.split(/ (?:F|HH) /)[0]).filter(s => !s.startsWith("K ")))]
+    : [];
+  return spellings.map((s, i) => {
+    const tuning = BARE_SPELLINGS.includes(s) ? ":2.35 #0.12" : prefixedTuning;
+    return `${s} ${tuning} @v${i + 1}`;
+  }).concat(prefixes.map((s, i) => `${s} ${prefixedTuning} @prefix${i + 1}`)).join("\n") + "\n";
+}
 const sensitivity = (v) => ["strict", "balanced", "sensitive"].includes(v) ? v : DEFAULTS.sensitivity;
 function blocked(s) {
   if (!s.enabled || !s.assistantEnabled) return "off";
@@ -32,28 +59,38 @@ function blocked(s) {
 function combine(mode, score, kws, thresholds) {
   if (!Number.isFinite(score) || !thresholds || ![thresholds.loose, thresholds.sensitive, thresholds.sure].every(Number.isFinite)) return false;
   if (thresholds.loose > thresholds.sensitive || thresholds.sensitive > thresholds.sure) return false;
-  if (sensitivity(mode) === "strict") return kws === true && score > thresholds.loose;
+  if (sensitivity(mode) === "strict") return kws === true && score > (thresholds.strict ?? thresholds.loose);
   if (sensitivity(mode) === "sensitive") return score > thresholds.sensitive;
   return score > thresholds.sure || (kws === true && score > thresholds.loose);
 }
 // Both workers report on the AUDIO clock, never their wall-clock completion order.
-function createCombiner(thresholds, mode = "balanced") {
+function createCombiner(thresholds, mode = "balanced", requirePrefix = false) {
   let last = -Infinity;
   let heads = [], spots = [];
   return {
     reset() { last = -Infinity; heads = []; spots = []; },
-    push({ at, score, keyword }) {
+    push({ at, score, keyword, prefixEndMs }) {
       if (!Number.isFinite(at)) return false;
       if (Number.isFinite(score)) heads.push({ at, score });
-      if (keyword) spots.push(at);
+      if (keyword) spots.push({ at, prefixEndMs });
       heads = heads.filter((h) => h.at >= at - DEFAULTS.agreementMs);
-      spots = spots.filter((t) => t >= at - DEFAULTS.agreementMs);
+      spots = spots.filter((t) => t.at >= at - DEFAULTS.agreementMs);
       if (at - last < DEFAULTS.cooldownMs) return false;
-      const hit = heads.some((h) => combine(mode, h.score, spots.some((t) => Math.abs(t - h.at) <= DEFAULTS.agreementMs), thresholds));
+      const hit = heads.some((h) => {
+        const matched = spots.some((t) => Math.abs(t.at - h.at) <= DEFAULTS.agreementMs &&
+          (!Number.isFinite(t.prefixEndMs) || h.at >= t.prefixEndMs));
+        return (!requirePrefix || matched) && combine(mode, h.score, matched, thresholds);
+      });
       if (hit) { last = at; heads = []; spots = []; }
       return hit;
     },
   };
+}
+function profileCombiner(profile, mode) {
+  const thresholds = profile.thresholds;
+  const strict = profile.phrase === DEFAULTS.phrase && mode === "strict";
+  const limits = strict ? { ...thresholds, strict: thresholds.sure } : thresholds;
+  return createCombiner(limits, mode, profile.requirePrefix);
 }
 function checkRecording(samples) {
   if (!(samples instanceof Float32Array) || samples.length < 8000) return "short";
@@ -75,4 +112,4 @@ function captureAllowed(channel, s) {
   if (channel === "question") return s.held === true || s.handsFree === true || s.releaseTail === true || s.wakeQuestion === true;
   return false;
 }
-module.exports = { DEFAULTS, SPELLINGS, sensitivity, blocked, combine, createCombiner, checkRecording, captureAllowed };
+module.exports = { DEFAULTS, SPELLINGS, keywordText, sensitivity, blocked, combine, createCombiner, profileCombiner, checkRecording, captureAllowed };

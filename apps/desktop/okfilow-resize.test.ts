@@ -23,6 +23,7 @@ function setup() {
     webContents: Object.assign(new EventEmitter(), { id }), destroyed: false,
     isDestroyed() { return this.destroyed; },
     getBounds: () => ({ x: 0, y: 0, width: 1000, height: 800 }),
+    isFocused: () => false, isFocusable: () => false, setFocusable: vi.fn(),
     setIgnoreMouseEvents: vi.fn(),
   });
   const overlay = window(1), second = window(2), model = window(3), panel = window(4);
@@ -33,7 +34,8 @@ function setup() {
   const context = {
     cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint, overlayMouse, ipcMain, modelHit, modelWin: model,
     overlays: new Map([[1, overlay], [2, second]]), ourSender: () => allowed,
-    mediaRects: new Map(), mediaOn: new Set(), stopHover: new Set(), mouseWas: new Map(), bubbleHover: new Set(),
+    mediaRects: new Map(), mediaOn: new Set(), stopHover: new Set(), mouseWas: new Map(), bubbleHover: new Set(), shake: { reset: vi.fn() }, detachedDisplay: null, bubbleGeneration: 0,
+    syncEscape: vi.fn(),
     mouseCaught: false, mode: "idle", pill: {}, bubble: { open: () => false, setHover: vi.fn() }, QA_SHOTS: false,
     lastCursor: "", screen: { getCursorScreenPoint: () => cursor, getDisplayMatching: () => ({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } }) },
     applyMouse: (_w: typeof overlay) => {}, mediaHit: (_w: typeof overlay, _p: unknown) => {},
@@ -51,6 +53,29 @@ function setup() {
   const send = (w: typeof overlay, rects: unknown, channel = w === model ? "model" : "overlay") => ipcMain.emit(`okfilow:${channel}:rects`, { sender: w.webContents }, rects);
   return { overlay, second, model, panel, modelHit, context, send, deny: () => { allowed = false; }, point: (p: typeof cursor) => { cursor = p; context.mediaHit(overlay, p); modelHit.at(p); } };
 }
+
+it("accepts clicks on a hovered bubble without making the overlay focusable", () => {
+  const h = setup();
+  h.context.bubble.open = () => true;
+  h.context.bubbleHover.add(1);
+  h.context.stopHover.add(1);
+  h.context.applyMouse(h.overlay);
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+  expect(h.overlay.setFocusable).not.toHaveBeenCalledWith(true);
+});
+
+it("binds detachment to the reporting display and ignores a previous bubble's late claim", () => {
+  const h = setup();
+  const context = h.context;
+  context.bubble.open = () => true;
+  context.bubbleGeneration = 2;
+  runInNewContext(section('  ipcMain.on("okfilow:bubble:detach"', "\n  });"), context);
+  context.ipcMain.emit("okfilow:bubble:detach", { sender: h.overlay.webContents }, 1);
+  expect(context.detachedDisplay).toBeNull();
+  context.ipcMain.emit("okfilow:bubble:detach", { sender: h.second.webContents }, 2);
+  context.ipcMain.emit("okfilow:bubble:detach", { sender: h.overlay.webContents }, 2);
+  expect(context.detachedDisplay).toBe(2);
+});
 
 describe("bounded resize hit rectangles", () => {
   it("clips a GIF Close button where its narrow tile ends and the desktop gap starts", () => {
@@ -302,4 +327,33 @@ it.each(["close stopped answer", "new question"])("immediately releases only the
   expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
   h.point({ x: 50, y: 50 });
   expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+});
+
+it("runs native shake handlers with the live setting and cached display scale", () => {
+  const uIOhook = new EventEmitter();
+  const settings = { shakeToClose: true };
+  const close = vi.fn();
+  const { createShakeInput } = require("./okfilow-gestures.js");
+  const context = {
+    uIOhook, createShakeInput, cfg: () => settings, mode: "idle", bubble: { open: () => true, close },
+    bubbleHover: new Set([1]), stopHover: new Set(), gestures: { mousedown: vi.fn() },
+    dictation: { userMoved: vi.fn() }, phraseRun: null,
+  };
+  runInNewContext([
+    section("  let cursorScale =", "  let detachedDisplay = null;"),
+    section('      uIOhook.on("mouseup", shake.up);', '      uIOhook.start();').replace("uIOhook.start();", ""),
+  ].join("\n"), context);
+  const move = (...xs: number[]) => xs.forEach(x => uIOhook.emit("mousemove", { x, y: 0 }));
+  uIOhook.emit("mousedown", { button: 1 });
+  move(0, 50, 0, 50, 0);
+  uIOhook.emit("mouseup", { button: 1 });
+  move(0, 50, 0);
+  uIOhook.emit("wheel");
+  move(0, 50, 0);
+  settings.shakeToClose = false;
+  move(0, 50, 0, 50, 0);
+  expect(close).not.toHaveBeenCalled();
+  settings.shakeToClose = true;
+  move(0, 50, 0, 50, 0);
+  expect(close).toHaveBeenCalledExactlyOnceWith("shake");
 });

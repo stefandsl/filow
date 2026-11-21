@@ -2,6 +2,12 @@
 
 Use the [PLAN Defaults Sheet](PLAN.md#defaults-sheet) for current product and release decisions and [METHODOLOGY.md](METHODOLOGY.md) for decisions about agent work.
 
+## Release decision, 20 November 2026
+
+D33 exception for 0.9.44 only: the owner approved a preview hotfix for the Hugging Face model request while legal review of the children and classroom section is pending.
+
+D33 applies to subsequent releases.
+
 ## Release decision, 19 November 2026
 
 D33 exception for 0.9.43: published as a preview before legal review of the children and classroom section; the policy states that this review is pending.

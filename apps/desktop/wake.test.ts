@@ -20,7 +20,11 @@ afterEach(() => { vi.restoreAllMocks(); for (const d of dirs.splice(0)) fs.rmSyn
 it('uses one utility RPC for both scores, reset and cleanup',async()=>{
  const child=Object.assign(new EventEmitter(),{postMessage:vi.fn((m:{id:number;type:string;at:number})=>queueMicrotask(()=>child.emit('message',{id:m.id,at:m.at,score:6,keyword:true,ms:2}))),kill:vi.fn()});
  const utilityProcess={fork:vi.fn(()=>child)};
- const detector=await createDetectors(temp(),{},utilityProcess);
+ const dir = temp();
+ const detector=await createDetectors(dir,{},utilityProcess);
+ const legacy = fs.readFileSync(path.join(dir, "keywords.txt"), "utf8");
+ expect(legacy).toContain("OW2 K EY1 F IY1 L OW0 :");
+ expect(legacy).not.toMatch(/^F IY1 L OW0 :/m);
  expect(utilityProcess.fork).toHaveBeenCalledTimes(1);
  expect(await detector.feed(new Float32Array(1600),100)).toMatchObject({score:6,keyword:true,at:100});
  await detector.reset();expect(child.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'reset'}));
@@ -46,7 +50,11 @@ describe("wake privacy defaults", () => {
     expect(DEFAULTS.enabled).toBe(false); expect(DEFAULTS.recordings).toBe(5); expect(DEFAULTS.threads).toBe(1);
     expect(DEFAULTS.bundleModels).toBe(false); expect(DEFAULTS.retainRecordings).toBe(true);
     expect(DEFAULTS.followUpMs).toBe(0); expect(DEFAULTS.interruptSpeech).toBe(false);
-    expect(SPELLINGS).toHaveLength(15);
+    expect(DEFAULTS.phrase).toBe("Filow");
+    expect(SPELLINGS).toEqual(expect.arrayContaining([
+      "F IY1 L OW0", "F IH1 L AO1", "F IY0 L OW1", "OW2 K EY1 F IY1 L OW0", "HH EY1 F IY1 L OW0",
+    ]));
+    expect(new Set(SPELLINGS).size).toBe(SPELLINGS.length);
     const worker = fs.readFileSync(path.join(__dirname, "wake-worker.js"), "utf8");
     const head = fs.readFileSync(path.join(__dirname, "wake-head.js"), "utf8");
     expect(worker).toContain("numThreads: 1");
@@ -57,6 +65,14 @@ describe("wake privacy defaults", () => {
     expect([[2, false], [2, true], [4, false], [6, false]].map(([score, spot]) => combine(mode, score, spot, thresholds))).toEqual(expected);
     expect(combine(mode, NaN, true, thresholds)).toBe(false);
     expect(combine(mode, 50, true, { loose: 7, sensitive: 3, sure: 5 })).toBe(false);
+  });
+  it.each(["strict", "balanced", "sensitive"])("requires a prefix even for a confident %s head when opted out", mode => {
+    const keywords = require("./wake-policy").keywordText({ phrase: "Filow", requirePrefix: true });
+    expect(keywords).not.toMatch(/^F /m);
+    expect(keywords).toMatch(/^HH EY1 F IY1 L OW0 :1 #0\.4 /m);
+    const combiner = createCombiner(thresholds, mode, true);
+    expect(combiner.push({ at: 100, score: 99 })).toBe(false);
+    expect(combiner.push({ at: 200, keyword: true })).toBe(true);
   });
   it("matches by audio time, expires agreement, resets and debounces", () => {
     const c = createCombiner(thresholds, "strict");
@@ -122,11 +138,18 @@ describe("enrolment and downloads", () => {
     let conditions = { ...ready };
     const wake = createWake({ userData: dir, state: () => conditions, changed: vi.fn(), detected: vi.fn(), verifyModelsFn: async () => {}, ensureModelsFn: network,
       createDetectorsFn: async () => ({ feed: async (_samples: unknown, at: number) => ({ at, score: -1, keyword: false, ms: 1 }), reset: async () => {}, stop: vi.fn() }) });
-    expect(wake.status().enabled).toBe(false);
+    expect(wake.status()).toMatchObject({ enabled: false, legacyPhrase: true });
+    const oldSamples = path.join(dir, "wake", "samples");
+    fs.mkdirSync(oldSamples);
+    fs.writeFileSync(path.join(oldSamples, "1.wav"), wav(new Float32Array(16000)));
+    expect(wake.status().recordings).toBe(0);
     await wake.enable("balanced"); expect(wake.status().listening).toBe(true);
     for (let i = 0; i < 30; i++) await wake.feed(new Float32Array(1600));
-    expect(network).not.toHaveBeenCalled(); expect(fs.readdirSync(path.join(dir, "wake"))).toEqual(["profile.json"]);
+    expect(network).not.toHaveBeenCalled(); expect(fs.readdirSync(path.join(dir, "wake"))).toEqual(["profile.json", "samples"]);
     conditions = { ...ready, indicator: false }; wake.reconcile(); expect(wake.status().listening).toBe(false);
+    const fresh = Float32Array.from({length:16000}, (_, i) => .1 * Math.sin(i/8));
+    expect(wake.sample(0, fresh)).toMatchObject({ recordings: 1, trained: true, legacyPhrase: true });
+    expect(fs.existsSync(path.join(dir, "wake", "profile.json"))).toBe(true);
     wake.remove(); expect(fs.existsSync(path.join(dir, "wake"))).toBe(false); expect(wake.status().enabled).toBe(false);
   });
   it("discards an inference finishing after pause and resume", async () => {
@@ -144,4 +167,100 @@ describe("enrolment and downloads", () => {
     complete({ at: 100, score: 99, keyword: true, ms: 1 }); await old;
     expect(detected).not.toHaveBeenCalled(); wake.stop();
   });
+});
+it("keeps a legacy profile and its recordings until a replacement passes replay", async () => {
+  const dir = temp(), root = path.join(dir, "wake"), old = path.join(root, "samples");
+  fs.mkdirSync(old, { recursive: true });
+  const file = path.join(root, "profile.json");
+  const legacy = { version: 1, weights: Array(1152).fill(0), bias: 0, thresholds, verification,
+    models: FILES.map((f: { sha256: string }) => f.sha256).join(":") };
+  const bytes = JSON.stringify(legacy);
+  fs.writeFileSync(file, bytes);
+  const pcm = Float32Array.from({ length: 16000 }, (_, i) => .1 * Math.sin(i / 8));
+  for (const name of ["1", "2", "3", "4", "5", "negative-1"]) fs.writeFileSync(path.join(old, name + ".wav"), wav(pcm));
+  let score = -100;
+  const load = vi.fn(async () => ({ feed: async (_pcm: unknown, at: number) => ({ at, score, keyword: true, ms: 1 }),
+    reset: async () => {}, stop: vi.fn() }));
+  const child = Object.assign(new EventEmitter(), { kill: vi.fn(), postMessage(m: { id: number }) {
+    queueMicrotask(() => child.emit("message", { id: m.id, profile: legacy }));
+  } });
+  const wake = createWake({ userData: dir, state: () => ready, changed: vi.fn(), detected: vi.fn(),
+    verifyModelsFn: async () => {}, utilityProcess: { fork: () => child }, createDetectorsFn: load });
+  for (let i = 0; i < 5; i++) wake.sample(i, pcm);
+  expect(await wake.train("balanced")).toMatchObject({ legacyPhrase: true, error: expect.stringContaining("Replay check") });
+  expect(fs.readFileSync(file, "utf8")).toBe(bytes);
+  expect(fs.readdirSync(old)).toHaveLength(6);
+  expect(await wake.enable("balanced", false)).toMatchObject({ listening: true });
+  expect(load).toHaveBeenLastCalledWith(expect.any(String), { ...legacy, requirePrefix: false }, expect.anything());
+  score = 100;
+  expect(await wake.train("balanced")).toMatchObject({ legacyPhrase: false, recordings: 5, error: "" });
+  expect(fs.existsSync(old)).toBe(false);
+  expect(JSON.parse(fs.readFileSync(file, "utf8")).phrase).toBe("Filow");
+  // Recover a process exit after the atomic rename but before removing old audio.
+  fs.mkdirSync(old);
+  fs.writeFileSync(path.join(old, "1.wav"), wav(pcm));
+  const reopened = createWake({ userData: dir, state: () => ready, changed: vi.fn(), detected: vi.fn() });
+  expect(reopened.status()).toMatchObject({ trained: true, recordings: 5 });
+  expect(fs.existsSync(old)).toBe(false);
+});
+
+it("excludes the unprefixed English word hero from new keywords", () => {
+  expect(SPELLINGS).not.toContain("HH IY1 R OW0");
+});
+
+it("requires strong speaker agreement for a strict bare profile", () => {
+  const { profileCombiner } = require("./wake-policy");
+  const p = { phrase: "Filow", thresholds };
+  const hit = { at: 100, keyword: true, score: 2 };
+  expect(profileCombiner(p, "balanced").push(hit)).toBe(true);
+  expect(profileCombiner(p, "strict").push(hit)).toBe(false);
+  expect(profileCombiner(p, "strict").push({ ...hit, score: 6 })).toBe(true);
+  expect(profileCombiner({ thresholds }, "strict").push(hit)).toBe(true);
+});
+
+it("switches an active spotter to prefix-required and leaves an idle one off", async () => {
+  const dir = temp(), root = path.join(dir, "wake");
+  fs.mkdirSync(root);
+  const p = { phrase: "Filow", version: 1, weights: Array(1152).fill(0), bias: 0, thresholds, verification,
+    models: FILES.map((f: { sha256: string }) => f.sha256).join(":") };
+  fs.writeFileSync(path.join(root, "profile.json"), JSON.stringify(p));
+  const load = vi.fn(async () => ({ feed: async () => ({ ms: 1 }), reset: async () => {}, stop: vi.fn() }));
+  const wake = createWake({ userData: dir, state: () => ready, changed: vi.fn(), detected: vi.fn(),
+    verifyModelsFn: async () => {}, createDetectorsFn: load });
+  await wake.setBare("balanced", false);
+  expect(load).not.toHaveBeenCalled();
+  await wake.enable("balanced");
+  await Promise.all([wake.setBare("balanced", false), wake.setBare("balanced", true)]);
+  expect(wake.status().listening).toBe(true);
+  await wake.setBare("balanced", false);
+  expect(load).toHaveBeenLastCalledWith(expect.anything(), { ...p, requirePrefix: true }, undefined);
+  expect(wake.status().listening).toBe(true);
+  wake.stop();
+});
+
+it.each(["balanced", "strict"])("automatically loads the prefix detector for an ineligible %s bare profile", async mode => {
+  const dir = temp(), root = path.join(dir, "wake");
+  fs.mkdirSync(root);
+  const p = { phrase: "Filow", version: 1, weights: Array(1152).fill(0), bias: 0, thresholds,
+    verification: { [mode]: { recognised: 2, total: 5, negatives: 0, negativeAccepts: 0 } },
+    models: FILES.map((f: { sha256: string }) => f.sha256).join(":") };
+  fs.writeFileSync(path.join(root, "profile.json"), JSON.stringify(p));
+  const load = vi.fn(async () => ({ feed: async () => ({ ms: 1 }), reset: async () => {}, stop: vi.fn() }));
+  const wake = createWake({ userData: dir, state: () => ready, changed: vi.fn(), detected: vi.fn(),
+    verifyModelsFn: async () => {}, createDetectorsFn: load });
+  expect(await wake.enable(mode)).toMatchObject({ listening: true, prefixFallback: { [mode]: true } });
+  expect(load).toHaveBeenCalledWith(expect.anything(), { ...p, requirePrefix: true, separatePrefix: true }, undefined);
+  wake.stop();
+});
+
+it("recognises OK independently of the enrolled name only on automatic fallback", () => {
+  const { keywordText, profileCombiner } = require("./wake-policy");
+  const manual = { phrase: "Filow", requirePrefix: true, thresholds };
+  const fallback = { ...manual, separatePrefix: true };
+  expect(keywordText(fallback)).toContain("OW2 K EY1 :1 #0.4 @prefix");
+  expect(keywordText(manual)).not.toContain("@prefix");
+  const combiner = profileCombiner(fallback, "strict");
+  expect(combiner.push({ at: 300, score: 9 })).toBe(false);
+  expect(combiner.push({ at: 700, keyword: true, prefixEndMs: 600 })).toBe(false);
+  expect(combiner.push({ at: 900, score: 9 })).toBe(true);
 });

@@ -205,18 +205,26 @@ export function bubbleOnScreen(at: P, size: { width: number; height: number }, v
   return { x, y };
 }
 
-/** How far from the bubble the pointer may go before the bubble follows it again. */
-export const BUBBLE_REACH = 96;
-/**
- * Whether an answer's bubble holds still: it does while the pointer is on it or within `reach` of
- * it, so the pointer can go onto it (to scroll it, to close it) instead of pushing it away; a
- * pointer that goes further takes the bubble along again. `rect` is where the bubble is now.
- */
+/** Approach distance measured in Electron's device-independent coordinates. */
+export const BUBBLE_REACH = 120;
+
+/** Test the real cursor against the visible rectangle, including its rounded reach at corners. */
 export function bubbleSticks(pointer: P | null, rect: Rect | null, reach = BUBBLE_REACH): boolean {
   if (!pointer || !rect || rect.right <= rect.left || rect.bottom <= rect.top) return false;
   const dx = Math.max(rect.left - pointer.x, 0, pointer.x - rect.right);
   const dy = Math.max(rect.top - pointer.y, 0, pointer.y - rect.bottom);
   return Math.hypot(dx, dy) <= reach;
+}
+
+/** A detached bubble follows its rendered position during a glide and stays on screen as it grows. */
+export function detachedPosition(
+  state: { answer: boolean; shown: boolean; placed: boolean; detached: boolean; at: P },
+  cursor: P | null, rendered: Rect, size: { width: number; height: number }, view: { width: number; height: number },
+): P | null {
+  if (!state.answer || !state.shown || !state.placed) return null;
+  if (state.detached) return bubbleOnScreen(state.at, size, view);
+  if (!bubbleSticks(cursor, rendered)) return null;
+  return bubbleOnScreen({ x: rendered.left, y: rendered.top }, size, view);
 }
 
 /** Whether the pointer is on the bubble itself (a pixel of margin). */

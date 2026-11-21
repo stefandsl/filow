@@ -25,7 +25,7 @@ import {
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, sherpaUsable, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
 import { getCloudDecision, getSetupPreference, getStartMode, setDecisionProvider, setStartMode, speechLangFor, syncSpeechLang, type StartMode } from "@/lib/prefs";
-import { hasGateGrant, loadGate } from "@/lib/gate/client";
+import { loadGate } from "@/lib/gate/client";
 import { useEngine, warmDecisionModel } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { LOCAL_STT, takeModeOf } from "@/lib/router";
@@ -555,9 +555,6 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       <PageOutboundNotice />
       <div className="prompter-content" ref={readingRef}>
       <main className="prompter-main">
-      {mounted && !hasGateGrant() && (
-        <a className="btn" href="/settings/local">{t("gate.optionalDownload")}</a>
-      )}
       <ReanchorNotice notice={reanchor.notice} onUndo={reanchor.undo} onDismiss={reanchor.dismiss} />
       <PageOutboundSignal className="okf-out-region--bar" />
       {update?.status === "downloaded" && !updateDismissed && !eng.recording && (

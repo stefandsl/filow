@@ -1,60 +1,53 @@
-// "Even if I press Esc it does not work" (owner, 14/11): the 3D window and the overlays never have the
-// keyboard, so their own Escape handlers never ran. Escape is now a global shortcut held only while
-// something of OK Filow is on screen.
+import { EventEmitter } from "node:events";
 import { createRequire } from "node:module";
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-const require = createRequire(import.meta.url);
-const { escTarget, createEscKey, KEY, TWICE_MS } = require("./okfilow-esc.js") as {
-  escTarget: (o: { model?: boolean; items?: boolean; bubble?: boolean; lastAt?: number; now?: number }) => string | null;
-  createEscKey: (o: { shortcuts: unknown; onEsc: () => void }) => { sync(shown: boolean): boolean; held(): boolean };
-  KEY: string;
-  TWICE_MS: number;
-};
-const { shortcutsFor } = require("./global-input.js") as { shortcutsFor: (real: unknown, off: boolean) => { register(k: string, f: () => void): boolean; unregister(k: string): void; isRegistered(k: string): boolean } };
+const { createEscapeObserver, escTarget, TWICE_MS } = createRequire(import.meta.url)("./okfilow-esc.js");
 
-function fakeShortcuts() {
-  const keys = new Map<string, () => void>();
-  return {
-    keys,
-    register: vi.fn((k: string, f: () => void) => { keys.set(k, f); return true; }),
-    unregister: vi.fn((k: string) => { keys.delete(k); }),
-    isRegistered: (k: string) => keys.has(k),
-  };
-}
+it("observes a single Escape per press without consuming it during speech or an open bubble", () => {
+  const input = new EventEmitter();
+  const press = vi.fn();
+  const sync = createEscapeObserver(press);
+  const esc = 1;
+  sync(input, esc, "idle", false);
+  expect(input.listenerCount("keydown")).toBe(0);
+  expect(input.listenerCount("keyup")).toBe(0);
+  for (const [mode, open] of [["speaking", false], ["idle", true]] as const) {
+    sync(input, esc, mode, open);
+    sync(input, esc, mode, open);
+    expect(input.listenerCount("keydown")).toBe(1);
+    const event = Object.freeze({ keycode: esc });
+    input.emit("keydown", { keycode: 42 });
+    input.emit("keydown", event);
+    input.emit("keydown", event);
+    expect(press).toHaveBeenCalledTimes(1);
+    input.emit("keyup", event);
+    input.emit("keydown", event);
+    expect(press).toHaveBeenCalledTimes(2);
+    sync(input, esc, "idle", false);
+    expect(input.listenerCount("keydown")).toBe(0);
+    expect(input.listenerCount("keyup")).toBe(0);
+    input.emit("keydown", event);
+    expect(press).toHaveBeenCalledTimes(2);
+    press.mockClear();
+  }
+});
 
-describe("Escape is held only while OK Filow shows something", () => {
-  it("registers Escape when something is shown, releases it when nothing is: other apps keep their Escape", () => {
-    const s = fakeShortcuts();
-    const onEsc = vi.fn();
-    const esc = createEscKey({ shortcuts: s, onEsc });
-    expect(esc.sync(false)).toBe(false);
-    expect(s.register).not.toHaveBeenCalled();
-    expect(esc.sync(true)).toBe(true);
-    expect(s.keys.has(KEY)).toBe(true);
-    esc.sync(true);
-    expect(s.register).toHaveBeenCalledTimes(1);
-    s.keys.get(KEY)!();
-    expect(onEsc).toHaveBeenCalledTimes(1);
-    expect(esc.sync(false)).toBe(false);
-    expect(s.keys.has(KEY)).toBe(false);
-    expect(s.unregister).toHaveBeenCalledWith(KEY);
-  });
-  it("another app holding Escape: OK Filow does not claim it held", () => {
-    const s = { register: () => false, unregister: vi.fn(), isRegistered: () => false };
-    const esc = createEscKey({ shortcuts: s, onEsc: () => {} });
-    expect(esc.sync(true)).toBe(false);
-    esc.sync(false);
-    expect(s.unregister).not.toHaveBeenCalled();
-  });
-  it("a test run (FILOW_QA_NO_GLOBAL_INPUT) registers nothing", () => {
-    const real = fakeShortcuts();
-    const esc = createEscKey({ shortcuts: shortcutsFor(real, true), onEsc: () => {} });
-    esc.sync(true);
-    expect(real.register).not.toHaveBeenCalled();
-  });
+it.each([
+  ["thinking", {}],
+  ["listening", {}],
+  ["opening", { dictating: true }],
+  ["idle", { model: true }],
+  ["idle", { items: true }],
+] as const)("observes Escape while %s with %o and releases both listeners on idle", (mode, surfaces) => {
+  const input = new EventEmitter();
+  const press = vi.fn();
+  const sync = createEscapeObserver(press);
+  sync(input, 1, mode, false, surfaces);
+  input.emit("keydown", { keycode: 1 });
+  expect(press).toHaveBeenCalledOnce();
+  sync(input, 1, "idle", false, {});
+  expect(input.listenerCount("keydown") + input.listenerCount("keyup")).toBe(0);
 });
 
 describe("what one press closes", () => {
@@ -67,16 +60,5 @@ describe("what one press closes", () => {
   it("a second press soon after closes everything", () => {
     expect(escTarget({ items: true, bubble: true, lastAt: 10_000, now: 10_000 + TWICE_MS - 1 })).toBe("all");
     expect(escTarget({ items: true, bubble: true, lastAt: 10_000, now: 10_000 + TWICE_MS + 1 })).toBe("items");
-  });
-});
-
-describe("wiring", () => {
-  const main = fs.readFileSync(path.join(__dirname, "okfilow.js"), "utf8");
-  it("held while the 3D window, pictures, cards, marks, bubble or an answer are shown; released on quit; no double Escape from the hook", () => {
-    expect(main).toContain("escKey.sync(modelShown() || pinned() || bubble.open() || answering(mode))");
-    expect(main).toMatch(/clearInterval\(escTimer\);\s*escKey\.sync\(false\);/);
-    expect(main).toContain("if (e.keycode === K.Escape && !escKey.held()) onEscape();");
-    expect(main).toMatch(/if \(\(what === "model" \|\| what === "all"\) && modelShown\(\)\) modelWin\.close\(\);/);
-    expect(main).toContain("const escKey = createEscKey({ shortcuts: globalShortcut, onEsc: pressEsc });");
   });
 });

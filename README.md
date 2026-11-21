@@ -1,5 +1,5 @@
 <p align="right"><strong>English</strong> · <a href="README.it.md">Italiano</a></p>
-Experimental branch: **OK Filow wake word** is off by default. Settings offers an
+Experimental branch: **Filow wake word** is off by default. Settings offers an
 official model download notice (35.3 MB), five recordings with accept/re-record,
 training, a live try-it check, retraining and deletion. Strict requires both local
 detectors; Balanced is the default; Sensitive uses the personal head alone.
@@ -8,6 +8,7 @@ and slide shows stop wake listening. It cannot interrupt speech and opens no
 follow-up question window. Audio stays in memory except the five enrollment
 recordings retained in your app profile. **Delete my recordings and trained wake
 word** removes the recordings and personal head. See [evidence and limitations](docs/okfilow/WAKE-WORD.md).
+Say **Filow** on its own. OK Filow and Hey Filow are also supported. Existing profiles keep their previous phrase until you record five new takes and retrain. Successful retraining deletes the old recordings. If the five takes miss the bare-call replay gate in Balanced or Strict, Settings automatically requires OK Filow for that sensitivity. Switch off **Allow Filow alone** to require OK or Hey before the name.
 
 Retraining now includes stored numerical examples of similar non-wake phrases.
 You can also record two optional non-wake sentences. These accepted recordings
@@ -757,6 +758,8 @@ asks first, naming "your saved preferences" ([docs/okfilow/MEMORY.md](docs/okfil
 The local voice switches common English UI words and quoted English screen labels to English
 with the same speaker. It expands dates, times, years, amounts and versions before speaking,
 and keeps a short quiet ending. Russian, Romanian and Japanese number forms still need native review.
+
+Approach an OK Filow bubble to hold it and the pointer still. Click X, press Esc, shake the mouse horizontally, or hold the talk keys and say “close”. Esc also reaches the current app and stops a spoken answer. Clicking the bubble or X keeps keyboard focus in that app. You can turn off the shake gesture in the OK Filow panel. Notices and errors disappear after 6 to 20 seconds of reading time. Finished and stopped answers close after their reading time. Cards, media or a Resume action keep the answer open. Hovering over the bubble pauses the countdown.
 
 Screen marks follow the spoken sentences and keep their earlier positions as an answer grows. The pointer and its label travel together through clear space; a blocked route hides the pointer instead of covering detected text. The answer bubble grows smoothly (without size animation when reduced motion is enabled). The 3D view uses surface anchors and spaced leader lanes, with readable labels in both themes; empty model margins let clicks through.
 

@@ -9,6 +9,12 @@ NOVITÀ
 Tutte le versioni: https://github.com/stefandsl/filow-releases/releases
 Segnalazioni: in Filow, apri il menu Filow > Segnala un problema. Filow salva un file di segnalazione che invii tu in privato; da solo non invia nulla.
 
+# Filow 0.9.44 (Anteprima)
+
+Filow chiede il permesso prima di contattare Hugging Face per scaricare il modello che riconosce i punti del copione. Se usavi il pre-filtro, autorizza il download una volta nelle Impostazioni.
+
+Basta dire "Filow" per chiamare l'assistente; "OK Filow" e "Hey Filow" funzionano ancora. Filow conserva fino a due registrazioni di esempio facoltative che accetti e cancella quelle della frase precedente dopo il nuovo addestramento.
+
 # Filow 0.9.43 (Anteprima)
 
 * Trascina l’angolo di una scheda di OK Filow per ridimensionarla in tempo reale. Funziona anche con i disegni (#8).

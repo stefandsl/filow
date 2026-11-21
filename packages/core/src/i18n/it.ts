@@ -438,7 +438,7 @@ export const it: Dictionary = {
   "gate.on": "Acceso: chiede solo dei punti a cui il parlato somiglia",
   "gate.hint": "Un piccolo modello multilingue su questo PC (120 MB, scaricato una volta) confronta ogni punto aperto con quello che hai appena detto; il modello di decisione riceve solo i punti plausibili e non viene chiamato affatto quando nulla corrisponde. Misurato sul corpus demo (due corse ciascuno, modello cloud): 3 chiamate su 17 evitate, richiamo da 0,78 a 0,89 col pre-filtro contro 0,56-0,78 diretto, nessun falso avvio in entrambi i casi, latenza entro la variabilità del fornitore (docs/gauntlet/BASELINE.md).",
   "gate.allowDownload": "Consenti a questo browser di scaricare da Hugging Face i file mancanti del modello di confronto (circa 120 MB)? Il copione resta sul dispositivo. Annulla per continuare senza scaricare.",
-  "gate.optionalDownload": "Modello di confronto facoltativo di Hugging Face: impostazioni di download",
+  "gate.upgradeNotice": "Il pre-filtro ora attende il tuo consenso per scaricare i file mancanti del modello.",
   "gate.download": "Scarica il modello del pre-filtro",
   "gate.ready": "Modello del pre-filtro pronto",
   "start.modeAsk": "Chiedi ogni volta",

@@ -40,14 +40,11 @@ const overlayLive = (mode, pill, bubble) => pillLive(mode, pill) || bubble === t
 const BUBBLE_TEXT_MAX = 20000;
 const bubbleText = (v) => String(v || "").slice(0, BUBBLE_TEXT_MAX);
 
-/** How long the bubble stays once nothing is running any more. */
 const BUBBLE = {
   /** After an answer that was spoken to its end (or shown for as long as it takes to read). */
   lingerMs: 4000,
-  /** A stopped answer, with its pill and Resume. */
+  /** The stopped indicator when there is no text to read. */
   stoppedMs: 8000,
-  /** After the pointer leaves the bubble. */
-  afterHoverMs: 2500,
   /** Reading time: per letter, twice that for Japanese, Chinese and Korean letters, between these bounds. */
   msPerChar: 60,
   readMinMs: 5000,
@@ -61,97 +58,104 @@ const wideChar = (ch) => {
   return (n >= 0x3000 && n <= 0x9fff) || (n >= 0xac00 && n <= 0xd7af) || (n >= 0xff00 && n <= 0xffef);
 };
 /** The time it takes to read `text`, within sane bounds. */
-function readingMs(text) {
+function readingUnits(text) {
   let units = 0;
-  for (const ch of String(text || "")) units += /\s/.test(ch) ? 0 : wideChar(ch) ? 2 : 1;
-  return Math.min(BUBBLE.readMaxMs, Math.max(BUBBLE.readMinMs, units * BUBBLE.msPerChar));
+  for (const ch of text || "") units += /\s/.test(ch) ? 0 : wideChar(ch) ? 2 : 1;
+  return units;
+}
+function readingMs(text) {
+  return Math.min(BUBBLE.readMaxMs, Math.max(BUBBLE.readMinMs, readingUnits(text) * BUBBLE.msPerChar));
+}
+function noticeMs(text) {
+  return Math.min(20000, 6000 + readingUnits(text) * BUBBLE.msPerChar);
 }
 
-/**
- * When the bubble goes away by itself: milliseconds from now, or null while it must stay (an answer
- * is running or paused, somebody is talking, or the pointer is on it). Every state in which nothing
- * runs any more gets a number: no bubble stays for ever. Marks kept on screen and "always show the
- * pointer" do not count: they keep the overlay, never the bubble.
- *   shownMs: how long the whole text has been on screen (the voice may have read it meanwhile, or
- *   said nothing: voice off, no voice for the language, a voice that failed); holdMs: the panel's
- *   own time for a short note; afterHover: the pointer has just left the bubble.
- */
-function bubbleHold({ mode, text, stopped, paused, hover, shownMs, holdMs, afterHover } = {}) {
-  // "opening": the microphone is still being opened, and the bubble says so for as long as that is true.
-  if (answering(mode) || mode === "listening" || mode === "opening" || paused === true || hover === true) return null;
-  if (!text && !stopped) return 0;
-  if (afterHover === true) return BUBBLE.afterHoverMs;
-  if (stopped) return BUBBLE.stoppedMs;
-  if (Number(holdMs) > 0) return Math.min(BUBBLE.noteMaxMs, Math.max(BUBBLE.noteMinMs, Number(holdMs)));
-  return Math.max(BUBBLE.lingerMs, readingMs(text) - Math.max(0, Number(shownMs) || 0));
+function bubbleHold({ mode, text, answer, stopped, actions, paused, hover, holdMs, shownMs = 0 }) {
+  if ((actions && (answer || stopped)) || paused || hover || answering(mode) || mode === "opening" || mode === "listening") return null;
+  if (!text) return stopped ? BUBBLE.stoppedMs : 0;
+  if (answer || stopped) return Math.max(BUBBLE.lingerMs, readingMs(text) - shownMs);
+  if (holdMs > 0) return Math.min(BUBBLE.noteMaxMs, Math.max(BUBBLE.noteMinMs, holdMs));
+  return noticeMs(text);
 }
 
-/**
- * The bubble's life, for the main process: it is told the text, the mode, the pause and the pointer,
- * and calls `dismiss(why)` once when the bubble must go ("timer", "escape", "button"). Timers and
- * the clock are handed in, so every end state can be tested.
- */
 function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, onPlan } = {}) {
   let text = "";
   let mode = "idle";
   let stopped = false;
+  let answer = false;
+  let dismissedAnswer = false;
   let paused = false;
   let hover = false;
+  let actions = false;
   let holdMs = 0;
-  let shownAt = 0;
+  let shownMs = 0;
+  let lastPlan = now();
+  let counting = false;
+  let remaining = null;
+  let deadline = 0;
   let timer = null;
   const open = () => Boolean(text) || stopped;
-  const cancel = () => { if (timer !== null) clearTimer(timer); timer = null; };
+  function cancel() {
+    if (timer !== null) {
+      clearTimer(timer);
+      remaining = Math.max(0, deadline - now());
+      timer = null;
+    }
+  }
   function close(why) {
     cancel();
+    if (open() || why === "escape") dismissedAnswer = answering(mode);
     if (!open()) return false;
     text = "";
-    stopped = false;
-    hover = false;
+    stopped = answer = hover = false;
+    remaining = null;
     dismiss(why);
     return true;
   }
-  function plan(afterHover = false) {
+  function plan(reset = false) {
     cancel();
+    const at = now();
+    if (counting) shownMs += at - lastPlan;
+    lastPlan = at;
+    counting = open() && answer && !paused && !hover && !actions;
+    if (reset) remaining = null;
     if (!open()) return;
-    const ms = bubbleHold({ mode, text, stopped, paused, hover, shownMs: now() - shownAt, holdMs, afterHover });
-    if (onPlan) onPlan(ms);
+    const duration = bubbleHold({ mode, answer, stopped, paused, hover, text, holdMs, shownMs, actions });
+    const ms = duration === null ? null : remaining ?? duration;
+    onPlan?.(ms);
     if (ms === null) return;
-    timer = setTimer(() => { timer = null; close("timer"); }, ms);
+    deadline = now() + ms;
+    timer = setTimer(() => close("timer"), ms);
   }
   return {
-    open,
-    /** The text in the bubble now (an overlay that loads late is given it). */
-    text: () => text,
-    /** What the bubble says now ("" takes it away, unless it marks a stopped answer). */
+    open, close, text: () => text,
+    acceptsText: () => !dismissedAnswer,
     setText(next) {
-      const t = bubbleText(next);
-      if (t && !text) shownAt = now();
-      text = t;
-      plan();
+      if (dismissedAnswer && next) return;
+      const value = bubbleText(next);
+      const changed = text !== value;
+      text = value;
+      if (!text && !answering(mode)) answer = false;
+      if (changed) { counting = false; shownMs = 0; }
+      plan(changed);
     },
-    /** The mode, with what the panel said about it (`stopped`, `holdMs`). */
     setMode(next, extra = {}) {
+      const nextHold = Number(extra.holdMs) || 0;
+      const reset = mode !== next || holdMs !== nextHold || stopped !== (next === "idle" && extra.stopped === true);
+      holdMs = nextHold;
+      if (next === "speaking" && mode !== next) { counting = false; shownMs = 0; }
+      // A stop acknowledgement can arrive after Escape has dismissed the streamed answer.
+      const showStopped = next === "idle" && extra.stopped === true && !dismissedAnswer;
+      if (next !== "speaking") dismissedAnswer = false;
+      if (answering(next)) answer = true;
+      if (next === "opening" || next === "listening" || next === "error" || extra.holdMs) answer = false;
+      stopped = showStopped;
       mode = next;
-      stopped = (next === "idle" && extra.stopped === true);
-      holdMs = Number(extra.holdMs) || 0;
-      // The whole answer is on screen from here: its reading time starts.
-      if (next === "speaking") shownAt = now();
-      plan();
+      plan(reset);
     },
-    setPaused(on) {
-      if (paused === (on === true)) return;
-      paused = on === true;
-      plan();
-    },
-    /** The pointer is on the bubble, or has left it. */
-    setHover(on) {
-      if (hover === (on === true)) return;
-      hover = on === true;
-      plan(!hover);
-    },
-    /** Escape with no answer running, or the bubble's close button. True when there was a bubble. */
-    close,
+    setActions(on) { if (actions !== on) { actions = on; plan(); } },
+    setHover(on) { if (hover !== on) { hover = on; plan(); } },
+    setPaused(on) { if (paused !== on) { paused = on; plan(); } },
   };
 }
 
@@ -240,8 +244,8 @@ function createMarks({ clear, setTimer = setTimeout, clearTimer = clearTimeout }
   };
 }
 
-/** What Escape does: stops the answer in progress; with none, closes the bubble and wipes the marks. */
-const escapePlan = (mode) => (answering(mode) ? ["stop"] : ["bubble", "marks"]);
+/** Escape dismisses the bubble and stops an active answer. Idle Escape also clears the marks. */
+const escapePlan = (mode) => (answering(mode) ? ["stop", "bubble"] : ["bubble", "marks"]);
 
 /** "Look at my screen": "on" or "off" once the user chose, "auto" until then (the setup decides). */
 const seeChoice = (v) => (v === "on" || v === "off" ? v : "auto");
@@ -302,4 +306,4 @@ function bindKey(shortcuts, was, choice, handler, { inputOff = false } = {}) {
   return { choice, accelerator: ok ? acc : null, state: ok ? "ok" : "taken" };
 }
 
-module.exports = { keepsOverlays, MARKS_HOLD_MS, MARKS_UNSPOKEN_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, answering, overlayMouse,seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, accelerator, bindKey };
+module.exports = { keepsOverlays, MARKS_HOLD_MS, MARKS_UNSPOKEN_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, noticeMs, bubbleHold, createBubble, escapePlan, overlayLive, answering, overlayMouse,seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, accelerator, bindKey };

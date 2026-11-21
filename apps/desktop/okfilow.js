@@ -10,7 +10,7 @@ const INPUT_OFF = globalInputOff();
 const globalShortcut = shortcutsFor(electronShortcuts, INPUT_OFF);
 const { keyboardPermission } = require("./mac-permissions");
 const path = require("node:path");
-const { createGestures, chordHeld, ARM_MS } = require("./okfilow-gestures");
+const { createShakeInput, createGestures, chordHeld, ARM_MS } = require("./okfilow-gestures");
 const { createReleaseTail, RELEASE_TAIL_MS } = require("./dictation-release");
 const { createHookRetry, describeHookError, QUICK_MS } = require("./okfilow-hook-retry");
 const { loadUiohook } = require("./uiohook");
@@ -21,7 +21,7 @@ const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOve
 const { createHitTarget, insideAny, cleanHitReport, localPoint } = require("./okfilow-hit");
 const { cleanShow, showFor } = require("./okfilow-media");
 const { clampBounds, movedBounds, localRect } = require("./okfilow-move");
-const { escTarget, createEscKey } = require("./okfilow-esc");
+const { createEscapeObserver, escTarget } = require("./okfilow-esc");
 const { createPractice } = require("./tour");
 const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
@@ -43,11 +43,13 @@ function okfilowSender(event, contents, appUrl) {
 const DEFAULTS = {
   wakeWord: false,
   wakeSensitivity: "balanced",
+  wakeBare: true,
   enabled: true,
   hotkey: "ctrl+alt",
   provider: "local",
   voice: "system",
   showAlways: false,
+  shakeToClose: true,
   // Dictation's switch lives in settings.dictation (dictation.js); an old okFilow.dictation: false is
   // still read there until the user changes a dictation setting.
   /** Buddy, drawing and highlighter colour (HeyClicky's cursor_color_hex). */
@@ -220,6 +222,8 @@ function createOkFilow(deps) {
   let stt = null;
   let tts = null;
   let hook = null;
+  let escapeKey;
+  const observeEscape = createEscapeObserver(pressEsc);
   let hookError = "";
   /** macOS only: the permission hold-to-talk still lacks (mac-permissions.js), "" when none. */
   let hookPermission = "";
@@ -263,6 +267,14 @@ function createOkFilow(deps) {
   // It goes away by itself once nothing runs any more, whatever keeps the overlays up (marks, the
   // always-on pointer): every overlay is told, the mouse is given back, and the overlays may fade.
   /** The overlays whose bubble has the pointer on it right now (webContents ids). */
+  let cursorScale = 1;
+  const shake = createShakeInput({
+    enabled: () => bubble.open() && mode !== "opening" && mode !== "listening" && mode !== "thinking" && cfg().shakeToClose !== false,
+    scale: () => cursorScale,
+    close: () => bubble.close("shake"),
+  });
+  let detachedDisplay = null;
+  let bubbleGeneration = 0;
   const bubbleHover = new Set();
   const bubble = createBubble({
     onPlan: (ms) => { if (QA_SHOTS) logLine(`okfilow qa bubble ${ms === null ? "stays" : `closes in ${ms} ms`} (mode ${mode})`); },
@@ -278,6 +290,7 @@ function createOkFilow(deps) {
   // ---- an answer's marks (okfilow-stop.js createMarks): they last as long as they are told, plus a short hold ----
   const answerMarks = createMarks({
     clear: (why) => {
+      syncEscape();
       logLine(`okfilow: marks cleared (${why})`);
       sendOverlays("okfilow:draw", []);
       if (mode === "idle" || mode === "error") scheduleFade();
@@ -295,8 +308,13 @@ function createOkFilow(deps) {
   }
   function refreshBubbleMouse() {
     const open = bubble.open();
+    syncEscape();
     if (!open) {
       for (const id of bubbleHover) stopHover.delete(id);
+      shake.reset();
+      detachedDisplay = null;
+      bubbleGeneration++;
+      lastCursor = "";
       bubbleHover.clear();
       bubble.setHover(false);
     }
@@ -345,6 +363,22 @@ function createOkFilow(deps) {
   }
   /** The bubble's close button (an overlay). */
   ipcMain.on("okfilow:bubble:close", (e) => { if (ourSender(e)) bubble.close("button"); });
+  ipcMain.on("okfilow:bubble:detach", (e, generation) => {
+    if (!ourSender(e) || !bubble.open() || detachedDisplay !== null) return;
+    if (generation !== bubbleGeneration) return;
+    for (const [id, overlay] of overlays) {
+      if (overlay.webContents === e.sender) {
+        detachedDisplay = id;
+        lastCursor = "";
+        break;
+      }
+    }
+  });
+  ipcMain.handle("okfilow:bubble:open", (e) => ourSender(e) && bubble.open());
+  ipcMain.on("okfilow:bubble:voice", (e) => {
+    if (!ourSender(e)) return;
+    if (!bubble.close("voice")) sendOverlays("okfilow:bubble:close", "voice");
+  });
   /** The sentence the voice is on (the panel knows): the overlays keep it in view. */
   ipcMain.on("okfilow:spoken", (e, n) => {
     if (!ourSender(e)) return;
@@ -401,6 +435,7 @@ function createOkFilow(deps) {
   const workAreas = () => screen.getAllDisplays().map((d) => d.workArea);
   /** Each overlay is told where the model window is (its own coordinates), so the answer bubble keeps off it. */
   function sendModelBounds() {
+    syncEscape();
     const b = modelWin && !modelWin.isDestroyed() && modelWin.isVisible() ? modelWin.getBounds() : null;
     for (const w of overlays.values()) if (!w.isDestroyed()) w.webContents.send("okfilow:modelBounds", localRect(b, w.getBounds()));
   }
@@ -464,7 +499,7 @@ function createOkFilow(deps) {
   // Its mark replaces whatever the overlays drew, so an answer's marks (answerMarks) no longer own them,
   // and their hold timer must not wipe the practice mark. Clearing it touches only what it drew.
   const practiceState = createPractice({
-    draw: marks => { answerMarks.forget(); drawMarks(marks); },
+    draw: marks => { answerMarks.forget(); syncEscape(); drawMarks(marks); },
     clear: () => { sendOverlays("okfilow:clear", null); if (mode === "idle" || mode === "error") scheduleFade(); },
   });
   /** An overlay finished setting up: it missed what was sent while it loaded, so send it now. */
@@ -586,6 +621,7 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:cards", (e, list) => {
     if (!ourSender(e) || !Array.isArray(list)) return;
     cardsUp = keepsOverlays(list);
+    syncBubbleActions();
     showOverlays();
     for (const w of overlays.values()) {
       if (w.isDestroyed()) continue;
@@ -596,6 +632,7 @@ function createOkFilow(deps) {
         .map((c) => ({ x: c.x - b.x, y: c.y - b.y, title: String(c.title || "").slice(0, 60), text: String(c.text || "").slice(0, 240), photo: /^data:image\/(jpeg|png|webp|gif|svg\+xml);base64,/.test(String(c.photo || "")) ? String(c.photo) : "" }));
       w.webContents.send("okfilow:cards", mine);
     }
+    if (!cardsUp && (mode === "idle" || mode === "error")) scheduleFade();
     qaShot("cards", 3500);
   });
   /** Pictures and the slide (okfilow-media.js): to the overlay of the display the answer is about; null takes them away. */
@@ -603,6 +640,7 @@ function createOkFilow(deps) {
     if (!ourSender(e)) return;
     const show = cleanShow(raw);
     mediaUp = Boolean(show);
+    syncBubbleActions();
     if (show) showOverlays();
     for (const w of overlays.values()) {
       if (w.isDestroyed()) continue;
@@ -714,6 +752,10 @@ function createOkFilow(deps) {
   const mediaRects = new Map();
   const mediaOn = new Set();
   /** Something of an answer is kept on screen: its cards, pictures, or its marks while they last (answerMarks above). */
+  function syncBubbleActions() {
+    bubble.setActions(cardsUp || mediaUp || pill.resumable);
+    syncEscape();
+  }
   const pinned = () => cardsUp || mediaUp || answerMarks.up();
   /** The real cursor (overlay coordinates, or null) over this overlay's pictures takes the mouse there (okfilow-hit.js). */
   function mediaHit(w, p) {
@@ -746,6 +788,7 @@ function createOkFilow(deps) {
     cursorTimer = setInterval(() => {
       const p = screen.getCursorScreenPoint();
       const d = screen.getDisplayNearestPoint(p);
+      if (cursorScale !== d.scaleFactor) { cursorScale = d.scaleFactor; shake.wheel(); }
       const key = `${d.id}:${p.x}:${p.y}`;
       if (key === lastCursor) return;
       lastCursor = key;
@@ -753,7 +796,7 @@ function createOkFilow(deps) {
         if (w.isDestroyed()) continue;
         const b = w.getBounds();
         const local = id === d.id ? { x: p.x - b.x, y: p.y - b.y } : null;
-        w.webContents.send("okfilow:cursor", local);
+        w.webContents.send("okfilow:cursor", local, detachedDisplay === null ? null : id === detachedDisplay, bubbleGeneration);
         mediaHit(w, local);
       }
     }, 16);
@@ -779,6 +822,11 @@ function createOkFilow(deps) {
       setOverlayMouse(false);
       purpose = null;
     }
+    if (next === "opening" || next === "thinking") {
+      detachedDisplay = null;
+      bubbleGeneration++;
+      lastCursor = "";
+    }
     mode = next;
     wake?.reconcile();
     // Whether the question being answered took the screen: an overlay that loads later is told too.
@@ -791,7 +839,7 @@ function createOkFilow(deps) {
     // By what the panel says it is for: the keys of a short press are up again before the microphone is open.
     if (next === "opening" && extra.purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
     if (next === "listening" && extra.purpose === "dictate") dictation.diag.mark("open", {}, { once: true });
-    sendOverlays("okfilow:state", { mode, ...extra });
+    sendOverlays("okfilow:state", { mode, ...extra, bubbleDismissed: extra.stopped === true && !bubble.open() });
     sendPanel("okfilow:mode", { mode, ...extra });
     if (mode !== "idle" && mode !== "error") {
       clearTimeout(fadeTimer);
@@ -867,13 +915,15 @@ function createOkFilow(deps) {
   }
 
   function applyConfig(patch) {
+    const bareChanged = typeof patch?.wakeBare === "boolean" && patch.wakeBare !== cfg().wakeBare;
     if (patch?.wakeWord === false || patch?.enabled === false) wake?.stop();
     if (patch && "wakeWord" in patch) patch = { ...patch, wakeWord: false };
     // The panel's dictation switch writes dictation.js's setting (it used to live in okFilow.dictation).
     const { dictation: dictationOn, ...rest } = patch || {};
     if (typeof dictationOn === "boolean") dictation.configure({ enabled: dictationOn });
     const c = setCfg(rest);
-    wake?.reconcile();
+    if (bareChanged) void wake?.setBare(c.wakeSensitivity, c.wakeBare);
+    else wake?.reconcile();
     // OK Filow or its eye turned on: the screen names helper is ready by the next question
     if (c.enabled && c.seeScreen !== "off") uia?.start();
     protectAll(hidden());
@@ -955,6 +1005,7 @@ function createOkFilow(deps) {
     cardsUp = false;
     mediaUp = false;
     answerMarks.forget();
+    syncBubbleActions();
     pointUntil = 0;
     sendOverlays("okfilow:clear", null);
     if (mode === "idle" || mode === "error") scheduleFade();
@@ -1004,6 +1055,7 @@ function createOkFilow(deps) {
     held = true;
     captureWatch.reset();
     purpose = kind;
+    syncEscape();
     // A hands-free dictation nobody stops ends by itself after five minutes.
     clearTimeout(dictateCap);
     if (kind === "dictate") {
@@ -1035,6 +1087,7 @@ function createOkFilow(deps) {
     setOverlayMouse(false);
     releaseTail.release({ purpose, at }, tail);
     purpose = null;
+    syncEscape();
   }
   function cancel() {
     if (!held) return;
@@ -1046,6 +1099,7 @@ function createOkFilow(deps) {
     sendOverlays("okfilow:strokes", []);
     sendPanel("okfilow:cancel", { purpose });
     purpose = null;
+    syncEscape();
   }
   /** The overlays catch the mouse only while the talk chord is held, so a drag marks instead of clicking. */
   function setOverlayMouse(capture) {
@@ -1078,12 +1132,12 @@ function createOkFilow(deps) {
     stopAt = Date.now();
     logLine(`okfilow: answer stopped by the user (${source})`);
     // Pictures and videos go at once (no round trip through the panel): playback ends now.
-    if (mediaUp) { mediaUp = false; sendOverlays("okfilow:media", null); }
+    if (mediaUp) { mediaUp = false; syncBubbleActions(); sendOverlays("okfilow:media", null); }
     sendPanel("okfilow:stop", { source });
     return true;
   }
   /**
-   * Escape: stops the answer in progress; when there is none, closes the bubble and wipes the drawings
+   * Escape dismisses the bubble and stops the answer in progress, or wipes idle drawings
    * (okfilow-stop.js escapePlan). Always ends a held or hands-free dictation.
    */
   function onEscape() {
@@ -1095,9 +1149,13 @@ function createOkFilow(deps) {
     gestures?.escape();
   }
 
-  // ---- Escape on what OK Filow shows (okfilow-esc.js): a global shortcut only while something is shown ----
   let escAt = 0;
   const modelShown = () => Boolean(modelWin && !modelWin.isDestroyed() && modelWin.isVisible());
+  function syncEscape() {
+    observeEscape(hook, escapeKey, mode, bubble.open(), {
+      model: modelShown(), items: pinned(), dictating: held && purpose === "dictate",
+    });
+  }
   function pressEsc() {
     const now = Date.now();
     // an answer in progress: Escape stops it first, as before
@@ -1110,9 +1168,6 @@ function createOkFilow(deps) {
     if (what === "bubble" || what === "all") bubble.close("escape");
     gestures?.escape();
   }
-  const escKey = createEscKey({ shortcuts: globalShortcut, onEsc: pressEsc });
-  const escTimer = setInterval(() => escKey.sync(modelShown() || pinned() || bubble.open() || answering(mode)), 200);
-  escTimer.unref?.();
   function onGesture(ev) {
     logLine(`okfilow: gesture ${ev}`);
     switch (ev) {
@@ -1275,8 +1330,6 @@ function createOkFilow(deps) {
         const k = map[e.keycode] || null;
         gestures.keydown(k);
         if (!k) dictation.userMoved(); // the caret may have moved: no joining space before the next dictation
-        // (while OK Filow holds Escape as a shortcut, the shortcut acts: not twice)
-        if (e.keycode === K.Escape && !escKey.held()) onEscape();
         // Hands-free dictation: after the user's own Enter or Tab the next phrase starts without a space.
         if (phraseRun && (e.keycode === K.Enter || e.keycode === K.NumpadEnter || e.keycode === K.Tab)) phraseRun.moved();
       });
@@ -1291,7 +1344,11 @@ function createOkFilow(deps) {
         // After an unlock or a wake-up Windows often allows the hook again: do not wait out the retry delay.
         for (const ev of ["unlock-screen", "resume"]) powerMonitor.on(ev, () => hookRetry.nudge());
       }
-      uIOhook.on("mousedown", () => {
+      uIOhook.on("mouseup", shake.up);
+      uIOhook.on("wheel", shake.wheel);
+      uIOhook.on("mousemove", shake.move);
+      uIOhook.on("mousedown", (e) => {
+        shake.down(e);
         // A click anywhere but on the bubble or the pill, once the answer has ended: the screen may
         // have changed under the marks, so they go (while the answer is told they stay).
         if (!bubbleHover.size && !stopHover.size) answerMarks.screenChanged();
@@ -1301,6 +1358,8 @@ function createOkFilow(deps) {
       });
       uIOhook.start();
       hook = uIOhook;
+      escapeKey = K.Escape;
+      syncEscape();
     }
   }
   let powerWired = false;
@@ -1456,6 +1515,7 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:text", (e, text) => {
     if (!ourSender(e)) return;
     const t = bubbleText(text);
+    if (t && !bubble.acceptsText()) return;
     sendOverlays("okfilow:text", t);
     const was = bubble.open();
     bubble.setText(t);
@@ -1526,10 +1586,11 @@ function createOkFilow(deps) {
     if (!QA_KEYS || !ourSender(e) || !gestures) return;
     const mod = ["ctrl", "alt", "shift", "meta"].includes(key) ? key : null;
     // "eye" and "pause": what the two global shortcuts do, so a run under test isolation can press them.
+    if (key === "escape") { if (type === "down") pressEsc(); return; }
     if (type === "down" && key === "eye") return void control("eye", "key");
     if (type === "down" && key === "pause") return void control(pauseKeyAction(mode, pill), "key");
     if (key === "eye" || key === "pause") return;
-    if (type === "down") { gestures.keydown(mod); if (key === "escape") onEscape(); }
+    if (type === "down") gestures.keydown(mod);
     else if (type === "up") gestures.keyup(mod);
   });
   /** A click on a control of the pill (an overlay), or the same from the panel's row. */
@@ -1540,6 +1601,7 @@ function createOkFilow(deps) {
     pill = { ...pillState(v), hears: wake?.status().enabled === true };
     sendOverlays("okfilow:pill", pill);
     bubble.setPaused(pill.paused);
+    syncBubbleActions();
     answerMarks.set({ paused: pill.paused });
     if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
@@ -1600,6 +1662,7 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:draw", (e, marks, from, avoid) => {
     if (!ourSender(e) || !Array.isArray(marks) || QA_SCREEN) return;
     answerMarks.drawn(marks);
+    syncEscape();
     practiceState.forget();
     drawMarks(marks, from, avoid);
   });
@@ -1759,10 +1822,10 @@ function createOkFilow(deps) {
     if (action === "status") return wake.status();
     if (action === "off") { wake.stop(); return wake.status(); }
     if (action === "setup") { if (isOffline()) { wake.fail(new Error("Offline: wake models cannot download")); return wake.status(); } return wake.setup(data === true); }
-    if (action === "enable") return wake.enable(cfg().wakeSensitivity);
+    if (action === "enable") return wake.enable(cfg().wakeSensitivity, cfg().wakeBare);
     if (action === "sample") return wake.sample(data?.index, data?.samples);
     if (action === "negative") return wake.negative(data?.index, data?.samples);
-    if (action === "train") return wake.train();
+    if (action === "train") return wake.train(cfg().wakeSensitivity);
     if (action === "delete") return wake.remove();
     if (action === "test") return wake.test(data);
     if (action === "error") { wake.fail(new Error(String(data).slice(0, 240))); return wake.status(); }
@@ -1826,8 +1889,7 @@ function createOkFilow(deps) {
     if (modelWin && !modelWin.isDestroyed()) modelWin.destroy();
     if (boardWin && !boardWin.isDestroyed()) boardWin.destroy();
     hookRetry.stop();
-    clearInterval(escTimer);
-    escKey.sync(false);
+    observeEscape(null, escapeKey, mode, false);
     for (const k of [eyeBound, pauseBound]) { if (k.accelerator) { try { globalShortcut.unregister(k.accelerator); } catch { /* quitting */ } } }
     try { hook?.stop(); } catch { /* quitting */ }
     stopCursor();

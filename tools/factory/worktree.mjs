@@ -83,14 +83,26 @@ export function gitOutput(cwd, ...args) {
 }
 export function inspect(cwd) {
   const root = fs.realpathSync(cwd);
-  const resolveGit = flag => fs.realpathSync(git(root, 'rev-parse', '--path-format=absolute', flag));
-  ensure(root === resolveGit('--show-toplevel') && resolveGit('--git-dir') !== resolveGit('--git-common-dir'),
+  const flags = ['--show-toplevel', '--git-dir', '--git-common-dir'];
+  const paths = gitOutput(root, 'rev-parse', '--path-format=absolute', ...flags).slice(0,-1).split('\n');
+  // A POSIX directory name can contain a newline. Read those paths individually.
+  const [top, dir, common] = (paths.length === flags.length ? paths :
+    flags.map(flag => gitOutput(root, 'rev-parse', '--path-format=absolute', flag).slice(0,-1)))
+    .map(p => fs.realpathSync(p));
+  ensure(root === top && dir !== common,
     'Use the root of a linked worktree. See the git worktree add step in the guide.');
-  const branch = git(root, 'branch', '--show-current');
+  // One status snapshot supplies the branch, candidate and dirty check at every gate.
+  const records = git(root, 'status', '--porcelain=v2', '--branch', '--no-ahead-behind',
+    '--untracked-files=all', '--ignore-submodules=none').split('\n');
+  const header = key => records.find(line => line.startsWith(key))?.slice(key.length);
+  const label = header('# branch.head ');
+  const branch = label === '(detached)' ? git(root, 'branch', '--show-current') : label;
   ensure(branch && !/^(main|master)$/i.test(branch), 'Switch to the assigned ticket branch.');
-  ensure(!git(root, 'status', '--porcelain=v1', '--untracked-files=all', '--ignore-submodules=none'),
+  ensure(records.every(line => line.startsWith('# ')),
     "Dirty worktree. Preserve existing edits. Run git -C '" + root.replaceAll("'","''") + "' status --short");
-  return { root, branch, common: resolveGit('--git-common-dir'), head: git(root, 'rev-parse', 'HEAD') };
+  const head = header('# branch.oid ');
+  ensure(head && head !== '(initial)', 'Git check failed. The assigned branch needs a candidate commit.');
+  return { root, branch, common, head };
 }
 export function checkWindowsVolumes(dir, root) {
   if (process.env.NODE_ENV === 'test' && process.env.FILOW_FACTORY_ALLOW_ANY_VOLUME === '1') return;

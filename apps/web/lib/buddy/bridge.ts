@@ -49,6 +49,7 @@ export type DictationResult = { ok: boolean; action: "paste" | "typed" | "copy" 
 
 export type OkFilowStatus = {
   wakeWord?: boolean;
+  wakeBare?: boolean;
   wakeSensitivity?: "strict" | "balanced" | "sensitive";
   wake?: WakeStatus;
   enabled: boolean;
@@ -59,6 +60,7 @@ export type OkFilowStatus = {
   voice: "natural" | "system" | "cloud" | "off";
   /** -1 or absent: automatic by language. Explicit voices: 0-4 female, 5-9 male. */
   naturalVoice?: number;
+  shakeToClose?: boolean;
   showAlways: boolean;
   dictation: boolean;
   color: string;
@@ -117,7 +119,7 @@ export type OkFilowCapture = {
 };
 
 type Off = () => void;
-export type WakeStatus = { enabled: boolean; listening: boolean; error: string; phase: string; count: number; testing: boolean; recordings: number; negatives?: number; verification?: Record<string, { total: number; recognised: number; negatives: number; negativeAccepts: number }>; trained: boolean; notice: { bytes: number; source: string; licence: string } };
+export type WakeStatus = { enabled: boolean; listening: boolean; error: string; phase: string; count: number; testing: boolean; legacyPhrase?: boolean; prefixFallback?: Record<string, boolean>; recordings: number; negatives?: number; verification?: Record<string, { total: number; recognised: number; negatives: number; negativeAccepts: number }>; trained: boolean; notice: { bytes: number; source: string; licence: string } };
 export type WakeAction = "status" | "off" | "setup" | "enable" | "sample" | "negative" | "train" | "delete" | "test" | "error";
 export type WakeApi = { wakeAction?(action: WakeAction, data?: unknown): Promise<WakeStatus> };
 
@@ -265,6 +267,9 @@ export type OkFilowBridge = {
    */
   overlayHover?(on: boolean, onBubble?: boolean): void;
   /** Overlay -> main: the bubble's close button. Main closes the bubble on every overlay (onBubbleClose). Absent in a desktop build older than it. */
+  bubbleOpen?(): Promise<boolean>;
+  closeBubbleByVoice?(): void;
+  detachBubble?(generation: number): void;
   closeBubble?(): void;
   /** Main -> overlays: the bubble goes away now (its time is up, Escape, its close button). */
   onBubbleClose?(fn: (why: string | undefined) => void): Off;
@@ -302,8 +307,8 @@ export type OkFilowBridge = {
   onConfig(fn: (s: OkFilowStatus) => void): Off;
   onMode(fn: (s: { mode: OkFilowMode; error?: string }) => void): Off;
   /** `sees`: this question took the screen with it; `stopped`: the user stopped the answer. */
-  onState(fn: (s: { mode: OkFilowMode; error?: string; purpose?: string; sees?: boolean; stopped?: boolean }) => void): Off;
-  onCursor(fn: (p: { x: number; y: number } | null) => void): Off;
+  onState(fn: (s: { mode: OkFilowMode; error?: string; purpose?: string; sees?: boolean; stopped?: boolean; bubbleDismissed?: boolean }) => void): Off;
+  onCursor(fn: (p: { x: number; y: number } | null, detachedHere?: boolean | null, generation?: number) => void): Off;
   onLevel(fn: (v: number) => void): Off;
   onText(fn: (t: string) => void): Off;
   onPoint(fn: (points: Array<{ x: number; y: number; label: string }>, avoid?: { left: number; top: number; right: number; bottom: number }[]) => void): Off;

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type WakeStatus, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
-import { bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, followScroll, MARK_EXIT_MS, marksBegun, overBubble, overControls } from "@/lib/buddy/motion";
+import { detachedPosition, bubblePlacement, createPausableClock, followScroll, MARK_EXIT_MS, marksBegun, overBubble, overControls } from "@/lib/buddy/motion";
 import { planFlight, flightPoint, arrivalPhase, type FlightPlan } from "@/lib/buddy/pointer-flight";
 import { drawingStarts } from "@/lib/buddy/marks-sync";
 import { MarksLayer, type MarkSet } from "@/components/okfilow/marks-layer";
@@ -85,7 +85,7 @@ export default function OkFilowOverlay() {
   const [spoken, setSpoken] = useState(-1);
   const textBox = useRef<HTMLDivElement>(null);
   /** What the frame loop needs to know about the bubble: an answer is in it and it is on screen; it has been placed; the pointer is on it. */
-  const holds = useRef({ answer: false, shown: false, placed: false, over: false, at: { x: 0, y: 0 }, size: { width: 0, height: 0 } });
+  const holds = useRef({ answer: false, shown: false, placed: false, detached: false, over: false, at: { x: 0, y: 0 }, size: { width: 0, height: 0 } });
   const [level, setLevel] = useState(0);
   const [label, setLabel] = useState("");
   // Near the bottom or right edge the label goes above or to the left of the arrow, never off screen.
@@ -120,6 +120,8 @@ export default function OkFilowOverlay() {
   const going = out.active && out.names.length > 0;
 
   const pos = useRef({ x: -100, y: -100 });
+  const bubbleGeneration = useRef(-1);
+  const detachedHere = useRef<boolean | null>(null);
   const cursor = useRef<{ x: number; y: number } | null>(null);
   const queue = useRef<Target[]>([]);
   const flight = useRef<{ plan: FlightPlan; to: Target; start: number; dur: number; holdUntil: number; arrived: boolean } | null>(null);
@@ -151,7 +153,7 @@ export default function OkFilowOverlay() {
         if (typeof s.sees === "boolean") setSees(s.sees);
         setStopped(s.stopped === true);
         // A question, a dictation or a stopped answer brings the bubble back; a new answer starts unspoken.
-        if (s.mode === "listening" || s.mode === "thinking" || s.stopped === true) reopen();
+        if (s.mode === "listening" || s.mode === "thinking" || (s.stopped === true && !s.bubbleDismissed)) reopen();
         if (s.mode === "listening" || s.mode === "thinking") setSpoken(-1);
         if (s.stopped === true) {
           // Stop: playback ends at once (pictures and videos go); the pointer flies nowhere else, and the
@@ -187,7 +189,10 @@ export default function OkFilowOverlay() {
       b.onSpoken?.((n) => setSpoken(Number.isInteger(n) ? n : -1)) ?? (() => {}),
       b.outbound?.onChange(setOut) ?? (() => {}),
       b.onLevel(setLevel),
-      b.onCursor((p) => {
+      b.onCursor((p, owner, generation = 0) => {
+        if (bubbleGeneration.current !== generation || owner === false) holds.current.detached = false;
+        bubbleGeneration.current = generation;
+        detachedHere.current = owner ?? null;
         cursor.current = p;
         if (!flight.current && dot.current) dot.current.style.visibility = "";
         // The controls of the pill and the answer bubble are what takes the mouse here: while the pointer
@@ -276,27 +281,27 @@ export default function OkFilowOverlay() {
         const p = pos.current.x < 0 ? want : { x: pos.current.x + (want.x - pos.current.x) * 0.35, y: pos.current.y + (want.y - pos.current.y) * 0.35 };
         next = p;
       }
-      const showing = Boolean(g || cursor.current);
+      const showing = detachedHere.current ?? Boolean(g || cursor.current);
+      if (!next && detachedHere.current) next = pos.current;
       setHere((h) => (h === showing ? h : showing));
       if (next) {
-        pos.current = next;
-        if (dot.current) dot.current.style.transform = `translate(${next.x}px, ${next.y}px)`;
         const el = bubble.current;
         const h = holds.current;
+        if (!h.shown || !h.answer) h.detached = false;
         if (!h.shown) h.placed = false;
         if (el) {
           const r = el.getBoundingClientRect();
           const size = { width: r.width, height: r.height };
           const view = { width: window.innerWidth, height: window.innerHeight };
           const pillRect = pillSpot.current?.getBoundingClientRect() ?? null;
-          // An answer's bubble holds still while the pointer is on it or near it, so the pointer can go
-          // onto it (to scroll, to close); a pointer that goes further away takes it along again. It
-          // stays by the pointer while the dot flies off to the things the answer points at.
-          // (where it was put, not where a glide has got to: `r` moves while the bubble catches up)
-          // A bubble that grew (the answer is still being written) is put next to the pointer afresh, so it
-          // never grows over the pointer; one the pointer is on stays under it.
           const grew = Math.abs(size.width - h.size.width) >= 1 || Math.abs(size.height - h.size.height) >= 1;
-          const hold = h.answer && h.placed && (!grew || h.over) && bubbleSticks(cursor.current, { left: h.at.x, top: h.at.y, right: h.at.x + size.width, bottom: h.at.y + size.height });
+          const detached = detachedPosition(h, cursor.current, r, size, view);
+          if (detached && !h.detached) {
+            h.detached = true;
+            b.detachBubble?.(bubbleGeneration.current);
+            // Snapshot the visible position, including a glide that is still in progress.
+            el.style.transitionProperty = "opacity, width, height";
+          }
           const c = cursor.current;
           // A held bubble is only kept on screen and off the pill as its text grows.
           const fixed = h.answer ? movedRef.current.bubble : undefined;
@@ -308,11 +313,11 @@ export default function OkFilowOverlay() {
           // (and never over OK Filow's own pointer by the mouse: the bubble covered it, and its tip showed at the close button)
           const dotBox = c ? [{ left: c.x + OFFSET.x - 4, top: c.y + OFFSET.y - 4, right: c.x + OFFSET.x + 40, bottom: c.y + OFFSET.y + 40 }] : [];
           const beside = item ? bubbleBeside(item, size, view, [...off, ...dotBox], pillRect) : null;
-          const at = placed ? { x: placed.x, y: placed.y } : beside ?? bubbleClear(hold ? bubbleOnScreen(h.at, size, view, pillRect) : bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, [...off, ...dotBox]);
+          const at = placed ? { x: placed.x, y: placed.y } : detached ?? beside ?? bubbleClear(bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, [...off, ...dotBox]);
           const want = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
           if (el.style.transform !== want) {
             // An answer's bubble glides when it catches up with the pointer; a first placement does not glide in from where the last bubble was.
-            el.style.transitionProperty = h.placed && h.answer ? "" : "opacity, width, height";
+            el.style.transitionProperty = h.placed && h.answer && !h.detached ? "" : "opacity, width, height";
             el.style.transform = want;
           }
           const moved = at.x !== h.at.x || at.y !== h.at.y;
@@ -321,6 +326,10 @@ export default function OkFilowOverlay() {
           if (h.shown) h.placed = true;
           // The bubble moved or grew under a pointer that may stand still: look again whether the pointer is on it.
           if (moved || grew) tellHover(cursor.current);
+        }
+        if (!h.detached) {
+          pos.current = next;
+          if (dot.current) dot.current.style.transform = `translate(${next.x}px, ${next.y}px)`;
         }
       }
       raf = requestAnimationFrame(tick);
@@ -524,7 +533,7 @@ export default function OkFilowOverlay() {
     )}
     {/* Dictation's start and end for screen readers (outside the hidden overlay), from the display with the mouse only. */}
     <div className="okf-sr" role="status" aria-live="polite">
-      {here && purpose === "dictate" && mode === "listening" ? dictationText(lang, "startedLive") : ""}
+      {here && closed ? t("bubbleClosed") : here && purpose === "dictate" && mode === "listening" ? dictationText(lang, "startedLive") : ""}
     </div>
     </>
   );
