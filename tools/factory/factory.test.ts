@@ -914,33 +914,35 @@ it('checks the operator identity before dispatch and forwards it when an operato
   } finally { git(clone,'config','user.name','Practice'); }
 },30000);
 
-it('rebuilds an interrupted checkout and reuses only a complete base or committed slice', async () => {
-  const { builderCheckout } = await import('./builder.mjs');
-  const state = {...freshSlice(),root:tree,branch:git(tree,'branch','--show-current')};
-  const dir = path.join(lab,'interrupted checkout');
-  const stamp = path.join('node_modules','.filow-lock-sha256');
-  fs.mkdirSync(path.join(tree,'node_modules'),{recursive:true});
-  fs.writeFileSync(path.join(tree,stamp),hash(fs.readFileSync(path.join(tree,'package-lock.json'))));
-  const prepare = () => builderCheckout(state,dir,state.base);
-  const copy = prepare();
-  fs.unlinkSync(path.join(copy,'node_modules'));
-  prepare();
-  expect(fs.existsSync(path.join(copy,stamp))).toBe(true);
-  fs.writeFileSync(path.join(copy,'unfinished.txt'),'preserve draft');
-  prepare();
-  expect(git(copy,'status','--porcelain')).toBe('');
-  git(copy,'checkout','-qb','wrong');
-  prepare();
-  expect(git(copy,'branch','--show-current')).toBe(state.branch);
-  git(copy,'commit','--allow-empty','-qm','Unrelated');
-  prepare();
-  expect(git(copy,'rev-parse','HEAD')).toBe(state.base);
-  fs.appendFileSync(path.join(copy,state.card.paths[0]),'changed');
-  git(copy,'commit','-qam',state.ticket + ' Record slice','-m','Factory-Run: ' + state.run);
-  const committed = git(copy,'rev-parse','HEAD');
-  prepare();
-  expect(git(copy,'rev-parse','HEAD')).toBe(committed);
-},30000);
+// Each interrupted state has a separate private checkout. Slow Windows Git
+// process startup should only consume the budget for the recovery under test.
+it.each(['dependencies', 'dirty', 'branch', 'unrelated commit', 'ticketed commit'])(
+  'recovers an interrupted builder checkout with %s', async fault => {
+    const { builderCheckout } = await import('./builder.mjs');
+    const state = freshSlice();
+    const dir = path.join(lab, 'interrupted ' + fault);
+    const stamp = path.join('node_modules', '.filow-lock-sha256');
+    fs.mkdirSync(path.join(tree, 'node_modules'), { recursive: true });
+    fs.writeFileSync(path.join(tree, stamp), hash(fs.readFileSync(path.join(tree, 'package-lock.json'))));
+    const copy = builderCheckout(state, dir, state.base);
+    let expectedHead = state.base;
+    switch (fault) {
+      case 'dependencies': fs.unlinkSync(path.join(copy, 'node_modules')); break;
+      case 'dirty': fs.writeFileSync(path.join(copy, 'unfinished.txt'), 'preserve draft'); break;
+      case 'branch': git(copy, 'checkout', '-qb', 'wrong'); break;
+      case 'unrelated commit': git(copy, 'commit', '--allow-empty', '-qm', 'Unrelated'); break;
+      case 'ticketed commit':
+        fs.appendFileSync(path.join(copy, state.card.paths[0]), 'changed');
+        git(copy, 'commit', '-qam', state.ticket + ' Record slice', '-m', 'Factory-Run: ' + state.run);
+        expectedHead = git(copy, 'rev-parse', 'HEAD');
+        break;
+    }
+    builderCheckout(state, dir, state.base);
+    expect(fs.existsSync(path.join(copy, stamp))).toBe(true);
+    expect(git(copy, 'status', '--porcelain')).toBe('');
+    expect(git(copy, 'branch', '--show-current')).toBe(state.branch);
+    expect(git(copy, 'rev-parse', 'HEAD')).toBe(expectedHead);
+  });
 
 it('rejects a dirty builder reply, preserves the ticket and accepts only the ticketed private commit', async () => {
   const { builderCheckout, builderResult } = await import('./builder.mjs');

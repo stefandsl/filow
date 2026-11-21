@@ -35,3 +35,37 @@ describe("wake capture cancellation", () => {
     } finally { vi.useRealTimers(); }
   });
 });
+
+it("serializes a short capture burst and discards buffered blocks on stop", async () => {
+  let chunk!: (pcm: ArrayBuffer) => void;
+  let finish!: () => void;
+  const wakeFeed = vi.fn((_samples: Float32Array) => new Promise<void>(resolve => { finish = resolve; }));
+  const capture = createWakeCapture({ wakeFeed } as unknown as OkFilowBridge, async (_rate, fn) => {
+    chunk = fn;
+    return { stop: vi.fn() };
+  });
+  await capture.set(true);
+  for (const value of [1, 2, 3]) chunk(new Int16Array(1600).fill(value).buffer);
+  expect(wakeFeed).toHaveBeenCalledTimes(1);
+  finish();
+  await vi.waitFor(() => expect(wakeFeed).toHaveBeenCalledTimes(2));
+  expect(wakeFeed.mock.calls[1][0][0]).toBe(2 / 32768);
+  capture.stop();
+  finish();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(wakeFeed).toHaveBeenCalledTimes(2);
+});
+
+it("stops capture on sustained inference backlog", async () => {
+  let chunk!: (pcm: ArrayBuffer) => void;
+  const stop = vi.fn(), wakeAction = vi.fn();
+  const wakeFeed = vi.fn(() => new Promise<void>(() => {}));
+  const capture = createWakeCapture({ wakeFeed, wakeAction } as unknown as OkFilowBridge, async (_rate, fn) => {
+    chunk = fn;
+    return { stop };
+  });
+  await capture.set(true);
+  for (let i = 0; i < 4; i++) chunk(new ArrayBuffer(3200));
+  expect(stop).toHaveBeenCalledOnce();
+  expect(wakeAction).toHaveBeenCalledWith("error", expect.stringContaining("keep up"));
+});

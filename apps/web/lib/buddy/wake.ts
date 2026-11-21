@@ -7,7 +7,8 @@ export const WAKE_MIC_OPEN_TIMEOUT_MS = 10000;
 export function createWakeCapture(b: OkFilowBridge, open = startMic) {
   let generation = 0, wanted = false;
   let capture: { stop(): void } | null = null;
-  const stop = () => { wanted = false; generation++; capture?.stop(); capture = null; };
+  const buffered: Float32Array[] = [];
+  const stop = () => { buffered.length = 0; wanted = false; generation++; capture?.stop(); capture = null; };
   return {
     stop,
     async set(on: boolean) {
@@ -15,6 +16,24 @@ export function createWakeCapture(b: OkFilowBridge, open = startMic) {
       if (wanted) return;
       wanted = true;
       const id = ++generation;
+      let sending = false;
+      const fail = (message: string) => {
+        if (id !== generation) return;
+        stop();
+        void b.wakeAction?.("error", message);
+      };
+      async function send(first: Float32Array) {
+        sending = true;
+        try {
+          let next: Float32Array | undefined = first;
+          while (next && id === generation) {
+            await b.wakeFeed?.(next);
+            next = id === generation ? buffered.shift() : undefined;
+          }
+        } catch (error) {
+          fail(error instanceof Error ? error.message : String(error));
+        } finally { sending = false; }
+      }
       const timeout = setTimeout(() => {
         if (id !== generation) return;
         stop(); void b.wakeAction?.("error", "The selected microphone did not open within 10 seconds");
@@ -23,9 +42,9 @@ export function createWakeCapture(b: OkFilowBridge, open = startMic) {
         const got = await open(16000, (pcm) => {
           if (id !== generation || !wanted) return;
           const data = Float32Array.from(new Int16Array(pcm), (v) => v / 32768);
-          void Promise.resolve(b.wakeFeed?.(data)).catch((e: unknown) => {
-            if (id === generation) { stop(); void b.wakeAction?.("error", e instanceof Error ? e.message : String(e)); }
-          });
+          if (!sending) void send(data);
+          else if (buffered.length < 2) buffered.push(data);
+          else fail("Wake detector cannot keep up with the microphone");
         }, (warning) => {
           if (warning?.kind === "ended" && id === generation) { stop(); void b.wakeAction?.("error", "The selected microphone disconnected"); }
         }, undefined, { latencyHint: "playback" });

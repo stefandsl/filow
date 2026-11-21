@@ -59,66 +59,76 @@ async function run() {
     // Substitute only the 16-bit worklet output. The panel owns device lifetime,
     // conversion, IPC authorization, native inference and the question transition.
     await panel.evaluate(() => {
-      const NativeNode = window.AudioWorkletNode;
-      window.AudioWorkletNode = class extends NativeNode {
+      globalThis.qaWakeQuestions = 0;
+      globalThis.okFilow.onWakeDetected(() => { globalThis.qaWakeQuestions++; });
+      const NativeNode = globalThis.AudioWorkletNode;
+      globalThis.AudioWorkletNode = class extends NativeNode {
         constructor(context, name, options) {
           super(context, name, options);
           if (name === "pcm-chunker" && !options?.processorOptions?.format) {
             Object.defineProperty(this, "port", { value: {
-              set onmessage(callback) { window.qaWakeChunk = callback; },
+              set onmessage(callback) { globalThis.qaWakeChunk = callback; },
             } });
           }
         }
       };
     });
-    const action = (name, data) => panel.evaluate(([n, d]) => window.okFilow.wakeAction(n, d), [name, data]);
+    const action = (name, data) => panel.evaluate(([n, d]) => globalThis.okFilow.wakeAction(n, d), [name, data]);
     const status = () => action("status");
     for (let index = 0; index < 5; index++) {
       const samples = Array.from(readSample(path.join(clips, `bare-${index}.wav`)));
-      await panel.evaluate(([i, s]) => window.okFilow.wakeAction("sample", { index: i, samples: Float32Array.from(s) }), [index, samples]);
+      await panel.evaluate(([i, s]) => globalThis.okFilow.wakeAction("sample", { index: i, samples: Float32Array.from(s) }), [index, samples]);
     }
     const trained = await action("train");
     if (trained.error || !trained.trained) throw new Error("Packaged training failed: " + trained.error);
-    const config = await panel.evaluate(() => window.okFilow.status());
+    const config = await panel.evaluate(() => globalThis.okFilow.status());
     if (config.wakeBare !== true || config.wakeSensitivity !== "balanced") throw new Error("Unexpected defaults");
     const report = { ports, defaults: { bare: config.wakeBare, sensitivity: config.wakeSensitivity }, cases: [] };
     await action("test", true);
     await action("enable");
     const replay = async (file, expected, question = false) => {
-      await panel.waitForFunction(() => typeof window.qaWakeChunk === "function", null, { timeout: 12000 });
+      await panel.waitForFunction(() => typeof globalThis.qaWakeChunk === "function", null, { timeout: 12000 });
       const initial = await status();
+      const questionsBefore = await panel.evaluate(() => globalThis.qaWakeQuestions);
       if (!initial.listening || initial.error) throw new Error(JSON.stringify(initial));
       const samples = readSample(path.join(clips, file)), audio = new Int16Array(32000 + samples.length);
       audio.set(Int16Array.from(samples, x => Math.round(x * 32768)), 16000);
       const elapsed = await panel.evaluate(async ({ data, stopOnWake }) => {
         const pcm = Int16Array.from(data), started = performance.now();
         for (let i = 0; i < pcm.length; i += 1600) {
-          await new Promise(resolve => setTimeout(resolve, Math.max(0, started + i / 16 - performance.now())));
-          if (!window.qaWakeChunk && stopOnWake) break;
+          if (i) await new Promise(resolve => setTimeout(resolve, 100));
+          if (!globalThis.qaWakeChunk) {
+            if (stopOnWake && globalThis.qaWakeQuestions) break;
+            throw new Error("Capture stopped: " + JSON.stringify(await globalThis.okFilow.wakeAction("status")));
+          }
           const block = new Int16Array(1600);
           block.set(pcm.subarray(i, i + 1600));
-          window.qaWakeChunk({ data: { pcm: block.buffer, peak: block.some(v => v) ? .5 : 0 } });
+          globalThis.qaWakeChunk({ data: { pcm: block.buffer, peak: block.some(v => v) ? .5 : 0 } });
         }
         return performance.now() - started;
       }, { data: Array.from(audio), stopOnWake: question });
       await wait(250);
       const after = await status(), delta = after.count - initial.count;
-      const row = { file, bareAllowed: (await panel.evaluate(() => window.okFilow.status())).wakeBare, expected, delta,
+      const row = { file, bareAllowed: (await panel.evaluate(() => globalThis.okFilow.status())).wakeBare, expected, delta,
+        questionEvents: await panel.evaluate(() => globalThis.qaWakeQuestions) - questionsBefore,
         elapsedMs: Math.round(elapsed), phase: after.phase, error: after.error };
       console.log(row);
       report.cases.push(row);
       fs.writeFileSync(path.join(root, "result.json"), JSON.stringify(report, null, 2));
-      if (delta !== expected || after.error || (!question && !after.listening)) throw new Error("Packaged case failed: " + file);
+      if (row.questionEvents !== Number(question) || delta !== expected || after.error || (!question && !after.listening)) throw new Error("Packaged case failed: " + file);
     };
     await replay("near0-0.wav", 0);
     await replay("bare-6.wav", 1);
     await replay("ok-6.wav", 1);
-    await panel.evaluate(() => window.okFilow.configure({ wakeBare: false }));
-    await panel.waitForFunction(async () => (await window.okFilow.wakeAction("status")).listening);
+    await panel.evaluate(() => globalThis.okFilow.configure({ wakeBare: false }));
+    await panel.waitForFunction(async () => (await globalThis.okFilow.wakeAction("status")).listening);
     await replay("bare-6.wav", 0);
     await replay("bare-6.wav", 0);
+    await replay("ok-6.wav", 1);
+    await panel.evaluate(() => globalThis.okFilow.configure({ wakeBare: true }));
+    await panel.waitForFunction(async () => (await globalThis.okFilow.wakeAction("status")).listening);
     await action("test", false);
-    await replay("ok-6.wav", 1, true);
+    await replay("bare-6.wav", 1, true);
   } finally {
     if (browser) await browser.close();
     if (app.exitCode === null) app.kill();
