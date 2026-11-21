@@ -7,14 +7,17 @@ export const WAKE_MIC_OPEN_TIMEOUT_MS = 10000;
 export function createWakeCapture(b: OkFilowBridge, open = startMic) {
   let generation = 0, wanted = false;
   let capture: { stop(): void } | null = null;
+  let droppedBlocks = 0;
   const buffered: Float32Array[] = [];
   const stop = () => { buffered.length = 0; wanted = false; generation++; capture?.stop(); capture = null; };
   return {
     stop,
+    get droppedBlocks() { return droppedBlocks; },
     async set(on: boolean) {
       if (!on) { stop(); return; }
       if (wanted) return;
       wanted = true;
+      droppedBlocks = 0;
       const id = ++generation;
       let sending = false;
       const fail = (message: string) => {
@@ -44,7 +47,10 @@ export function createWakeCapture(b: OkFilowBridge, open = startMic) {
           const data = Float32Array.from(new Int16Array(pcm), (v) => v / 32768);
           if (!sending) void send(data);
           else {
-            if (buffered.length === 2) buffered.shift();
+            if (buffered.length === 2) {
+              buffered.shift();
+              droppedBlocks++;
+            }
             buffered.push(data);
           }
         }, (warning) => {

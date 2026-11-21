@@ -71,6 +71,7 @@ it("drops the oldest queued audio and keeps listening across a backlog", async (
   release();
   await vi.waitFor(() => expect(wakeFeed).toHaveBeenCalledTimes(3));
   expect(wakeFeed.mock.calls.map(([block]) => block[0] * 32768)).toEqual([1, 7, 8]);
+  expect(capture.droppedBlocks).toBe(5);
   expect(stop).not.toHaveBeenCalled();
   expect(wakeAction).not.toHaveBeenCalled();
   capture.stop();

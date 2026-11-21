@@ -24,6 +24,7 @@ minutes = {"en": 90, "it": 90, "ru": 80, "ja": 65, "ro": 35}
 parser = argparse.ArgumentParser(description=__doc__)
 for arg in ("model", "tar_root", "previous_ids", "out"):
     parser.add_argument(arg, type=Path)
+parser.add_argument("--legacy-enrol-only", action="store_true", help="render separate OK enrolment takes with the frozen speakers and enrolment rates")
 args = parser.parse_args()
 args.out.mkdir(exist_ok=False, parents=True)
 manifest = {}
@@ -43,7 +44,8 @@ for lang, (bare, ok, hey, near) in texts.items():
     dest = args.out / lang
     dest.mkdir()
     manifest[lang] = clips = []
-    for kind, words in [("enrol", [bare]), ("bare", [bare]), ("ok", [ok]), ("hey", [hey]), ("near", near)]:
+    forms = [("enrol", [ok])] if args.legacy_enrol_only else [("enrol", [bare]), ("bare", [bare]), ("ok", [ok]), ("hey", [hey]), ("near", near)]
+    for kind, words in forms:
         for i in range(5 if kind == "enrol" else 12 if kind == "near" else 6):
             word = words[i % len(words)]
             sid = 5 + list(texts).index(lang) % 3 if kind != "near" else 5 + (i // len(words) + i) % 3
@@ -54,6 +56,8 @@ for lang, (bare, ok, hey, near) in texts.items():
             file = dest / f"{kind}-{i}.wav"
             sf.write(file, .5 * samples / np.max(np.abs(samples)), 16000, subtype="PCM_16")
             clips.append(dict(kind=kind, file=file.name, text=word, sid=sid, speed=cfg.speed, sha256=digest(file)))
+    if args.legacy_enrol_only:
+        continue
     used = set((args.previous_ids / f"cv_{lang}.clips.txt").read_text().splitlines())
     required = minutes[lang] * 60 * 16000
     speech = dest / "normal.wav"

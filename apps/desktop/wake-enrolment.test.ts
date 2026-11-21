@@ -21,3 +21,13 @@ it('replays each take and negative through both detectors with independent timin
   expect(result.strict.recognised).toBe(3);
   expect(canEnable(result)).toBe(false);
 });
+
+it("preserves personal negative rejection on the fallback route", () => {
+  const { prefixFallback } = require("./wake-enrolment");
+  const row = { total: 5, recognised: 2, negatives: 1, negativeAccepts: 1 };
+  const profile = { phrase: "Filow", verification: { balanced: row } };
+  expect(prefixFallback(profile, "balanced")).toBe(false);
+  expect(prefixFallback({ ...profile, prefixNegatives: { balanced: 0 } }, "balanced")).toBe(true);
+  expect(prefixFallback({ ...profile, prefixNegatives: { balanced: 1 } }, "balanced")).toBe(false);
+  expect(prefixFallback({ ...profile, verification: {} }, "balanced")).toBe(false);
+});

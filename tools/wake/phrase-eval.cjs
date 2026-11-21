@@ -1,20 +1,24 @@
 // node phrase-eval.cjs MODELS CLIPS SPEECH OUT [minutes] [lang] [offset] [ok|bare|prefix]
-// With SPEECH set to "frozen", append the frozen manifest SHA-256 after the variant.
+// Frozen replay takes the manifest SHA-256 after the variant. For legacy OK
+// enrolment append the origin/main checkout and the separate OK take directory.
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { keywordText, profileCombiner } = require("../../apps/desktop/wake-policy");
-const { createEmbedding, createStream, enrol, background } = require("../../apps/desktop/wake-head");
-const { replayEnrolment, canEnable, prefixFallback } = require("../../apps/desktop/wake-enrolment");
-const { readSample } = require("../../apps/desktop/wake-pcm");
-const [models, clips, speech, out, minutes = 6, language, offset = 0, variant, manifestHash] = process.argv.slice(2);
+const [models, clips, speech, out, minutes = 6, language, offset = 0, variant, manifestHash, legacyRoot, legacyTakes] = process.argv.slice(2);
+const legacy = Boolean(legacyRoot);
+if (legacy && (variant !== "ok" || speech !== "frozen" || !legacyTakes)) throw new Error("Legacy replay needs frozen, ok, a source checkout and separate OK takes");
+const desktop = path.resolve(legacyRoot || path.join(__dirname, "../.."), "apps/desktop");
+const policy = require(path.join(desktop, "wake-policy"));
+const { createEmbedding, createStream, enrol, background } = require(path.join(desktop, "wake-head"));
+const { replayEnrolment, canEnable, prefixFallback } = require(path.join(desktop, "wake-enrolment"));
+const { readSample } = require(path.join(desktop, legacy ? "wake" : "wake-pcm"));
 const modes = ["strict", "balanced", "sensitive"];
-const data = path.resolve(__dirname, "../../apps/desktop/wake-data");
+const data = path.join(desktop, "wake-data");
 
 function corpus(lang, bare) {
   const read = file => readSample(path.join(clips, lang, file));
   if (speech === "frozen") {
-    if (!bare) throw new Error("The frozen corpus enrols the bare phrase");
+    if (!bare && !legacy) throw new Error("The frozen corpus enrols the bare phrase");
     const manifest = fs.readFileSync(path.join(clips, "manifest.json"));
     if (crypto.createHash("sha256").update(manifest).digest("hex") !== manifestHash) throw new Error("Frozen manifest digest mismatch");
     const rows = JSON.parse(manifest)[lang];
@@ -22,7 +26,19 @@ function corpus(lang, bare) {
       const bytes = fs.readFileSync(path.join(clips, lang, row.file));
       if (crypto.createHash("sha256").update(bytes).digest("hex") !== row.sha256) throw new Error("Changed frozen file: " + row.file);
     }
-    return { recordings: rows.filter(r => r.kind === "enrol").map(r => read(r.file)),
+    const enrolRows = rows.filter(r => r.kind === "enrol");
+    const legacyRows = legacy && JSON.parse(fs.readFileSync(path.join(legacyTakes, "manifest.json")))[lang];
+    const recordings = enrolRows.map(r => {
+      if (!legacy) return read(r.file);
+      const dir = path.join(legacyTakes, lang);
+      const receipt = legacyRows.find(t => t.file === r.file);
+      const file = path.join(dir, r.file);
+      if (receipt?.kind !== "enrol" || receipt.sid !== r.sid || receipt.speed !== r.speed ||
+          receipt.text !== rows.find(t => t.kind === "ok").text ||
+          crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex") !== receipt.sha256) throw new Error("Invalid legacy enrolment take");
+      return readSample(file);
+    });
+    return { recordings,
       tests: rows.filter(r => r.kind !== "enrol").map(r => ({ kind: r.kind, file: r.file, load: () => read(r.file) })) };
   }
   const names = ["bare", "ok"].flatMap(kind => [5, 6, 7].map(i => [kind, `${kind}-${i}.wav`]));
@@ -36,7 +52,7 @@ function corpus(lang, bare) {
 async function run() {
   fs.mkdirSync(out, { recursive: true });
   const embedding = await createEmbedding(models);
-  const { createSpotter } = require("../../apps/desktop/wake-worker");
+  const { createSpotter } = require(path.join(desktop, "wake-worker"));
   const rows = [];
   try {
     for (const lang of language ? [language] : ["en", "it", "ro", "ru", "ja"]) {
@@ -48,7 +64,10 @@ async function run() {
         if (bare) profile.phrase = "Filow";
         const file = path.join(out, `keywords-${lang}-${phrase}.txt`);
         const spotter = (settings = profile) => {
-          fs.writeFileSync(file, keywordText(settings));
+          const keywords = legacy
+            ? policy.SPELLINGS.map((s, i) => `${s} :2.5 #0.05 @v${i + 1}`).join("\n") + "\n"
+            : policy.keywordText(settings);
+          fs.writeFileSync(file, keywords);
           return createSpotter(models, file);
         };
         let kws = spotter();
@@ -78,7 +97,7 @@ async function run() {
           if (!normal) audio.set(pcm, 16000);
           detector.reset();
           prefixSpotter?.reset();
-          const combiners = modes.map(m => profileCombiner({ ...profile, requirePrefix: profile.requirePrefix || fallbackModes.includes(m) }, m));
+          const combiners = modes.map(m => legacy ? policy.createCombiner(profile.thresholds, m) : policy.profileCombiner({ ...profile, requirePrefix: profile.requirePrefix || fallbackModes.includes(m) }, m));
           const fired = new Set();
           for (let i = 0; i < audio.length; i += 1600) {
             const samples = new Float32Array(1600);
