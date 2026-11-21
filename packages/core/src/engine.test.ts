@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Engine, missedPoints } from "./engine";
 import { parseScript } from "./script";
 import type { DecideRequest, DecideResponse } from "./api";
+import frozen from "../../../tools/autoloop/e2e/n03-cases.json";
 
 const SCRIPT = parseScript(`# Intro
 - hello everyone
@@ -78,6 +79,21 @@ describe("script-scoped place", () => {
     }
     e.dispatch({ type: "markStarted", id: "s0b0" });
     expect(e.committedPlace()).toBeNull();
+  });
+});
+
+describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries", (_lang, journey) => {
+  it("clears a tentative restore hint as soon as the corrected final arrives", () => {
+    const { e } = makeEngine();
+    e.loadScript(parseScript(journey.script));
+    e.dispatch({ type: "anchor", idx: 1 });
+    e.dispatch({ type: "markStarted", id: "s1b1" });
+    e.feed({ partial: journey.partial });
+    expect(e.getState().points.s1b2.active).toBe(true);
+    e.feed({ committed: journey.corrected });
+    expect(e.getState().points.s1b2.active).toBeUndefined();
+    expect(e.transcript.trim()).toBe(journey.corrected);
+    expect(e.getState().points.s1b1.evidence?.source).toBe("manual");
   });
 });
 

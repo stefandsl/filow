@@ -246,10 +246,10 @@ export class Engine {
     } else if (e.partial === "") {
       this.fenceNextCommit = null; // the words in progress at the Reset were dropped, never committed
     }
-    if (e.partial !== undefined) this.partial = e.partial;
+    if (e.partial !== undefined || e.committed) this.partial = e.partial ?? "";
     const tail = this.transcript.slice(-TAIL);
     if (tail !== this.state.transcriptTail) this.update((s) => (s.transcriptTail = tail));
-    if (e.partial) this.hintFromPartial();
+    if (e.partial !== undefined || e.committed) this.hintFromPartial();
   }
 
   /**
