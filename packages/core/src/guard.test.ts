@@ -355,6 +355,20 @@ it.each([
 describe.each(Object.entries(frozen.journeys))("%s affirmative and corrected claims", (lang, journey) => {
   const date = lang === "en" ? "Launch date Monday" : "Data avvio lunedì";
   const restore = lang === "en" ? "Backup restore test" : "Backup: test di ripristino";
+  it("uses the stated launch day when a speaker explicitly rules out another weekday", () => {
+    const [wrong, right, other] = lang === "en" ? [
+      "We launch on Tuesday, not Monday.",
+      "We launch on Monday, not Tuesday.",
+      "We launch on Monday while the review takes place Tuesday, not Monday.",
+    ] : [
+      "Partiamo martedì, non lunedì.",
+      "Partiamo lunedì, non martedì.",
+      "Partiamo lunedì mentre la revisione si tiene martedì, non lunedì.",
+    ];
+    expect(checkClaim(date, wrong).ok).toBe(false);
+    expect(checkClaim(date, right).ok).toBe(true);
+    expect(checkClaim(date, other).ok).toBe(true);
+  });
   it("keeps an unscheduled launch date open without borrowing another date's denial", () => {
     const [unset, other, confirmed] = lang === "en" ? [
       "The launch date has not been set.",

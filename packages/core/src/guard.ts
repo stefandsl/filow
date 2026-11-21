@@ -80,6 +80,21 @@ const START_EVENT = /^(?:launch|rollout|kickoff|avvio|lancio|partenza)$/;
 const MEAL = /^(?:breakfast|lunch|dinner|colazione|pranzo|cena)$/;
 const WEEKDAY = /^(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)$/;
 
+/** "Partiamo martedì, non lunedì" names the event with a verb. Resolve the day
+ * attached to that verb, even if a different event later denies the same weekday. */
+function contrastedStartDay(words: string[], tokens: Token[]): boolean | undefined {
+  const expected = words.filter(w => WEEKDAY.test(w));
+  if (expected.length !== 1 || !words.some(w => START_EVENT.test(w)) ||
+      !words.every(w => WEEKDAY.test(w) || START_EVENT.test(w) || w === "date" || w === "data")) return;
+  const denial = tokens.some((t, i) => (t.norm === "non" || t.norm === "not") && WEEKDAY.test(tokens[i + 1]?.norm ?? ""));
+  if (!denial) return;
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    if (!WEEKDAY.test(tokens[i].norm)) continue;
+    const lead = tokens.slice(Math.max(0, i - 4), i).map(t => t.norm).join(" ");
+    if (/\b(?:we (?:launch|start|begin)(?: on)?|(?:partiamo|iniziamo|cominciamo)(?: il)?)$/.test(lead)) return tokens[i].norm === expected[0];
+  }
+}
+
 /** Match the date's own predicate. A second date in the same sentence may still be undecided. */
 function deniesScheduledDay(words: string[], parts: Token[][]): boolean {
   if (!words.some(w => WEEKDAY.test(w))) return false;
@@ -360,11 +375,14 @@ export function checkClaim(point: string, transcript: string): ClaimCheck {
     const sq = quantitiesFromTokens(toks);
     const numberMatch = claim.quantities.some((q) => sq.some((x) => sameQuantity(q, x)));
     const meal = schedulesMeal(claim.words, toks);
-    return { s, lexical, meal, relevance: meal ? 1 : Math.min(1, lexical + (numberMatch ? 0.5 : 0)) };
+    const day = contrastedStartDay(claim.words, toks);
+    return { s, lexical, meal, day, relevance: meal || day !== undefined ? 1 : Math.min(1, lexical + (numberMatch ? 0.5 : 0)) };
   });
   const relevant = scored.filter((x) => x.relevance >= MIN_RELEVANT);
   for (let i = relevant.length - 1; i >= 0; i--) {
     const x = relevant[i];
+    if (x.day !== undefined) return { ok: x.day, evidence: x.s, lexical: round(x.lexical),
+      ...(!x.day ? { conflict: { kind: "negation" as const, detail: "the speaker named a different start day" } } : {}) };
     if (x.meal) return { ok: false, evidence: x.s, lexical: round(x.lexical), conflict: { kind: "subject", detail: "the weekday is stated for a meal" } };
     const r = read(claim, x.s.text);
     if (r.conflict && (r.anchored || !claim.anchors.length)) return { ok: false, evidence: x.s, lexical: round(x.lexical), conflict: r.conflict };
