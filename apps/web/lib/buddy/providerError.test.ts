@@ -10,13 +10,18 @@ const BODY = 'ElevenLabs 401: {"detail":{"type":"authentication_error","code":"u
 
 describe("N-02 practice question recovery", () => {
   it.each([
+    ...["Anthropic", "OpenAI", "Google", "FreeLLMAPI", "Cloudflare"].flatMap(provider => [
+      [`No ${provider} key`, "setup"], [`${provider} 401`, "setup"], [`${provider} 402`, "quota"],
+      [`${provider} 429`, "quota"], [`${provider} 503`, "outage"],
+    ]),
+    ["[freellm:no_key] missing", "setup"], ["[freellm:quota] limit", "quota"], ["[freellm:not_running] offline", "outage"],
     ["No OpenRouter key: add OPENROUTER_API_KEY", "setup"],
     ["OpenRouter 402: synthetic refusal", "quota"],
     ["OpenRouter 429: synthetic refusal", "quota"],
     ["OpenRouter 503: synthetic service details", "outage"],
     ["OpenRouter unavailable", "outage"],
   ])("offers a private recovery for %s", (error, reason) => {
-    expect(practiceFailure(error)).toBe(reason);
+    expect(practiceFailure(error)).toEqual({ kind: reason, provider: error.startsWith("[freellm:") ? "FreeLLMAPI" : error.replace(/^No /, "").split(" ")[0] });
     expect(practiceFailure("unrelated audio error")).toBeNull();
   });
 });

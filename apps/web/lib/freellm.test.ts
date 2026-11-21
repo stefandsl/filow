@@ -1,7 +1,7 @@
 import http from "node:http";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { startFakeFreeLlm } from "../../../tools/autoloop/e2e/fake-freellm.mjs";
-import { checkFreeLlm, freellmChat, freellmCodeOf, freellmStream, isLocalHost, localizeFreeLlmError, normalizeBaseUrl, normalizeModel, type FreeLlmCode } from "./freellm";
+import { checkFreeLlm, freellmReplyError, freellmChat, freellmCodeOf, freellmStream, isLocalHost, localizeFreeLlmError, normalizeBaseUrl, normalizeModel, type FreeLlmCode } from "./freellm";
 
 // FreeLLMAPI is the user's own router; a fake on 127.0.0.1 stands in for it, with its error replies.
 // No provider and no network outside this PC.
@@ -55,6 +55,9 @@ describe("talking to the router", () => {
     expect(r.content).toBe("The fake router answered.");
     expect(r.model).toBe("FreeLLMAPI: fakeprovider/fake-model-1");
     expect(fake.log).toEqual([expect.objectContaining({ path: "/v1/chat/completions", keyOk: true, model: "auto:fast", stream: false })]);
+  });
+  it("classifies a FreeLLMAPI payment refusal as a credit limit", async () => {
+    expect((await freellmReplyError(new Response("", { status: 402 }), { model: "auto" })).code).toBe("quota");
   });
   it("streams an answer", async () => {
     expect(await drain(freellmStream({ messages: [{ role: "user", content: "hi" }] }))).toBe("The fake router answered.");

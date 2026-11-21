@@ -174,7 +174,7 @@ function replyBody(text: string): { code: string; message: string } {
 export async function freellmReplyError(res: Response, ctx: { model: string }): Promise<FreeLlmError> {
   const { code, message } = replyBody(await res.text().catch(() => ""));
   if (res.status === 401 || res.status === 403) return new FreeLlmError("bad_key");
-  if (res.status === 429 || /quota|exhausted|rate.?limit/i.test(code)) return new FreeLlmError("quota");
+  if (res.status === 402 || res.status === 429 || /quota|exhausted|rate.?limit/i.test(code)) return new FreeLlmError("quota");
   // before "unknown model": a model that cannot take a picture is said as such, not as an unknown name
   if (code === "no_vision_model" || ((res.status === 422 || res.status === 400) && /vision|image|picture/i.test(`${code} ${message}`))) return new FreeLlmError("no_vision");
   if ((res.status === 400 || res.status === 404) && /model|profile/i.test(`${code} ${message}`)) return new FreeLlmError("bad_model", { model: ctx.model });

@@ -166,7 +166,7 @@ export default function OkFilowPanel() {
   const [learned, setLearned] = useState(0);
   /** A provider refused the account (lib/buddy/providerError.ts): the plain sentence, shown once per session with the button to the keys. */
   const [problem, setProblem] = useState("");
-  const [recovery, setRecovery] = useState<ReturnType<typeof practiceFailure> | "mic">(null);
+  const [recovery, setRecovery] = useState<NonNullable<ReturnType<typeof practiceFailure>>["kind"] | "mic" | null>(null);
   const problemWords = useRef({ t, lang });
   problemWords.current = { t, lang };
   const reportProblem = useRef<(raw: string) => ProviderProblem | null>(null as unknown as (raw: string) => ProviderProblem | null);
@@ -280,13 +280,15 @@ export default function OkFilowPanel() {
     const plain = raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, "");
     // A provider that refused the account (lib/buddy/providerError.ts): plain words and the button to the
     // keys; never its JSON. The details go to the log file only.
-    const reason = micDenied ? "mic" : practiceFailure(plain);
+    const failure = practiceFailure(plain);
+    const reason = micDenied ? "mic" : failure?.kind ?? null;
+    const freeCode = freellmCodeOf(plain);
     setRecovery(reason);
     if (reason) setProblem("");
     const refused = stopped || reason ? null : reportProblem.current(plain);
     // FreeLLMAPI's failures come tagged from the server: shown in the panel's language, with its download link when it is not running
-    const message = reason ? coreText(`practiceFailure.${reason}`, lang) : stopped ? t("ollamaStopped") : refused ? problemText(refused, t, coreText("menu.editEnv", lang)) : plainError(localizeFreeLlmError(plain, lang));
-    setFreeDown(freellmCodeOf(plain) === "not_running");
+    const message = freeCode && freeCode !== "failed" && !micDenied ? localizeFreeLlmError(plain, lang) : reason ? coreText(`practiceFailure.${reason}`, lang, { provider: failure?.provider ?? "" }) : stopped ? t("ollamaStopped") : refused ? problemText(refused, t, coreText("menu.editEnv", lang)) : plainError(localizeFreeLlmError(plain, lang));
+    setFreeDown(freeCode === "not_running");
     setError(message);
     okFilowBridge()?.text(message);
     // A recording this failure closes (below) is over for main too; an error about anything else leaves the keys' hold alone.

@@ -1,3 +1,5 @@
+import { freellmCodeOf } from "../freellm";
+
 // A provider's refusal in plain words (owner, 14/11/2026: the bubble showed `ElevenLabs 401:
 // {"detail":{"type":"authentication_error",...}}`). Raw provider JSON never reaches the user: a key
 // that is not valid, a used-up quota or a payment needed is said in the interface's language, with
@@ -5,16 +7,25 @@
 
 export type ProviderProblem = { provider: string; kind: "key" | "quota" | "payment" };
 
-/** Recovery for a practice question. A refusal never chooses another provider automatically. */
-export function practiceFailure(raw: string): "setup" | "quota" | "outage" | null {
-  if (/^No OpenRouter key\b/i.test(raw)) return "setup";
-  if (/^OpenRouter (402|429)\b/i.test(raw)) return "quota";
-  if (/^OpenRouter (5\d\d\b|unavailable\b)/i.test(raw)) return "outage";
-  return null;
-}
-
 /** The services whose keys Filow holds (the .env file in the app profile). */
 const PROVIDERS = ["ElevenLabs", "OpenRouter", "OpenAI", "FreeLLMAPI", "Cloudflare", "Anthropic", "Google"];
+
+/** Recovery for a practice question. Only recognized provider prefixes may supply a display name. */
+export function practiceFailure(raw: string): { provider: string; kind: "setup" | "quota" | "outage" } | null {
+  const freeCode = freellmCodeOf(raw);
+  if (freeCode) {
+    const kind = freeCode === "quota" ? "quota" : ["failed", "not_running"].includes(freeCode) ? "outage" : "setup";
+    return { provider: "FreeLLMAPI", kind };
+  }
+  const refusal = /^(No )?(\w+) (key\b|unavailable\b|\d{3}\b)/i.exec(raw);
+  const provider = refusal && PROVIDERS.find(name => name.toLowerCase() === refusal[2].toLowerCase());
+  if (!refusal || !provider) return null;
+  const status = refusal[3].toLowerCase();
+  if ((refusal[1] && status === "key") || status === "401" || status === "403") return { provider, kind: "setup" };
+  if (status === "402" || status === "429") return { provider, kind: "quota" };
+  if (status === "unavailable" || status.startsWith("5")) return { provider, kind: "outage" };
+  return null;
+}
 
 /** What went wrong with an online provider, from the text of its error; null when it is something else. */
 export function providerProblem(text: string): ProviderProblem | null {

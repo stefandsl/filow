@@ -1,5 +1,5 @@
 // Windows operator fixture. Prepare a NEW private directory before launching the candidate:
-// node n02-fixtures.mjs prepare G:/run/fixture 5101 5102 6101 6102
+// node n02-fixtures.mjs prepare ../run/fixture 5101 5102 6101 6102
 // Prepend that directory to PATH for Filow only, with no cloudflared in the synthetic profile.
 // The two advertised hostnames are labels. The replay connects only to the fixture's loopback ports.
 import assert from "node:assert/strict";
@@ -10,6 +10,23 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+// Resolve junctions in existing ancestors even when the requested output is new.
+function realPath(input) {
+  if (fs.existsSync(input)) return fs.realpathSync.native(input);
+  const parent = path.dirname(input);
+  assert(parent !== input, "Replay volume is unavailable");
+  return path.join(realPath(parent), path.basename(input));
+}
+
+export function replayPath(input, runRoot = process.env.FILOW_REPLAY_ROOT || ".") {
+  assert(input, "Missing replay path");
+  const full = realPath(path.resolve(runRoot, input));
+  const checkout = fs.realpathSync.native(path.resolve(import.meta.dirname, "../../.."));
+  const relative = path.relative(checkout, full);
+  assert(relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative), "Use a directory outside the checkout");
+  return full;
+}
 
 function checkedPorts(values) {
   const ports = values.map(Number);
@@ -48,7 +65,7 @@ class Program {
   const source = path.join(dir, "fixture.cs");
   fs.writeFileSync(source, wrapper, { flag: "wx" });
   const compiler = path.join(process.env.SystemRoot, "Microsoft.NET", "Framework64", "v4.0.30319", "csc.exe");
-  execFileSync(compiler, ["/nologo", "/noconfig", "/target:exe", "/out:" + path.join(dir, "cloudflared.exe"), source],
+  execFileSync(compiler, ["/nologo", "/noconfig", "/reference:System.dll", "/target:exe", "/out:" + path.join(dir, "cloudflared.exe"), source],
     { windowsHide: true, timeout: 60000, cwd: dir, env: { SystemRoot: process.env.SystemRoot, TEMP: dir, TMP: dir } });
 }
 
@@ -130,8 +147,7 @@ export async function openRouterFixture(port) {
 
 if (pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   const [mode, directory, ...values] = process.argv.slice(2);
-  assert(directory && /^G:\\/i.test(path.resolve(directory)) && !/^G:\\FILOW(?:\\|$)/i.test(path.resolve(directory)));
-  const dir = path.resolve(directory);
+  const dir = replayPath(directory);
   if (mode === "prepare") await prepare(dir, values);
   else if (mode === "serve") await serve(dir, values[0]);
   else throw new Error("Expected prepare or serve");

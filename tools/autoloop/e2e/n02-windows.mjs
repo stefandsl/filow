@@ -3,8 +3,8 @@
 // Forward the peer browser's DevTools port to loopback, with one fresh about:blank tab.
 // Run once per profile/binary combination. Use the package manifest with archive, sha512,
 // sourceSha and destination (the folder containing win-unpacked). Supply a NEW evidence directory.
-// node tools/autoloop/e2e/n02-windows.mjs --package G:/run/package.json --profile-origin fresh
-//   --out G:/run/evidence/s1-fresh --app-port 5101 --relay-port 5102 --debug-port 9601
+// node tools/autoloop/e2e/n02-windows.mjs --package ../run/package.json --profile-origin fresh
+//   --out ../run/evidence/s1-fresh --app-port 5101 --relay-port 5102 --debug-port 9601
 //   --peer-port 9602 --lan-ip 192.168.1.20
 // The UI result supplements the operator's launch, egress, fixture, profile and restart receipts.
 import assert from "node:assert/strict";
@@ -17,7 +17,7 @@ import path from "node:path";
 import net from "node:net";
 import { parseArgs } from "node:util";
 import { connect, sleep } from "../../whiteboard/qa-dev.mjs";
-import { openRouterFixture } from "./n02-fixtures.mjs";
+import { openRouterFixture, replayPath } from "./n02-fixtures.mjs";
 
 async function until(read, description) {
   const deadline = Date.now() + 30_000;
@@ -27,12 +27,6 @@ async function until(read, description) {
     await sleep(200);
   } while (Date.now() < deadline);
   throw new Error("Timed out waiting for " + description);
-}
-
-function projectVolume(input) {
-  const full = path.resolve(input);
-  assert(/^G:\\/i.test(full) && !/^G:\\FILOW(?:\\|$)/i.test(full), "Use a private directory on G:");
-  return full;
 }
 
 async function attach(port, match) {
@@ -402,19 +396,19 @@ async function main() {
   const [app, relay, debug, peerPort] = ports;
   const ip = values["lan-ip"];
   if (!input) assert(isIPv4(ip) && /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip), "Expected private LAN IPv4");
-  const manifest = JSON.parse(fs.readFileSync(projectVolume(values.package), "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(replayPath(values.package), "utf8"));
   const sha = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
   assert.match(sha, /^[\da-f]{40}$/);
   assert.equal(manifest.sourceSha, sha);
   const digest = createHash("sha512");
-  for await (const chunk of fs.createReadStream(projectVolume(manifest.archive))) digest.update(chunk);
+  for await (const chunk of fs.createReadStream(replayPath(manifest.archive))) digest.update(chunk);
   const packageSha512 = digest.digest("hex");
   assert.equal(packageSha512, manifest.sha512.toLowerCase());
-  const destination = projectVolume(manifest.destination);
+  const destination = replayPath(manifest.destination);
   const owner = windowOwner(input && entry === "welcome" ? [debug] : [app, relay, debug], destination);
-  const dir = projectVolume(values.out);
+  const dir = replayPath(values.out);
   fs.mkdirSync(dir);
-  const fixture = values["fixture-dir"] && projectVolume(values["fixture-dir"]);
+  const fixture = values["fixture-dir"] && replayPath(values["fixture-dir"]);
   const record = { item: failure ? 5 : cloudPort ? 4 : input ? 3 : fixture ? 2 : 1, mode: failure || (cloudPort ? "Approved words-only loopback trial" : input || (fixture ? "Loopback public-link fixture and LAN peer" : "LAN mirror UI")), profileOrigin: values["profile-origin"], sha, packageSha512,
     device: os.hostname(), os: os.version(), owner, ports, command: process.argv, cwd: process.cwd(), start: new Date().toISOString(),
     expected: input ? "Find and activate Save practice through the selected input path" : fixture ? "Decline, cancel connecting, approve a remote phone, receive state, revoke both transports and advance a slide on LAN" : "Local pairing, synchronized slide advance and rejection of the spent code" };
