@@ -5,6 +5,7 @@ import type { DecideRequest, DecideResponse } from "./api";
 import frozen from "../../../tools/autoloop/e2e/n03-cases.json";
 import { matcherDecide } from "./matcher";
 import { pointDisplayState } from "./anchor";
+import { checkClaim } from "./guard";
 
 const SCRIPT = parseScript(`# Intro
 - hello everyone
@@ -163,6 +164,17 @@ describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries",
     expect(pointDisplayState(e.getState().points.s0b2)).toBe("waiting");
     e.feed({ partial: journey.clips.resume.text });
     expect(pointDisplayState(e.getState().points.s0b2)).toBe("active");
+  });
+  it("sends the original owner label to the provider and measures evidence against the script", async () => {
+    const { e, calls } = makeEngine([{ s0b1: 0.95 }]);
+    const script = parseScript(journey.script);
+    const label = script.sections[0].bullets[1];
+    const spoken = journey.clips.alias.text;
+    e.loadScript(script);
+    e.feed({ committed: spoken });
+    await e.tick();
+    expect(calls[0].bullets.find(b => b.id === label.id)).toEqual(label);
+    expect(e.getState().points[label.id].evidence).toMatchObject({ quote: spoken, lexical: checkClaim(label.text, spoken).lexical });
   });
   it("matches a named owner expressed as a verb and keeps other people and general mentions open", async () => {
     // Exercise the real matcher's lexical stage in isolation from embeddings and hardware.

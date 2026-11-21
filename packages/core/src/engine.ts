@@ -4,6 +4,7 @@ import { compare, type Operation } from "fast-json-patch";
 import type { DecideRequest, DecideResponse, Decision, Verification } from "./api";
 import { lexicalScores } from "./gate";
 import { TENTATIVE_CONFIDENCE } from "./anchor";
+import { MATCHER_MODEL, matcherDecisions } from "./matcher";
 import { checkClaim, spokenOwnerPoint, type ClaimCheck } from "./guard";
 import { sentences } from "./text";
 import { parseScript, scriptIdentity } from "./script";
@@ -701,12 +702,10 @@ export class Engine {
     this.inFlight = true;
     this.lastSent = windowText;
     this.lastCallAt = now;
-    const ownerMatches = this.lastFinal && windowText.endsWith(this.lastFinal)
-      ? section.bullets.filter(b => spokenOwnerPoint(b.text, this.lastFinal)) : [];
-    const owner = ownerMatches.length === 1 ? ownerMatches[0] : null;
+    const lastFinal = this.lastFinal;
     const req: DecideRequest = {
       transcript: windowText,
-      bullets: owner ? open.map(b => b.id === owner.id ? { ...b, text: this.lastFinal } : b) : open,
+      bullets: open,
       sectionTitle: section.title,
       covered: section.bullets.filter((b) => s.points[b.id]?.status === "started").map((b) => b.text),
       upcoming: s.script.sections[s.sectionIdx + 1]?.bullets.map((b) => b.text) ?? [],
@@ -722,7 +721,21 @@ export class Engine {
       const data = await withTimeout(this.o.decide(req, ctl.signal), this.o.timeoutMs, ctl);
       this.timeouts = 0; // the model answered: it is loaded
       if (epoch !== this.epoch) return; // stale: the script, section, points or take changed meanwhile
-      this.apply(data, req, windowAbs);
+      // The on-device matcher can resolve an exact person/team statement as a synonym.
+      // Keep the provider's prompt and the evidence coverage tied to the original script.
+      let result = data;
+      if (data.model === MATCHER_MODEL && lastFinal && windowText.endsWith(lastFinal)) {
+        const owners = section.bullets.filter(b => spokenOwnerPoint(b.text, lastFinal));
+        if (owners.length === 1 && data.decisions.some(d => d.id === owners[0].id && d.gate !== undefined)) {
+          const rescored = matcherDecisions(data.decisions.map(d => ({
+            id: d.id, similarity: d.gate ?? 0, lexical: d.id === owners[0].id ? 1 : d.lexical,
+          })));
+          result = { ...data, decisions: data.decisions.map((d, i) => ({
+            ...d, started: rescored[i].started, confidence: rescored[i].confidence,
+          })) };
+        }
+      }
+      this.apply(result, req, windowAbs);
       // A point became ready to tick in this answer and waits for its verification: ask now, not on
       // the next timer tick. Once only, so a provider that never answers cannot loop.
       verifyNext = !verifyNow && this.held.size > heldBefore;
