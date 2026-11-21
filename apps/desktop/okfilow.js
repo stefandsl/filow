@@ -43,6 +43,7 @@ function okfilowSender(event, contents, appUrl) {
 const DEFAULTS = {
   wakeWord: false,
   wakeSensitivity: "balanced",
+  wakeBare: true,
   enabled: true,
   hotkey: "ctrl+alt",
   provider: "local",
@@ -867,13 +868,15 @@ function createOkFilow(deps) {
   }
 
   function applyConfig(patch) {
+    const bareChanged = typeof patch?.wakeBare === "boolean" && patch.wakeBare !== cfg().wakeBare;
     if (patch?.wakeWord === false || patch?.enabled === false) wake?.stop();
     if (patch && "wakeWord" in patch) patch = { ...patch, wakeWord: false };
     // The panel's dictation switch writes dictation.js's setting (it used to live in okFilow.dictation).
     const { dictation: dictationOn, ...rest } = patch || {};
     if (typeof dictationOn === "boolean") dictation.configure({ enabled: dictationOn });
     const c = setCfg(rest);
-    wake?.reconcile();
+    if (bareChanged) void wake?.setBare(c.wakeSensitivity, c.wakeBare);
+    else wake?.reconcile();
     // OK Filow or its eye turned on: the screen names helper is ready by the next question
     if (c.enabled && c.seeScreen !== "off") uia?.start();
     protectAll(hidden());
@@ -1759,10 +1762,10 @@ function createOkFilow(deps) {
     if (action === "status") return wake.status();
     if (action === "off") { wake.stop(); return wake.status(); }
     if (action === "setup") { if (isOffline()) { wake.fail(new Error("Offline: wake models cannot download")); return wake.status(); } return wake.setup(data === true); }
-    if (action === "enable") return wake.enable(cfg().wakeSensitivity);
+    if (action === "enable") return wake.enable(cfg().wakeSensitivity, cfg().wakeBare);
     if (action === "sample") return wake.sample(data?.index, data?.samples);
     if (action === "negative") return wake.negative(data?.index, data?.samples);
-    if (action === "train") return wake.train();
+    if (action === "train") return wake.train(cfg().wakeSensitivity);
     if (action === "delete") return wake.remove();
     if (action === "test") return wake.test(data);
     if (action === "error") { wake.fail(new Error(String(data).slice(0, 240))); return wake.status(); }

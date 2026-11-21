@@ -6,7 +6,13 @@ export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "apps/web") } },
   esbuild: { jsx: "automatic" },
   test: {
-    include: ["apps/cloud/**/*.test.ts", "apps/web/components/**/*.test.tsx", "apps/desktop/**/*.test.ts", "packages/*/src/**/*.test.ts", "apps/server/src/**/*.test.ts", "apps/powerpoint/src/**/*.test.ts", "apps/browser/src/**/*.test.ts", "apps/web/lib/**/*.test.ts", "apps/web/app/**/*.test.ts", "tools/autoloop/**/*.test.ts", "tools/release/**/*.test.ts", "tools/factory/**/*.test.ts", "tools/eval/**/*.test.ts", "tools/wake/**/*.test.ts"],
+    // Factory integration starts real Git and Node children. Give it a separate
+    // scheduling group so hundreds of file workers cannot starve child startup.
+    maxWorkers: process.platform === "win32" ? 4 : undefined,
+    projects: [
+      { extends: true, test: { name: "factory", include: ["tools/factory/factory.test.ts"], sequence: { groupOrder: 0 } } },
+      { extends: true, test: { name: "unit", include: ["apps/cloud/**/*.test.ts", "apps/web/components/**/*.test.tsx", "apps/desktop/**/*.test.ts", "packages/*/src/**/*.test.ts", "apps/server/src/**/*.test.ts", "apps/powerpoint/src/**/*.test.ts", "apps/browser/src/**/*.test.ts", "apps/web/lib/**/*.test.ts", "apps/web/app/**/*.test.ts", "tools/autoloop/**/*.test.ts", "tools/release/**/*.test.ts", "tools/eval/**/*.test.ts", "tools/wake/**/*.test.ts", "tools/factory/**/*.test.ts"], exclude: ["**/node_modules/**", "tools/factory/factory.test.ts"], sequence: { groupOrder: 1 } } },
+    ],
     environment: "node",
     // The default 5 s is too tight for a two-core CI runner: a first call that really probes the hardware,
     // or a property test beside the whole suite, crossed it there while taking a fraction of a second here.

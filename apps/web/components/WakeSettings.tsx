@@ -16,6 +16,7 @@ export function WakeSettings({ lang }: { lang: string }) {
   const [draft, setDraft] = useState<Float32Array | null>(null);
   const [error, setError] = useState("");
   const [playback, setPlayback] = useState("");
+  const [bare, setBare] = useState(true);
   const [sensitivity, setSensitivity] = useState("balanced");
   const capture = useRef<{ stop(): void } | null>(null);
   const chunks = useRef<Float32Array[]>([]);
@@ -36,7 +37,7 @@ export function WakeSettings({ lang }: { lang: string }) {
   }, [draft]);
   useEffect(() => {
     mounted.current = true;
-    void okFilowSettingsBridge()?.status().then((s) => { if (mounted.current) setSensitivity(s.wakeSensitivity ?? "balanced"); });
+    void okFilowSettingsBridge()?.status().then((s) => { if (mounted.current) { setSensitivity(s.wakeSensitivity ?? "balanced"); setBare(s.wakeBare !== false); } });
     const sessionGeneration = generation;
     const refresh = () => { void okFilowSettingsBridge()?.wakeAction?.("status").then((s) => { if (mounted.current) setStatus(s); }).catch(() => {}); };
     refresh(); const poll = setInterval(refresh, 500);
@@ -76,6 +77,7 @@ export function WakeSettings({ lang }: { lang: string }) {
   const rawError = (status?.error || error).startsWith("Replay check required") ? t("wakeVerifyFirst") : status?.error || error;
   const check = status?.verification?.[sensitivity];
   const verified = check?.total === 5 && check.recognised >= 4 && check.negativeAccepts === 0;
+  const fallback = status?.prefixFallback?.[sensitivity] === true;
   const reason = rawError.match(/(?:^|: )(short|quiet|clipped)$/)?.[1];
   const shownError = reason === "short" ? t("wakeShort") : reason === "quiet" ? t("wakeQuiet") : reason === "clipped" ? t("wakeClipped") : rawError;
   return <fieldset className="strip" aria-label={t("wakeLabel")}>
@@ -87,6 +89,7 @@ export function WakeSettings({ lang }: { lang: string }) {
       <button className="btn" onClick={() => setNotice(false)}>{t("wakeCancel")}</button>
     </div>}
     <p role="status">{shownError || (status?.phase === "training" ? t("wakeTraining") : busy ? t("wakeWorking") : status?.listening ? t("wakeListening") : status?.enabled ? t("wakePaused") : t("wakeReady"))}</p>
+    {status?.legacyPhrase && <p>{t("wakeLegacy")}</p>}
     <p>{index + 1} / {negative ? 2 : 5} · {t(negative ? "wakeNegative" : "wakeRecord")}</p>
     <p>{t("wakeNegativeHelp")}</p>
     <button className="btn" disabled={recording || busy} onClick={() => { setNegative(!negative); setIndex(0); setDraft(null); }}>{t(negative ? "wakeRecord" : "wakeNegative")}</button>
@@ -105,11 +108,18 @@ export function WakeSettings({ lang }: { lang: string }) {
     }}>
       <option value="strict">{t("wakeStrict")}</option><option value="balanced">{t("wakeBalanced")}</option><option value="sensitive">{t("wakeSensitive")}</option>
     </select></label>
+    {!status?.legacyPhrase && <label className="row"><input type="checkbox" checked={bare && !fallback} disabled={busy || recording || fallback}
+      onChange={async e => {
+        const value = e.target.checked;
+        const updated = await okFilowSettingsBridge()?.configure({ wakeBare: value });
+        if (updated && mounted.current) setBare(updated.wakeBare !== false);
+      }} />{t("wakeBare")}</label>}
+    {fallback && <p role="status">{t("wakePrefixFallback")}</p>}
     <p>{t("wakeTradeoff")}</p>
     <p role="status">{check ? t("wakeRecognised").replace("{n}", String(check.recognised)).replace("{a}", String(check.negativeAccepts)).replace("{b}", String(check.negatives)) : t("wakeVerifyFirst")}</p>
     <div className="row">
-      <button className="btn" disabled={busy || recording || !verified} onClick={async () => { await action("test", true); await action("enable"); }}>{t("wakeTry")}</button>
-      <button className="btn" disabled={busy || recording || !verified} onClick={async () => { await action("test", false); await action("enable"); }}>{t("wakeEnable")}</button>
+      <button className="btn" disabled={busy || recording || !(verified || fallback)} onClick={async () => { await action("test", true); await action("enable"); }}>{t("wakeTry")}</button>
+      <button className="btn" disabled={busy || recording || !(verified || fallback)} onClick={async () => { await action("test", false); await action("enable"); }}>{t("wakeEnable")}</button>
       <button className="btn" disabled={recording} onClick={() => void action("delete")}>{t("wakeDelete")}</button>
       <button className="btn" onClick={() => { if (recording) stopRecording(); void action("off"); }}>{t("wakeOff")}</button>
     </div>

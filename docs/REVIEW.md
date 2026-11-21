@@ -76,9 +76,37 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R63 (2026-11-20, N-08): Use one environment allowlist for every dispatch. Check: test each packet type with plain Git, multiple indexed configuration pairs and the operator author and committer identities.
 - R64 (2026-11-20, N-08): Apply the validated rule append exception to every frozen file-list check. Check: freeze HANDOFF.md alone, verify a corrective rule append through the judge packet and refuse a rewritten prior rule.
 - R65 (2026-11-20, N-08): Exercise the packaged Save button and its owned Windows dialog in a fresh profile with a Desktop folder. Check: compare the saved file with the displayed preview and record the screenshot, file hash and startup log on two launches.
-- R66 (2026-11-20, N-02): Require a grant for the named model repository before starting an embedding worker. Check: open a fresh and upgraded script with missing model files, decline the download and count workers and outbound requests.
-- R67 (0.9.44): Keep optional model downloads in Settings. Check the idle prompter and a live take for unsolicited download controls.
-- R68 (0.9.44): Explain the new grant once beside the download button for previous pre-filter users. Check a fresh profile, a legacy profile and a second Settings visit.
-- R69 (0.9.44): Date both privacy policies when model download behavior changes. Compare the sentences in the outbound sections and both revision dates.
-- R70 (0.9.44): Record the packaged grant action and embedding worker starts alongside model requests. Check both counts before and after acceptance on fresh and upgraded profiles.
-- R71 (0.9.44): Use the established Russian term for downloading files in upgrade notices. Check the Russian UI and installer wording with the typography suite.
+
+- R66 (2026-11-20, wake-filow): match the spoken enrolment prompt to the profile-specific keyword list. Check bare and prefixed phonemes, five localized prompts, and keyword generation for a pre-upgrade profile.
+- R67 (2026-11-20, wake-filow): match hard negatives and training context to every supported prefix. Check held-out bare, OK and Hey calls and near words for each enrolled language.
+- R68 (2026-11-20, wake-filow): keep old enrolment takes out of the new phrase training set. Check an upgraded profile still enables and its old files do not count towards the new five.
+- R69 (2026-11-20, wake-filow): calibrate short phrase verification against ordinary speech as well as the enrolled takes. Check both pipelines on identical timed multilingual speech and report accepts per hour at each sensitivity.
+- R70 (2026-11-20, wake-filow): use separate keyword tuning for bare and prefixed calls. Check the complete normal-speech corpus at default sensitivity, and report confusable words separately.
+- R71 (2026-11-21, wake-filow): test prefix-required mode with real inference because a permissive spotter can infer a missing prefix. Check a repeated bare clip through the packaged microphone with the setting off and on.
+- R72 (2026-11-21, wake-filow): preserve a verified legacy profile when replacement replay fails. Check: fail replay after five new takes, compare the saved bytes and enable the old head with bare calls off.
+- R73 (2026-11-21, wake-filow): retire superseded recordings only after the replacement profile is saved. Check: include an old personal negative, fail then pass retraining and inspect both sample directories.
+- R74 (2026-11-21, wake-filow): exercise every spoken prefix during augmentation. Check: trace marked clips through the embedding input and score bare, OK and Hey separately.
+- R75 (2026-11-21, wake-filow): exclude real words produced by stripping a prefix. Check: inspect the generated bare lexicon for hero.
+- R76 (2026-11-21, wake-filow): use the strong speaker threshold with keyword agreement for Strict on new profiles. Check: replay the same marginal score in both modes and measure near accepts and continuous false wakes.
+- R77 (2026-11-21, wake-filow): replay prefix-required evaluation with both production detectors. Check: select prefix in phrase-eval and compare bare rejections and prefixed detections.
+- R78 (2026-11-21, wake-filow): preserve listening intent when a keyword setting changes. Check: switch rapidly during reconfiguration, then toggle a stopped detector and inspect its state.
+- R79 (2026-11-21, wake-filow): schedule the process-heavy factory suite apart from the general Vitest worker pool. Check: run the full gate and inspect the three multi-checkout fixture timings against their original budgets.
+- R80 (2026-11-21, wake-filow): reserve test speakers, vocabulary and source utterance IDs before detector selection. Check: hash the frozen manifest, reject changed WAVs and score six distinct hours separately from tuning.
+- R81 (2026-11-21, wake-filow): feed paced clips at the packaged capture boundary with a single audio producer. Check: record default bare, prefixed and near-word counts and repeat the bare clip twice after disabling it.
+- R82 (2026-11-21, wake-filow): keep each interrupted-checkout scenario independent so its timeout measures one recovery. Check: exercise all five failures with real Git, then inspect dependencies, branch, working tree and commit.
+- R83 (2026-11-21, wake-filow): lint packaged replay callbacks in their Node harness. Check: run ESLint on the harness and exercise the same callbacks in the packaged renderer.
+- R84 (2026-11-21, wake-filow): serialize wake inference and bound capture jitter to two pending 100 ms blocks. Check: release a delayed inference, verify ordering, stop with a queued block, and exhaust the buffer to verify overload still closes capture.
+- R85 (2026-11-21, wake-filow): finish retiring old recordings after an interrupted migration. Check: reopen a valid new profile with an orphaned old sample and verify only the current takes survive.
+- R86 (2026-11-21, wake-filow): record Settings state from the real checkbox during hidden packaged audio replay. Check: read the checked value in both themes and toggle it in each direction while listening.
+- R87 (2026-11-21, wake-filow): keep host paths and chosen port numbers in private packaged receipts. Check: the public evaluation names the isolation method and measurements, and contains no workstation paths or assigned ports.
+- R88 (2026-11-21, wake-filow): supersede R84 on backlog overflow. Check: delay one inference for eight blocks and verify capture delivers the first and newest two in order.
+- R89 (2026-11-21, wake-filow): accept caller-selected volumes for packaged QA. Check: supply separate executable and profile volumes and reject an existing profile.
+- R90 (2026-11-21, wake-filow): include the original microphone takes during bare training and keep Balanced available through prefix recognition when bare replay misses. Check: trace five clean inputs and enable an ineligible bare profile through Settings.
+- R91 (2026-11-21, wake-filow): select Strict eligibility per spoken form. Check: enable Strict on a failed bare replay, require the prefix and measure all forms under the effective detector.
+- R92 (2026-11-21, wake-filow): exercise a real prefixed call for each accent that needs fallback. Check: spot the prefix independently, require the personal head after its end, then enable both modes in packaged Settings and replay held-out OK calls.
+- R93 (2026-11-20, N-02): Require a grant for the named model repository before starting an embedding worker. Check: open a fresh and upgraded script with missing model files, decline the download and count workers and outbound requests.
+- R94 (0.9.44): Keep optional model downloads in Settings. Check the idle prompter and a live take for unsolicited download controls.
+- R95 (0.9.44): Explain the new grant once beside the download button for previous pre-filter users. Check a fresh profile, a legacy profile and a second Settings visit.
+- R96 (0.9.44): Date both privacy policies when model download behavior changes. Compare the sentences in the outbound sections and both revision dates.
+- R97 (0.9.44): Record the packaged grant action and embedding worker starts alongside model requests. Check both counts before and after acceptance on fresh and upgraded profiles.
+- R98 (0.9.44): Use the established Russian term for downloading files in upgrade notices. Check the Russian UI and installer wording with the typography suite.

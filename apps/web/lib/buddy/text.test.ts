@@ -23,3 +23,10 @@ describe.each([["OK Filow", OKF_TEXT as Record<string, Record<string, string>>],
     expect(Object.keys(tables.ja).filter((k) => /[ぁ-ヿ一-鿿][.,] /.test(tables.ja[k]))).toEqual([]);
   });
 });
+
+it.each(LANGS)("prompts for Filow alone during %s enrolment", (lang) => {
+  for (const key of ["wakeRecord", "wakeLabel", "wakeListening", "wakeShort", "wakeNegativeHelp"] as const) {
+    expect(OKF_TEXT[lang][key]).toContain("Filow");
+    expect(OKF_TEXT[lang][key]).not.toContain("OK Filow");
+  }
+});

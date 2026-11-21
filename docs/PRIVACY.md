@@ -1,10 +1,10 @@
 # Filow privacy policy
 
-Experimental branch addition: the opt-in OK Filow wake word processes audio only
+Experimental branch addition: the opt-in Filow wake word processes audio only
 on this computer, in memory. It never opens the microphone without a visible
-listening indicator and a one-click Off control. Only the five enrollment
-recordings you accept are saved in the app profile, with the trained personal
-head. Settings can delete both. Model downloads require an explicit source,
+listening indicator and a one-click Off control. The app profile stores the five accepted enrollment takes, up to two optional
+negative examples you accept and the personal detector. Successful retraining
+removes the previous phrase’s recordings. Settings can delete all wake data. Model downloads require an explicit source,
 size and licence notice; listening makes no network requests. After detection,
 the ordinary question retains its existing provider and outbound consent rules.
 See [wake-word evidence](okfilow/WAKE-WORD.md).

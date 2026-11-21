@@ -13,6 +13,8 @@ Raportează o problemă: în Filow, deschide meniul Filow > Raportează o proble
 
 Filow cere permisiunea înainte de a contacta Hugging Face pentru a descărca modelul care identifică punctele prezentării. Dacă ai folosit prefiltrul, permite o singură dată descărcarea în Setări.
 
+Ajunge să spui „Filow” ca să chemi asistentul; „OK Filow” și „Hey Filow” merg în continuare. Filow păstrează până la două înregistrări de exemplu opționale pe care le accepți și șterge înregistrările frazei vechi după reantrenare.
+
 # Filow 0.9.43 (Versiune preliminară)
 
 * Trage de colțul unui card OK Filow pentru a-i schimba dimensiunea în timp real. Funcționează și pentru cardurile cu desene (#8).

@@ -1,6 +1,6 @@
-# Experimental OK Filow wake word
+# Experimental Filow wake word
 
-Branch: `feat-wake-word`, based on `3479560`. Not a release recommendation.
+Current phrase and upgrade measurements: [Filow wake evaluation](WAKE-FILOW.md). The November 14 results below describe the earlier `feat-wake-word` branch at its original operating point.
 
 ## Round 3 measured result, 14 November 2026
 
@@ -494,12 +494,11 @@ None of the requested numerical acceptance targets should be marked complete.
 
 ## Implementation and defaults
 
-`apps/desktop/wake-policy.js` names the defaults in `DEFAULTS` and the fifteen
-phone spellings in `SPELLINGS`. The settings sensitivity defaults to Balanced.
+`apps/desktop/wake-policy.js` names the defaults in `DEFAULTS` and the bare and prefixed phone spellings in `SPELLINGS`. The settings sensitivity defaults to Balanced.
 
-1. Phrase: OK Filow, including FEE-lo, FY-lo and fellow-like variants. The five
+1. Say Filow. OK Filow and Hey Filow are also recognized. The five
    personal recordings determine the head in practice.
-2. No longer phrase.
+2. Existing verified profiles keep their previous phrase during enrolment.
 3. No follow-up question window after an answer (`followUpMs: 0`).
 4. No interruption while Filow speaks (`interruptSpeech: false`, 600 ms holdoff).
 5. Disabled during every take and slide show.
