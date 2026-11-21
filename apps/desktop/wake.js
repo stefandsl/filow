@@ -180,7 +180,9 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       }
       fs.writeFileSync(profileFile + ".tmp", JSON.stringify(candidate));
       fs.renameSync(profileFile + ".tmp", profileFile);
-      profile = candidate; phase = "ready"; publish();
+      profile = candidate;
+      fs.rmSync(path.join(root, "samples"), { recursive: true, force: true });
+      phase = "ready"; publish();
     } catch (e) { if (token === epoch) fail(e); }
     finally { if (token === epoch) { trainer?.stop(); trainer = null; } }
     return snapshot();

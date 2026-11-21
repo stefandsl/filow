@@ -168,3 +168,36 @@ describe("enrolment and downloads", () => {
     expect(detected).not.toHaveBeenCalled(); wake.stop();
   });
 });
+it("keeps a legacy profile and its recordings until a replacement passes replay", async () => {
+  const dir = temp(), root = path.join(dir, "wake"), old = path.join(root, "samples");
+  fs.mkdirSync(old, { recursive: true });
+  const file = path.join(root, "profile.json");
+  const legacy = { version: 1, weights: Array(1152).fill(0), bias: 0, thresholds, verification,
+    models: FILES.map((f: { sha256: string }) => f.sha256).join(":") };
+  const bytes = JSON.stringify(legacy);
+  fs.writeFileSync(file, bytes);
+  const pcm = Float32Array.from({ length: 16000 }, (_, i) => .1 * Math.sin(i / 8));
+  for (const name of ["1", "2", "3", "4", "5", "negative-1"]) fs.writeFileSync(path.join(old, name + ".wav"), wav(pcm));
+  let score = -100;
+  const load = vi.fn(async () => ({ feed: async (_pcm: unknown, at: number) => ({ at, score, keyword: true, ms: 1 }),
+    reset: async () => {}, stop: vi.fn() }));
+  const child = Object.assign(new EventEmitter(), { kill: vi.fn(), postMessage(m: { id: number }) {
+    queueMicrotask(() => child.emit("message", { id: m.id, profile: legacy }));
+  } });
+  const wake = createWake({ userData: dir, state: () => ready, changed: vi.fn(), detected: vi.fn(),
+    verifyModelsFn: async () => {}, utilityProcess: { fork: () => child }, createDetectorsFn: load });
+  for (let i = 0; i < 5; i++) wake.sample(i, pcm);
+  expect(await wake.train("balanced")).toMatchObject({ legacyPhrase: true, error: expect.stringContaining("Replay check") });
+  expect(fs.readFileSync(file, "utf8")).toBe(bytes);
+  expect(fs.readdirSync(old)).toHaveLength(6);
+  expect(await wake.enable("balanced", false)).toMatchObject({ listening: true });
+  expect(load).toHaveBeenLastCalledWith(expect.any(String), { ...legacy, requirePrefix: false }, expect.anything());
+  score = 100;
+  expect(await wake.train("balanced")).toMatchObject({ legacyPhrase: false, recordings: 5, error: "" });
+  expect(fs.existsSync(old)).toBe(false);
+  expect(JSON.parse(fs.readFileSync(file, "utf8")).phrase).toBe("Filow");
+});
+
+it("excludes the unprefixed English word hero from new keywords", () => {
+  expect(SPELLINGS).not.toContain("HH IY1 R OW0");
+});

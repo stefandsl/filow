@@ -83,3 +83,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R69 (2026-11-20, wake-filow): calibrate short phrase verification against ordinary speech as well as the enrolled takes. Check both pipelines on identical timed multilingual speech and report accepts per hour at each sensitivity.
 - R70 (2026-11-20, wake-filow): use separate keyword tuning for bare and prefixed calls. Check the complete normal-speech corpus at default sensitivity, and report confusable words separately.
 - R71 (2026-11-21, wake-filow): test prefix-required mode with real inference because a permissive spotter can infer a missing prefix. Check a repeated bare clip through the packaged microphone with the setting off and on.
+- R72 (2026-11-21, wake-filow): preserve a verified legacy profile when replacement replay fails. Check: fail replay after five new takes, compare the saved bytes and enable the old head with bare calls off.
+- R73 (2026-11-21, wake-filow): retire superseded recordings only after the replacement profile is saved. Check: include an old personal negative, fail then pass retraining and inspect both sample directories.
