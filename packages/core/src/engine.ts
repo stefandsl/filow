@@ -199,7 +199,7 @@ export class Engine {
     if (!this.scriptKey || script.source === "screen" || !script.sections[sectionIdx]) return null;
     const committed: Record<string, PointState> = {};
     for (const [id, point] of Object.entries(points)) {
-      if (point.status !== "waiting") {
+      if (point.status !== "waiting" || point.reopened) {
         committed[id] = structuredClone(point);
         delete committed[id].active;
       }
@@ -262,7 +262,7 @@ export class Engine {
     const s = this.state;
     const section = s.script.sections[s.sectionIdx];
     if (!section) return;
-    const open = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting");
+    const open = section.bullets.filter((b) => canAutoMark(s.points[b.id]));
     if (!open.length) return;
     const hot = this.partialMatches(open);
     const on = open.filter((b) => hot.has(b.id) && !s.points[b.id]?.active).map((b) => b.id);
@@ -365,7 +365,7 @@ export class Engine {
       case "markMissed":
         return this.setPoint(cmd.id, { status: "missed", confidence: this.state.points[cmd.id]?.confidence ?? 0 });
       case "reopen":
-        return this.setPoint(cmd.id, { status: "waiting", confidence: 0 });
+        return this.setPoint(cmd.id, { status: "waiting", confidence: 0, reopened: true });
       case "startTake":
         this.start();
         return { ok: true };
@@ -430,7 +430,7 @@ export class Engine {
       for (const sec of st.script.sections.slice(st.sectionIdx, Math.max(st.sectionIdx, idx))) {
         for (const b of sec.bullets) {
           const cur = st.points[b.id];
-          if (!cur || cur.status === "waiting") st.points[b.id] = { status: "missed", confidence: cur?.confidence ?? 0 };
+          if (canAutoMark(cur)) st.points[b.id] = { status: "missed", confidence: cur?.confidence ?? 0 };
         }
       }
       for (const b of bullets.slice(from)) if (st.points[b.id]?.status === "missed") delete st.points[b.id];
@@ -483,7 +483,7 @@ export class Engine {
         for (const sec of st.script.sections.slice(st.sectionIdx, target)) {
           for (const b of sec.bullets) {
             const cur = st.points[b.id];
-            if (!cur || cur.status === "waiting") st.points[b.id] = { status: "missed", confidence: cur?.confidence ?? 0 };
+            if (canAutoMark(cur)) st.points[b.id] = { status: "missed", confidence: cur?.confidence ?? 0 };
           }
         }
       }
@@ -593,7 +593,7 @@ export class Engine {
     /** offset of the window in the whole committed stream, to date the evidence of a flip */
     const windowAbs = this.committedTotal - raw.length + startIdx;
     if (!windowText) return;
-    const allOpen = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting");
+    const allOpen = section.bullets.filter((b) => canAutoMark(s.points[b.id]));
     if (!allOpen.length) return;
     if (windowText === this.lastSent) {
       // Same text as last time: only worth a call when a point is one confirmation or its verification away, and only once.
@@ -775,6 +775,10 @@ export class Engine {
 }
 
 export class TimeoutError extends Error {}
+
+function canAutoMark(point: PointState | undefined): boolean {
+  return !point || (point.status === "waiting" && !point.reopened);
+}
 
 function withTimeout<T>(p: Promise<T>, ms: number, ctl?: AbortController): Promise<T> {
   return new Promise<T>((resolve, reject) => {

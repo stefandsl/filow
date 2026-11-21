@@ -51,6 +51,8 @@ export type PointState = {
    * for the UI only: partial text never flips a point. Cleared by the model's next answer about it.
    */
   active?: boolean;
+  /** Presenter explicitly undid completion. Manual mark or section reset releases the override. */
+  reopened?: true;
   /** Why the point is done ("why is this done?" in the UI): set by every flip and manual mark. */
   evidence?: Evidence;
 };

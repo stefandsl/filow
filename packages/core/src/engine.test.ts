@@ -83,6 +83,27 @@ describe("script-scoped place", () => {
 });
 
 describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries", (_lang, journey) => {
+  it("keeps the presenter's reopen through old words, navigation and recovery", async () => {
+    const { e } = makeEngine([{ s0b1: 0.96 }]);
+    const script = parseScript(journey.script);
+    e.loadScript(script);
+    e.feed({ committed: journey.clips.alias.text + " " });
+    await e.tick();
+    expect(e.getState().points.s0b1.evidence).toMatchObject({ source: "model", quote: journey.clips.alias.text });
+    e.dispatch({ type: "reopen", id: "s0b1" });
+    e.feed({ committed: journey.general });
+    await e.tick();
+    e.dispatch({ type: "anchor", idx: 1 });
+    expect(e.getState().points.s0b1).toMatchObject({ status: "waiting", reopened: true });
+    const saved = e.committedPlace();
+    e.loadScript(script, saved);
+    expect(e.getState().points.s0b1).toMatchObject({ status: "waiting", reopened: true });
+    e.dispatch({ type: "anchor", idx: 0 });
+    e.dispatch({ type: "resetSection" });
+    e.feed({ committed: journey.clips.alias.text });
+    await e.tick();
+    expect(e.getState().points.s0b1.status).toBe("started");
+  });
   it("clears a tentative restore hint as soon as the corrected final arrives", () => {
     const { e } = makeEngine();
     e.loadScript(parseScript(journey.script));

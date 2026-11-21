@@ -163,7 +163,7 @@ async function checkJourney(language: Corpus["language"]) {
         expect(statuses()).toEqual(["started", "started", "started", "started", "waiting", "waiting"]);
         // The presenter reopens the earlier owner point for a later follow-up.
         expect(engine.dispatch({ type: "reopen", id: "s0b1" })).toEqual({ ok: true });
-        expect(engine.getState().points.s0b1).toEqual({ status: "waiting", confidence: 0 });
+        expect(engine.getState().points.s0b1).toEqual({ status: "waiting", confidence: 0, reopened: true });
       }
       const before = structuredClone(engine.getState().points);
       const statusesBefore = statuses();
@@ -190,7 +190,7 @@ async function checkJourney(language: Corpus["language"]) {
       expect(flips).toEqual(corpus.labels.filter((label) => label.startedAtSec <= segment.sec));
     }
     expect(statuses()).toEqual(["started", "waiting", "started", "started", "waiting", "waiting"]);
-    expect(engine.getState().points.s0b1).toEqual({ status: "waiting", confidence: 0 });
+    expect(engine.getState().points.s0b1).toEqual({ status: "waiting", confidence: 0, reopened: true });
     expect(engine.getState().sectionIdx).toBe(1);
     expect(engine.getState().engine.recording).toBe(true);
     expect(engine.getState().stats.costUsd).toBe(0);
