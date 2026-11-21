@@ -1335,11 +1335,20 @@ function setTakeLive(on) {
 // The page that reported the take is gone (another page loaded, it crashed, the window closed): the
 // take went with it. Without this the flag would stay set and silence update prompts for good.
 function endTakeWithPage(win) {
-  win.webContents.on("did-start-navigation", (details) => {
-    if (details.isMainFrame && !details.isSameDocument) setTakeLive(false);
+  const owner = win.webContents;
+  const end = () => {
+    setTakeLive(false);
+    if (sttSession?.owner === owner) {
+      const session = sttSession;
+      sttSession = null;
+      void session.dispose().catch(() => {});
+    }
+  };
+  owner.on("did-start-navigation", (details) => {
+    if (details.isMainFrame && !details.isSameDocument) end();
   });
-  win.webContents.on("render-process-gone", () => setTakeLive(false));
-  win.on("closed", () => setTakeLive(false));
+  owner.on("render-process-gone", end);
+  win.on("closed", end);
 }
 
 function installUpdate() {
@@ -1783,6 +1792,7 @@ function wireStt() {
     setSttLanguage(language);
     if (!sttSession) sttSession = new sttLocal.SttSession(userData, logLine, { use: "tracking", getLanguage: sttLanguage, task: () => "tracking" });
     const wc = e.sender;
+    sttSession.owner = wc;
     sttSession.onResult = (r) => !wc.isDestroyed() && wc.send("stt:result", { partial: r.partial, committed: r.committed });
     sttSession.onError = (m) => !wc.isDestroyed() && wc.send("stt:result", { partial: "", committed: "", error: m });
     const out = await sttSession.start(typeof language === "string" ? language : "auto");

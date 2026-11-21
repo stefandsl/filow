@@ -91,6 +91,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
        setTakeLive, loadUpdater, installUpdate, setUpdateState, setMainWin: (win, shown = false) => { mainWin = win; mainWasShown = shown; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
+       setTrackingSession: session => { sttSession = session; },
        offerLocalAi, offerFirewall, welcomeSetup, registerHotkey, permissionFor, copyText: text => clipboard.writeText(text), settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
        onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; }, buildMenu, st,
        setLocalAiHardware: hw => { localAiHardware = Promise.resolve(hw); } });`, {
@@ -471,6 +472,8 @@ describe("update ready during a take", () => {
       (win: FakeWindow) => win.emit("closed"),
     ]) {
       const f = withWindow(), win = fakeWindow();
+      const dispose = vi.fn(async () => {});
+      f.api.setTrackingSession({ owner: win.webContents, dispose });
       f.api.endTakeWithPage(win);
       f.api.setTakeLive(true);
       // a hash change or a frame inside the page is not the page going away
@@ -478,7 +481,9 @@ describe("update ready during a take", () => {
       win.webContents.emit("did-start-navigation", { isMainFrame: false, isSameDocument: false });
       f.updaterHandlers["update-downloaded"]({ version: "9.9.9" });
       expect(f.showMessageBox, "the take is still live").not.toHaveBeenCalled();
+      expect(dispose).not.toHaveBeenCalled();
       leave(win);
+      expect(dispose).toHaveBeenCalledOnce();
       f.updaterHandlers["update-downloaded"]({ version: "9.9.9" });
       expect(f.showMessageBox, "the take ended with its page").toHaveBeenCalledOnce();
     }
