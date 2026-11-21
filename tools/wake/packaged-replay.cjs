@@ -94,15 +94,19 @@ async function run() {
     const checkbox = settings.getByRole("checkbox", { name: /Filow.*Hey/ });
     await checkbox.waitFor();
     if (!await checkbox.isChecked()) throw new Error("Default checkbox is off");
+    const themes = {};
     for (const theme of ["light", "dark"]) {
       await settings.evaluate(value => {
         globalThis.localStorage.setItem("prefs:theme", value);
         globalThis.document.documentElement.dataset.theme = value;
       }, theme);
       await checkbox.scrollIntoViewIfNeeded();
-      await settings.screenshot({ path: path.join(root, theme + ".png") });
+      themes[theme] = await checkbox.evaluate(el => ({
+        checked: el.checked, label: el.labels[0].textContent,
+        color: globalThis.getComputedStyle(el.closest("label")).color,
+      }));
     }
-    const report = { ports, defaults: { bare: config.wakeBare, sensitivity: config.wakeSensitivity }, cases: [] };
+    const report = { ports, themes, defaults: { bare: config.wakeBare, sensitivity: config.wakeSensitivity }, cases: [] };
     await action("test", true);
     await action("enable");
     const replay = async (file, expected, question = false) => {
@@ -139,7 +143,7 @@ async function run() {
     await replay("near0-0.wav", 0);
     await replay("bare-6.wav", 1);
     await replay("ok-6.wav", 1);
-    await checkbox.uncheck();
+    await checkbox.evaluate(el => el.click());
     await panel.waitForFunction(async expected => {
       const state = await globalThis.okFilow.status();
       return state.wakeBare === expected && state.wake?.listening;
@@ -147,7 +151,7 @@ async function run() {
     await replay("bare-6.wav", 0);
     await replay("bare-6.wav", 0);
     await replay("ok-6.wav", 1);
-    await checkbox.check();
+    await checkbox.evaluate(el => el.click());
     await panel.waitForFunction(async () => {
       const state = await globalThis.okFilow.status();
       return state.wakeBare && state.wake?.listening;

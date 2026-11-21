@@ -1,0 +1,970 @@
+{
+  "modelCode": "6f9e671f8149a3ac1749fcbe19fde6e3abb8db0e",
+  "frozenManifest": "2006dd805a9d794c64ea8cba03318aca6bc23d0842a5459adc220f15b827a089",
+  "legacy": [
+    {
+      "lang": "en",
+      "phrase": "ok",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 3,
+          "normal": 2
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 3,
+          "normal": 2
+        }
+      }
+    },
+    {
+      "lang": "it",
+      "phrase": "ok",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 2,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 1
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 0,
+          "near": 0,
+          "normal": 1
+        }
+      }
+    },
+    {
+      "lang": "ro",
+      "phrase": "ok",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 2,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 2,
+          "normal": 0
+        }
+      }
+    },
+    {
+      "lang": "ru",
+      "phrase": "ok",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 2,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        }
+      }
+    },
+    {
+      "lang": "ja",
+      "phrase": "ok",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": false,
+          "bare": 0,
+          "ok": 1,
+          "hey": 0,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 1,
+          "ok": 3,
+          "hey": 0,
+          "near": 2,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 0,
+          "near": 2,
+          "normal": 0
+        }
+      }
+    }
+  ],
+  "roundOne": [
+    {
+      "lang": "en",
+      "phrase": "bare",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 2,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 1
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 1
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 3
+        }
+      }
+    },
+    {
+      "lang": "it",
+      "phrase": "bare",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 1,
+          "hey": 1,
+          "near": 2,
+          "normal": 2
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 1,
+          "hey": 1,
+          "near": 2,
+          "normal": 2
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 0,
+          "hey": 1,
+          "near": 1,
+          "normal": 0
+        }
+      }
+    },
+    {
+      "lang": "ro",
+      "phrase": "bare",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 0
+        }
+      }
+    },
+    {
+      "lang": "ru",
+      "phrase": "bare",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 2,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 2,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 2,
+          "hey": 1,
+          "near": 0,
+          "normal": 1
+        }
+      }
+    },
+    {
+      "lang": "ja",
+      "phrase": "bare",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 1,
+          "hey": 0,
+          "near": 1,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 1,
+          "hey": 0,
+          "near": 1,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 1,
+          "hey": 0,
+          "near": 1,
+          "normal": 1
+        }
+      }
+    }
+  ],
+  "tuning": [
+    {
+      "lang": "en",
+      "phrase": "bare",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 2,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 2
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 4
+        }
+      },
+      "totals": {
+        "bare": 3,
+        "ok": 3,
+        "hey": 1,
+        "near": 4
+      }
+    },
+    {
+      "lang": "it",
+      "phrase": "bare",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": false,
+          "bare": 0,
+          "ok": 2,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": false,
+          "bare": 1,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        }
+      },
+      "totals": {
+        "bare": 3,
+        "ok": 3,
+        "hey": 1,
+        "near": 4
+      }
+    },
+    {
+      "lang": "ro",
+      "phrase": "bare",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 1,
+          "normal": 1
+        }
+      },
+      "totals": {
+        "bare": 3,
+        "ok": 3,
+        "hey": 1,
+        "near": 4
+      }
+    },
+    {
+      "lang": "ru",
+      "phrase": "bare",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 2,
+          "ok": 2,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        }
+      },
+      "totals": {
+        "bare": 3,
+        "ok": 3,
+        "hey": 1,
+        "near": 4
+      }
+    },
+    {
+      "lang": "ja",
+      "phrase": "bare",
+      "seconds": 2880,
+      "counts": {
+        "strict": {
+          "enabled": false,
+          "bare": 2,
+          "ok": 1,
+          "hey": 0,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 0,
+          "near": 0,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 3,
+          "ok": 3,
+          "hey": 0,
+          "near": 0,
+          "normal": 1
+        }
+      },
+      "totals": {
+        "bare": 3,
+        "ok": 3,
+        "hey": 1,
+        "near": 4
+      }
+    }
+  ],
+  "heldOut": [
+    {
+      "lang": "en",
+      "phrase": "bare",
+      "seconds": 5400,
+      "counts": {
+        "strict": {
+          "enabled": false,
+          "bare": 4,
+          "ok": 5,
+          "hey": 5,
+          "near": 1,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 6,
+          "ok": 6,
+          "hey": 5,
+          "near": 3,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 6,
+          "ok": 6,
+          "hey": 5,
+          "near": 4,
+          "normal": 2
+        }
+      },
+      "totals": {
+        "bare": 6,
+        "ok": 6,
+        "hey": 6,
+        "near": 12
+      }
+    },
+    {
+      "lang": "it",
+      "phrase": "bare",
+      "seconds": 5400,
+      "counts": {
+        "strict": {
+          "enabled": false,
+          "bare": 2,
+          "ok": 5,
+          "hey": 6,
+          "near": 1,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": false,
+          "bare": 4,
+          "ok": 6,
+          "hey": 6,
+          "near": 3,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 5,
+          "ok": 6,
+          "hey": 6,
+          "near": 3,
+          "normal": 0
+        }
+      },
+      "totals": {
+        "bare": 6,
+        "ok": 6,
+        "hey": 6,
+        "near": 12
+      }
+    },
+    {
+      "lang": "ro",
+      "phrase": "bare",
+      "seconds": 2100,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 2,
+          "ok": 6,
+          "hey": 6,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 5,
+          "ok": 6,
+          "hey": 6,
+          "near": 2,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 5,
+          "ok": 6,
+          "hey": 6,
+          "near": 2,
+          "normal": 0
+        }
+      },
+      "totals": {
+        "bare": 6,
+        "ok": 6,
+        "hey": 6,
+        "near": 12
+      }
+    },
+    {
+      "lang": "ru",
+      "phrase": "bare",
+      "seconds": 4800,
+      "counts": {
+        "strict": {
+          "enabled": false,
+          "bare": 0,
+          "ok": 5,
+          "hey": 5,
+          "near": 1,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 5,
+          "ok": 6,
+          "hey": 5,
+          "near": 2,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 3,
+          "normal": 0
+        }
+      },
+      "totals": {
+        "bare": 6,
+        "ok": 6,
+        "hey": 6,
+        "near": 12
+      }
+    },
+    {
+      "lang": "ja",
+      "phrase": "bare",
+      "seconds": 3900,
+      "counts": {
+        "strict": {
+          "enabled": false,
+          "bare": 0,
+          "ok": 3,
+          "hey": 2,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": false,
+          "bare": 4,
+          "ok": 5,
+          "hey": 5,
+          "near": 1,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 2,
+          "normal": 2
+        }
+      },
+      "totals": {
+        "bare": 6,
+        "ok": 6,
+        "hey": 6,
+        "near": 12
+      }
+    }
+  ],
+  "requirePrefix": [
+    {
+      "lang": "en",
+      "phrase": "prefix",
+      "seconds": 0,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        }
+      },
+      "totals": {
+        "bare": 3,
+        "ok": 3,
+        "hey": 1,
+        "near": 4
+      }
+    },
+    {
+      "lang": "it",
+      "phrase": "prefix",
+      "seconds": 0,
+      "counts": {
+        "strict": {
+          "enabled": false,
+          "bare": 0,
+          "ok": 1,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 1,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": false,
+          "bare": 0,
+          "ok": 1,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        }
+      },
+      "totals": {
+        "bare": 3,
+        "ok": 3,
+        "hey": 1,
+        "near": 4
+      }
+    },
+    {
+      "lang": "ro",
+      "phrase": "prefix",
+      "seconds": 0,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 3,
+          "hey": 1,
+          "near": 0,
+          "normal": 0
+        }
+      },
+      "totals": {
+        "bare": 3,
+        "ok": 3,
+        "hey": 1,
+        "near": 4
+      }
+    },
+    {
+      "lang": "ru",
+      "phrase": "prefix",
+      "seconds": 0,
+      "counts": {
+        "strict": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 2,
+          "hey": 0,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 2,
+          "hey": 0,
+          "near": 0,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 2,
+          "hey": 0,
+          "near": 0,
+          "normal": 0
+        }
+      },
+      "totals": {
+        "bare": 3,
+        "ok": 3,
+        "hey": 1,
+        "near": 4
+      }
+    },
+    {
+      "lang": "ja",
+      "phrase": "prefix",
+      "seconds": 0,
+      "counts": {
+        "strict": {
+          "enabled": false,
+          "bare": 0,
+          "ok": 1,
+          "hey": 0,
+          "near": 0,
+          "normal": 0
+        },
+        "balanced": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 1,
+          "hey": 0,
+          "near": 0,
+          "normal": 0
+        },
+        "sensitive": {
+          "enabled": true,
+          "bare": 0,
+          "ok": 1,
+          "hey": 0,
+          "near": 0,
+          "normal": 0
+        }
+      },
+      "totals": {
+        "bare": 3,
+        "ok": 3,
+        "hey": 1,
+        "near": 4
+      }
+    }
+  ],
+  "packaged": {
+    "themes": {
+      "light": {
+        "checked": true,
+        "label": "Consenti Filow da solo (disattiva per richiedere OK o Hey prima di Filow)",
+        "color": "rgb(17, 19, 24)"
+      },
+      "dark": {
+        "checked": true,
+        "label": "Consenti Filow da solo (disattiva per richiedere OK o Hey prima di Filow)",
+        "color": "rgb(243, 243, 241)"
+      }
+    },
+    "defaults": {
+      "bare": true,
+      "sensitivity": "balanced"
+    },
+    "cases": [
+      {
+        "file": "near0-0.wav",
+        "bareAllowed": true,
+        "expected": 0,
+        "delta": 0,
+        "questionEvents": 0,
+        "elapsedMs": 3577,
+        "phase": "listening",
+        "error": ""
+      },
+      {
+        "file": "bare-6.wav",
+        "bareAllowed": true,
+        "expected": 1,
+        "delta": 1,
+        "questionEvents": 0,
+        "elapsedMs": 3584,
+        "phase": "listening",
+        "error": ""
+      },
+      {
+        "file": "ok-6.wav",
+        "bareAllowed": true,
+        "expected": 1,
+        "delta": 1,
+        "questionEvents": 0,
+        "elapsedMs": 3693,
+        "phase": "listening",
+        "error": ""
+      },
+      {
+        "file": "bare-6.wav",
+        "bareAllowed": false,
+        "expected": 0,
+        "delta": 0,
+        "questionEvents": 0,
+        "elapsedMs": 3561,
+        "phase": "listening",
+        "error": ""
+      },
+      {
+        "file": "bare-6.wav",
+        "bareAllowed": false,
+        "expected": 0,
+        "delta": 0,
+        "questionEvents": 0,
+        "elapsedMs": 3574,
+        "phase": "listening",
+        "error": ""
+      },
+      {
+        "file": "ok-6.wav",
+        "bareAllowed": false,
+        "expected": 1,
+        "delta": 1,
+        "questionEvents": 0,
+        "elapsedMs": 3678,
+        "phase": "listening",
+        "error": ""
+      },
+      {
+        "file": "bare-6.wav",
+        "bareAllowed": true,
+        "expected": 1,
+        "delta": 1,
+        "questionEvents": 1,
+        "elapsedMs": 2274,
+        "phase": "busy",
+        "error": ""
+      }
+    ],
+    "asarSha256": "afe1d41c7b3f01c9c33821d7d5ac411477c077484ca01f9d831003f0abb2f245"
+  }
+}
