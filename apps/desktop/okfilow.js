@@ -868,13 +868,15 @@ function createOkFilow(deps) {
   }
 
   function applyConfig(patch) {
-    if (patch?.wakeWord === false || patch?.enabled === false || typeof patch?.wakeBare === "boolean") wake?.stop();
+    const bareChanged = typeof patch?.wakeBare === "boolean" && patch.wakeBare !== cfg().wakeBare;
+    if (patch?.wakeWord === false || patch?.enabled === false) wake?.stop();
     if (patch && "wakeWord" in patch) patch = { ...patch, wakeWord: false };
     // The panel's dictation switch writes dictation.js's setting (it used to live in okFilow.dictation).
     const { dictation: dictationOn, ...rest } = patch || {};
     if (typeof dictationOn === "boolean") dictation.configure({ enabled: dictationOn });
     const c = setCfg(rest);
-    wake?.reconcile();
+    if (bareChanged) void wake?.setBare(c.wakeSensitivity, c.wakeBare);
+    else wake?.reconcile();
     // OK Filow or its eye turned on: the screen names helper is ready by the next question
     if (c.enabled && c.seeScreen !== "off") uia?.start();
     protectAll(hidden());

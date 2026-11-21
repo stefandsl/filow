@@ -1,7 +1,7 @@
 // Experimental opt-in controller. Audio stays in memory except explicit enrolment.
 const fs = require("node:fs");
 const path = require("node:path");
-const { DEFAULTS, keywordText, blocked, checkRecording, createCombiner, sensitivity, captureAllowed } = require("./wake-policy");
+const { DEFAULTS, keywordText, blocked, checkRecording, profileCombiner, sensitivity, captureAllowed } = require("./wake-policy");
 const { createCaptureWatch } = require("./okfilow-mic");
 const { validateProfile } = require("./wake-head");
 const { canEnable, replayEnrolment } = require("./wake-enrolment");
@@ -84,9 +84,10 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     return snapshot();
   }
   async function enable(mode, allowBare = true) {
-    stop(); error = ""; const token = epoch;
+    stop(); error = ""; phase = "checking"; const token = epoch;
     try {
       await verifyModelsFn(dir);
+      if (token !== epoch) return snapshot();
       const saved = JSON.parse(fs.readFileSync(profileFile, "utf8"));
       if (!validateProfile(saved) || saved.models !== FILES.map((f) => f.sha256).join(":")) throw new Error("Record or retrain your wake word for these models");
       if (!canEnable(saved.verification, sensitivity(mode))) throw new Error("Replay check required: recognise at least 4 of 5 takes and reject personal negatives");
@@ -102,9 +103,13 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       }
       times.sort((a, b) => a - b);
       if (times[94] > 30) throw new Error(`Wake detector too slow: ${Math.round(times[94])} ms per 100 ms block (limit 30 ms)`);
-      await detectors.reset(); combiner = createCombiner(profile.thresholds, sensitivity(mode), requirePrefix);
+      await detectors.reset(); combiner = profileCombiner({ ...profile, requirePrefix }, sensitivity(mode));
       enabled = true; phase = "ready"; publish(); await reconcile();
     } catch (e) { if (token === epoch) fail(e); }
+    return snapshot();
+  }
+  function setBare(mode, allowBare) {
+    if (enabled || phase === "checking") return enable(mode, allowBare);
     return snapshot();
   }
   async function feed(samples) {
@@ -188,6 +193,6 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     return snapshot();
   }
   function remove() { stop(); fs.rmSync(root, { recursive: true, force: true }); profile = null; error = ""; publish(); return snapshot(); }
-  return { status: snapshot, setup, enable, stop, fail, feed, reconcile, sample, negative, train, remove, test(on) { testing = on === true; count = 0; publish(); return snapshot(); } };
+  return { status: snapshot, setup, enable, setBare, stop, fail, feed, reconcile, sample, negative, train, remove, test(on) { testing = on === true; count = 0; publish(); return snapshot(); } };
 }
 module.exports = { createWake, createDetectors, wav, readSample };

@@ -15,7 +15,7 @@ const LEGACY_SPELLINGS = Object.freeze([
 ]);
 // Stress, vowel and liquid variants used by the multilingual enrolment corpus.
 const BARE_SPELLINGS = [...new Set([
-  ...LEGACY_SPELLINGS.map(s => s.replace(/^.*?K (?:EY|EH)1 /, "")),
+  ...LEGACY_SPELLINGS.map(s => s.replace(/^.*?K (?:EY|EH)1 /, "")).filter(s => s !== "HH IY1 R OW0"),
   "F IY1 L AH0", // Reduced unstressed final vowel.
   "F IH0 L OW1", // Reduced first vowel and final stress.
 ])];
@@ -54,7 +54,7 @@ function blocked(s) {
 function combine(mode, score, kws, thresholds) {
   if (!Number.isFinite(score) || !thresholds || ![thresholds.loose, thresholds.sensitive, thresholds.sure].every(Number.isFinite)) return false;
   if (thresholds.loose > thresholds.sensitive || thresholds.sensitive > thresholds.sure) return false;
-  if (sensitivity(mode) === "strict") return kws === true && score > thresholds.loose;
+  if (sensitivity(mode) === "strict") return kws === true && score > (thresholds.strict ?? thresholds.loose);
   if (sensitivity(mode) === "sensitive") return score > thresholds.sensitive;
   return score > thresholds.sure || (kws === true && score > thresholds.loose);
 }
@@ -80,6 +80,12 @@ function createCombiner(thresholds, mode = "balanced", requirePrefix = false) {
     },
   };
 }
+function profileCombiner(profile, mode) {
+  const thresholds = profile.thresholds;
+  const strict = profile.phrase === DEFAULTS.phrase && mode === "strict";
+  const limits = strict ? { ...thresholds, strict: thresholds.sure } : thresholds;
+  return createCombiner(limits, mode, profile.requirePrefix);
+}
 function checkRecording(samples) {
   if (!(samples instanceof Float32Array) || samples.length < 8000) return "short";
   if (samples.length > 80000) return "long";
@@ -100,4 +106,4 @@ function captureAllowed(channel, s) {
   if (channel === "question") return s.held === true || s.handsFree === true || s.releaseTail === true || s.wakeQuestion === true;
   return false;
 }
-module.exports = { DEFAULTS, SPELLINGS, keywordText, sensitivity, blocked, combine, createCombiner, checkRecording, captureAllowed };
+module.exports = { DEFAULTS, SPELLINGS, keywordText, sensitivity, blocked, combine, createCombiner, profileCombiner, checkRecording, captureAllowed };

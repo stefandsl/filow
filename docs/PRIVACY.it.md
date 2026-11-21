@@ -3,8 +3,10 @@
 Aggiunta del ramo sperimentale: la parola di attivazione Filow, facoltativa,
 elabora l'audio solo in memoria su questo computer. Il microfono non si apre senza
 un indicatore di ascolto visibile e un comando per disattivarlo con un clic.
-Si salvano solo le cinque registrazioni accettate, nel profilo dell'app, insieme
-al modello personale. Le Impostazioni possono eliminare entrambi. Per scaricare
+Il profilo salva le cinque registrazioni accettate, fino a due esempi negativi
+facoltativi accettati e il modello personale. Dopo il nuovo addestramento, Filow
+elimina le registrazioni della frase precedente. Nelle Impostazioni puoi eliminare
+tutti i dati della parola di attivazione. Per scaricare
 i modelli serve accettare l'avviso con fonte, dimensioni e licenza; l'ascolto non
 effettua richieste di rete. Dopo il riconoscimento, la domanda ordinaria conserva
 le regole del fornitore e del consenso all'invio già previste.

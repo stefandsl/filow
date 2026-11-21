@@ -139,3 +139,14 @@ it.skipIf(!process.env.FILOW_WAKE_MODEL_DIR)('matches spike prefix reference vec
     }
   } finally { await e.dispose(); }
 });
+
+it("presents each spoken prefix to the embedding model during enrolment", async () => {
+  const prefixes = Array.from({ length: 10 }, (_, i) => Float32Array.of(2 + i));
+  const observed = new Set<number>();
+  const embedding = { embed: async (pcm: Float32Array) => {
+    for (const sample of pcm) if (sample >= 2) observed.add(sample);
+    return new Float32Array(60 * 96);
+  } };
+  await positiveWindows(embedding, Array(5).fill(new Float32Array(16000).fill(.2)), prefixes);
+  expect([...observed].sort((a, b) => a - b)).toEqual(prefixes.map(p => p[0]));
+});

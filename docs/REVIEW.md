@@ -85,3 +85,11 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R71 (2026-11-21, wake-filow): test prefix-required mode with real inference because a permissive spotter can infer a missing prefix. Check a repeated bare clip through the packaged microphone with the setting off and on.
 - R72 (2026-11-21, wake-filow): preserve a verified legacy profile when replacement replay fails. Check: fail replay after five new takes, compare the saved bytes and enable the old head with bare calls off.
 - R73 (2026-11-21, wake-filow): retire superseded recordings only after the replacement profile is saved. Check: include an old personal negative, fail then pass retraining and inspect both sample directories.
+- R74 (2026-11-21, wake-filow): exercise every spoken prefix during augmentation. Check: trace marked clips through the embedding input and score bare, OK and Hey separately.
+- R75 (2026-11-21, wake-filow): exclude real words produced by stripping a prefix. Check: inspect the generated bare lexicon for hero.
+- R76 (2026-11-21, wake-filow): use the strong speaker threshold with keyword agreement for Strict on new profiles. Check: replay the same marginal score in both modes and measure near accepts and continuous false wakes.
+- R77 (2026-11-21, wake-filow): replay prefix-required evaluation with both production detectors. Check: select prefix in phrase-eval and compare bare rejections and prefixed detections.
+- R78 (2026-11-21, wake-filow): preserve listening intent when a keyword setting changes. Check: switch rapidly during reconfiguration, then toggle a stopped detector and inspect its state.
+- R79 (2026-11-21, wake-filow): schedule the process-heavy factory suite apart from the general Vitest worker pool. Check: run the full gate and inspect the three multi-checkout fixture timings against their original budgets.
+- R80 (2026-11-21, wake-filow): reserve test speakers, vocabulary and source utterance IDs before detector selection. Check: hash the frozen manifest, reject changed WAVs and score six distinct hours separately from tuning.
+- R81 (2026-11-21, wake-filow): feed paced clips at the packaged capture boundary with a single audio producer. Check: record default bare, prefixed and near-word counts and repeat the bare clip twice after disabling it.

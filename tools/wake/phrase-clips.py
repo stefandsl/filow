@@ -10,7 +10,9 @@ import soxr
 parser = argparse.ArgumentParser()
 parser.add_argument("model", type=Path)
 parser.add_argument("out", type=Path)
-parser.add_argument("--training-bank", action="store_true")
+group = parser.add_mutually_exclusive_group()
+group.add_argument("--training-bank", action="store_true")
+group.add_argument("--training-calls", action="store_true")
 args = parser.parse_args()
 files = {k: str(args.model / f) for k, f in {
     "duration_predictor": "duration_predictor.int8.onnx", "text_encoder": "text_encoder.int8.onnx",
@@ -30,7 +32,11 @@ for sid, (lang, (bare, ok, hey, near)) in enumerate(phrases.items()):
     dest = args.out / lang
     dest.mkdir(parents=True, exist_ok=True)
     for kind, text in [("bare", bare), ("ok", ok), ("hey", hey), *[(f"near{i}", t) for i, t in enumerate(near)]]:
-        if args.training_bank:
+        if args.training_calls:
+            if kind not in ("ok", "hey"):
+                continue
+            rates = [.88, 1., 1.15, 1.22]
+        elif args.training_bank:
             sid = 8 if lang in ("en", "ro", "ja") else 9
             if kind == "bare":
                 continue
@@ -40,6 +46,8 @@ for sid, (lang, (bare, ok, hey, near)) in enumerate(phrases.items()):
         else:
             rates = [.82, .91, 1.02, 1.12, 1.21, .87, 1., 1.16] if kind in ("ok", "bare") else [1.]
         for i, rate in enumerate(rates):
+            if args.training_calls:
+                sid = 8 + i % 2
             cfg = so.GenerationConfig()
             cfg.sid, cfg.speed, cfg.num_steps, cfg.extra = sid, rate, 8, {"lang": lang}
             audio = tts.generate(text, cfg)

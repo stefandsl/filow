@@ -201,3 +201,33 @@ it("keeps a legacy profile and its recordings until a replacement passes replay"
 it("excludes the unprefixed English word hero from new keywords", () => {
   expect(SPELLINGS).not.toContain("HH IY1 R OW0");
 });
+
+it("requires strong speaker agreement for a strict bare profile", () => {
+  const { profileCombiner } = require("./wake-policy");
+  const p = { phrase: "Filow", thresholds };
+  const hit = { at: 100, keyword: true, score: 2 };
+  expect(profileCombiner(p, "balanced").push(hit)).toBe(true);
+  expect(profileCombiner(p, "strict").push(hit)).toBe(false);
+  expect(profileCombiner(p, "strict").push({ ...hit, score: 6 })).toBe(true);
+  expect(profileCombiner({ thresholds }, "strict").push(hit)).toBe(true);
+});
+
+it("switches an active spotter to prefix-required and leaves an idle one off", async () => {
+  const dir = temp(), root = path.join(dir, "wake");
+  fs.mkdirSync(root);
+  const p = { phrase: "Filow", version: 1, weights: Array(1152).fill(0), bias: 0, thresholds, verification,
+    models: FILES.map((f: { sha256: string }) => f.sha256).join(":") };
+  fs.writeFileSync(path.join(root, "profile.json"), JSON.stringify(p));
+  const load = vi.fn(async () => ({ feed: async () => ({ ms: 1 }), reset: async () => {}, stop: vi.fn() }));
+  const wake = createWake({ userData: dir, state: () => ready, changed: vi.fn(), detected: vi.fn(),
+    verifyModelsFn: async () => {}, createDetectorsFn: load });
+  await wake.setBare("balanced", false);
+  expect(load).not.toHaveBeenCalled();
+  await wake.enable("balanced");
+  await Promise.all([wake.setBare("balanced", false), wake.setBare("balanced", true)]);
+  expect(wake.status().listening).toBe(true);
+  await wake.setBare("balanced", false);
+  expect(load).toHaveBeenLastCalledWith(expect.anything(), { ...p, requirePrefix: true }, undefined);
+  expect(wake.status().listening).toBe(true);
+  wake.stop();
+});

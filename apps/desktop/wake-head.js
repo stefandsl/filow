@@ -24,13 +24,23 @@ function background(dir, bare = false) {
   if (!hard.every(Number.isFinite)) throw new Error("Invalid wake hard negatives");
   const prefixes = bare ? ["en", "it", "ro", "ru", "ja"].flatMap(lang =>
     ["ok", "hey"].map(name => readSample(path.join(dir, `prefix-${lang}-${name}.wav`)))) : [];
-  return { data, meta, hard, hardMeta, prefixes };
+  const prefixed = [];
+  if (bare) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, "prefixed.json"), "utf8"));
+    const bytes = fs.readFileSync(path.join(dir, "prefixed.bin"));
+    if (crypto.createHash("sha256").update(bytes).digest("hex") !== manifest.sha256 ||
+        bytes.length !== manifest.windows * FEATURES) throw new Error("Wake prefixed examples checksum mismatch");
+    const vectors = Float32Array.from(new Int8Array(bytes.buffer, bytes.byteOffset, bytes.length), v => v / manifest.scale);
+    for (let i = 0; i < vectors.length; i += FEATURES) prefixed.push(vectors.subarray(i, i + FEATURES));
+  }
+  return { data, meta, hard, hardMeta, prefixes, prefixed };
 }
 function random(seed = 12345) { return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; }
 // Balanced-class stochastic logistic regression with L2 regularization. Training
 // and calibration are separate portions of the bundled background, never QA audio.
 function trainHead(positives, bg, options = {}) {
   if (positives.length < 20 || positives.some((x) => x.length !== FEATURES)) throw new Error("Not enough usable enrolment windows");
+  const examples = positives.concat(bg.prefixed || []);
   const rng = random();
   const w = new Float32Array(FEATURES);
   let bias = 0;
@@ -45,7 +55,7 @@ function trainHead(positives, bg, options = {}) {
       const hardRate = options.hardRate ?? HARD_NEGATIVE_RATE;
       const useHard = !positive && bg.hard?.length && hardRate > 0 && i % (2 * Math.round(1 / hardRate)) === 1;
       const offset = positive ? 0 : useHard ? Math.floor(rng() * (bg.hard.length / FEATURES)) * FEATURES : (range[0] + Math.floor(rng() * (range[1] - range[0] - WINDOW))) * WIDTH;
-      const x = positive ? positives[Math.floor(rng() * positives.length)] : useHard ? bg.hard : bg.data;
+      const x = positive ? examples[Math.floor(rng() * examples.length)] : useHard ? bg.hard : bg.data;
       const error = (positive ? 1 : 0) - 1 / (1 + Math.exp(-Math.max(-30, Math.min(30, dot(w, x, offset) + bias))));
       for (let j = 0; j < FEATURES; j++) w[j] += rate * (error * x[offset + j] - 0.00003 * w[j]);
       bias += rate * error;
@@ -162,6 +172,7 @@ function speechEnd(samples) {
 async function positiveWindows(embedding, recordings, prefixes = []) {
   if (recordings.length !== 5) throw new Error("Exactly five recordings required");
   const positives = [], rng = random();
+  let prefixIndex = 0;
   for (const samples of recordings) {
     const end = speechEnd(samples);
     const start = prefixes.length ? samples.length - speechEnd(samples.slice().reverse()) : 0;
@@ -171,7 +182,7 @@ async function positiveWindows(embedding, recordings, prefixes = []) {
       // first voiced frame, since microphone enrolment can start with silence.
       if (prefixes.length && a % 2) {
         const boundary = 16000 + Math.floor(start / speed) - (a % 3) * 640;
-        const prefix = prefixes[(positives.length + a) % prefixes.length];
+        const prefix = prefixes[prefixIndex++ % prefixes.length];
         const tail = prefix.subarray(Math.max(0, prefix.length - boundary));
         padded.set(tail, boundary - tail.length);
       }

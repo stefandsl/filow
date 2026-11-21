@@ -9,7 +9,7 @@ chiuso, sessioni e presentazioni interrompono l'ascolto. La frase non interrompe
 la voce e non apre finestre per domande successive. L'audio resta in memoria,
 tranne le cinque registrazioni nel profilo dell'app. Il comando di eliminazione
 rimuove registrazioni e modello personale. Vedi [prove e limiti](docs/okfilow/WAKE-WORD.md).
-Di’ **Filow** da solo. Puoi anche dire OK Filow o Hey Filow. I profili esistenti mantengono la frase precedente finché non registri cinque nuovi esempi e ripeti l’addestramento. Disattiva **Consenti Filow da solo** per richiedere OK o Hey prima del nome.
+Di’ **Filow** da solo. Puoi anche dire OK Filow o Hey Filow. I profili esistenti mantengono la frase precedente finché non registri cinque nuovi esempi e ripeti l’addestramento. Dopo il nuovo addestramento, Filow elimina le vecchie registrazioni. Disattiva **Consenti Filow da solo** per richiedere OK o Hey prima del nome.
 
 Il riaddestramento ora include esempi numerici di frasi simili ma diverse dalla
 frase di attivazione. Puoi registrare anche due frasi negative facoltative, salvate

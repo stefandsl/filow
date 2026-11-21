@@ -1,0 +1,31 @@
+{
+  "protocol": "3811f0e",
+  "manifestSha256": "2006dd805a9d794c64ea8cba03318aca6bc23d0842a5459adc220f15b827a089",
+  "languages": {
+    "en": {
+      "seconds": 5400,
+      "uniqueUtterances": 841,
+      "speechSha256": "71cc5e663b96bb3f52f566c3ded0a921e8db210ae8b1e668c2d91b45192088ee"
+    },
+    "it": {
+      "seconds": 5400,
+      "uniqueUtterances": 872,
+      "speechSha256": "b34450ba7c5c273b47ad675c7780f5eaf009203a46f69151a994d45576f97baf"
+    },
+    "ro": {
+      "seconds": 2100,
+      "uniqueUtterances": 575,
+      "speechSha256": "92d7b072cb3149d405fd932c7c1590c9ab32060e60f1137ce6eba18ffb39ba1a"
+    },
+    "ru": {
+      "seconds": 4800,
+      "uniqueUtterances": 797,
+      "speechSha256": "1153e72ef925691ee8148a42bb21755d114709197d306e141d357384284d2271"
+    },
+    "ja": {
+      "seconds": 3900,
+      "uniqueUtterances": 843,
+      "speechSha256": "fd5e9b667cd0ae6ec42ff1186b4678c201237f730523cd6982f226c1094ed640"
+    }
+  }
+}
