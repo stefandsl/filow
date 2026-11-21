@@ -104,9 +104,10 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R90 (2026-11-21, wake-filow): include the original microphone takes during bare training and keep Balanced available through prefix recognition when bare replay misses. Check: trace five clean inputs and enable an ineligible bare profile through Settings.
 - R91 (2026-11-21, wake-filow): select Strict eligibility per spoken form. Check: enable Strict on a failed bare replay, require the prefix and measure all forms under the effective detector.
 - R92 (2026-11-21, wake-filow): exercise a real prefixed call for each accent that needs fallback. Check: spot the prefix independently, require the personal head after its end, then enable both modes in packaged Settings and replay held-out OK calls.
-- R93 (2026-11-20, N-02): Require a grant for the named model repository before starting an embedding worker. Check: open a fresh and upgraded script with missing model files, decline the download and count workers and outbound requests.
-- R94 (0.9.44): Keep optional model downloads in Settings. Check the idle prompter and a live take for unsolicited download controls.
-- R95 (0.9.44): Explain the new grant once beside the download button for previous pre-filter users. Check a fresh profile, a legacy profile and a second Settings visit.
-- R96 (0.9.44): Date both privacy policies when model download behavior changes. Compare the sentences in the outbound sections and both revision dates.
-- R97 (0.9.44): Record the packaged grant action and embedding worker starts alongside model requests. Check both counts before and after acceptance on fresh and upgraded profiles.
-- R98 (0.9.44): Use the established Russian term for downloading files in upgrade notices. Check the Russian UI and installer wording with the typography suite.
+- R93 (2026-11-21, N-08): batch Git metadata reads within each checkout inspection while checking the candidate and dirty state afresh at each gate. Check: run the stale-green and closed-review scenarios under the default Windows timeout and confirm each rejects a broken guard.
+- R94 (2026-11-20, N-02): Require a grant for the named model repository before starting an embedding worker. Check: open a fresh and upgraded script with missing model files, decline the download and count workers and outbound requests.
+- R95 (0.9.44): Keep optional model downloads in Settings. Check the idle prompter and a live take for unsolicited download controls.
+- R96 (0.9.44): Explain the new grant once beside the download button for previous pre-filter users. Check a fresh profile, a legacy profile and a second Settings visit.
+- R97 (0.9.44): Date both privacy policies when model download behavior changes. Compare the sentences in the outbound sections and both revision dates.
+- R98 (0.9.44): Record the packaged grant action and embedding worker starts alongside model requests. Check both counts before and after acceptance on fresh and upgraded profiles.
+- R99 (0.9.44): Use the established Russian term for downloading files in upgrade notices. Check the Russian UI and installer wording with the typography suite.
