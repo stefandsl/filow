@@ -1,0 +1,166 @@
+{
+  "schema": 1,
+  "base": "d22031efab8086a5e7dda79cf844bbda4dbdd25b",
+  "format": {
+    "hz": 16000,
+    "channels": 1,
+    "bits": 16,
+    "tailMs": 2000,
+    "noiseSeed": 338,
+    "noiseMs": 6000,
+    "synthesisRate": -1
+  },
+  "journeys": {
+    "en": {
+      "script": "# Support pilot\n- Bristol pilot\n- Support owner Maya\n- Launch date Monday\n\n# Service continuity\n- Weekly review\n- Backup retention policy\n- Backup restore test",
+      "partial": "The backup restore test passed.",
+      "corrected": "The backup restore test has not passed.",
+      "ambiguous": "The support team will speak later.",
+      "general": "We do backups.",
+      "voice": "Microsoft Zira Desktop",
+      "clips": {
+        "point": {
+          "text": "The Bristol pilot begins today.",
+          "sha256": "659ab796cc1db997111b9cba138a73fe25913d36e1ed17586ff12506af3666c7"
+        },
+        "digress": {
+          "text": "Before we continue, I took the train this morning.",
+          "sha256": "607e8d68ee893daf9c7764851546ae9132536a07da84d57cac88acd84d323bde"
+        },
+        "correction": {
+          "text": "The launch date is Monday. Sorry, I mean the lunch break is Monday.",
+          "sha256": "14fb8881be4d5e7b952f5a2111496d1206ca9c5653cb2e612f24f72249e131bd"
+        },
+        "alias": {
+          "text": "Maya leads the support team.",
+          "sha256": "317417c9000e4740579dfdca669a94ff105348faef2043b8a78d838e61422278"
+        },
+        "near": {
+          "text": "The lunch date is Monday.",
+          "sha256": "5ce346a66d64bd0e352a63ae56728bccd59266da391097d8e6b017bfb0ede023"
+        },
+        "resume": {
+          "text": "The launch date is Monday.",
+          "sha256": "29891346980cd1d64de3d6bf295cc1c4a7f2379e74743eecca47a9dec9e4d619"
+        },
+        "noise": {
+          "text": "",
+          "sha256": "ef4e85086f69055477044efd4198a5764be671a5a900d3cadd84703c9e8115d0"
+        }
+      }
+    },
+    "it": {
+      "script": "# Progetto pilota\n- Progetto pilota Vicenza\n- Responsabile assistenza Giulia\n- Data avvio lunedì\n\n# Continuità del servizio\n- Revisione settimanale\n- Backup: politica di conservazione\n- Backup: test di ripristino",
+      "partial": "Il test di ripristino del backup è riuscito.",
+      "corrected": "Il test di ripristino del backup non è riuscito.",
+      "ambiguous": "Il gruppo di assistenza parlerà più tardi.",
+      "general": "Facciamo i backup.",
+      "voice": "Microsoft Elsa Desktop",
+      "clips": {
+        "point": {
+          "text": "Il progetto pilota parte da Vicenza.",
+          "sha256": "2c6850ee5e78b6fbc358192f763157d2b44af5c994c5055f33ddb7ca0909d1d0"
+        },
+        "digress": {
+          "text": "Prima di continuare, stamattina sono arrivato in treno.",
+          "sha256": "b111ebb4c98d30313992e79f398b681f2b132a62f929a217b89fd7e6b2a7ed95"
+        },
+        "correction": {
+          "text": "La data di avvio è lunedì. Mi correggo, la data del pranzo è lunedì.",
+          "sha256": "1a396b9d08fae5750e71b288f8775f649edf7cb1ad8d736cef4fee2249f8fed9"
+        },
+        "alias": {
+          "text": "Giulia guida il gruppo di assistenza.",
+          "sha256": "3aa0f4e4a9be085be36d7a042934eeb3375dd3a905436be14990043b8ef68462"
+        },
+        "near": {
+          "text": "La data del pranzo è lunedì.",
+          "sha256": "b7b42efe5b5bbcb8c45c827270127b23795e369c2e5bd32b30ee351b07f60b0e"
+        },
+        "resume": {
+          "text": "La data di avvio è lunedì.",
+          "sha256": "2fb0b95c1f23c00c7a6ea91a2820365bf06f6b4dbefd9ced785c4fbd3aad6947"
+        },
+        "noise": {
+          "text": "",
+          "sha256": "52475fa82e292a3701b3b5e86780d3890ad141feb52b54bf978cf3d52acaf641"
+        }
+      }
+    }
+  },
+  "captureOrder": [
+    "noise",
+    "point",
+    "digress",
+    "correction",
+    "near",
+    "alias",
+    "resume"
+  ],
+  "sectionIds": [
+    [
+      "s0b0",
+      "s0b1",
+      "s0b2"
+    ],
+    [
+      "s1b0",
+      "s1b1",
+      "s1b2"
+    ]
+  ],
+  "controls": [
+    {
+      "sec": 0,
+      "action": "start"
+    },
+    {
+      "sec": 10,
+      "action": "stop"
+    },
+    {
+      "sec": 18,
+      "action": "start"
+    },
+    {
+      "sec": 28,
+      "action": "reopen",
+      "point": "s0b1"
+    },
+    {
+      "sec": 32,
+      "action": "speak",
+      "point": "s1b0"
+    },
+    {
+      "sec": 34,
+      "action": "next"
+    },
+    {
+      "sec": 42,
+      "action": "general-backup"
+    },
+    {
+      "sec": 50,
+      "action": "PageUp"
+    },
+    {
+      "sec": 52,
+      "action": "PageDown"
+    },
+    {
+      "sec": 54,
+      "action": "stop"
+    },
+    {
+      "sec": 56,
+      "action": "reset"
+    }
+  ],
+  "faults": [
+    "worker",
+    "relay",
+    "renderer",
+    "main"
+  ]
+}

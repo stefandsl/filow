@@ -13,6 +13,8 @@
 //
 // Usage: node tools/autoloop/e2e/take.mjs [--offline] [--minutes N] [--exe <win-unpacked>] [--profile <dir>]
 //   (default)     local take, written under "local" in tmp/autoloop/take.json
+//   --audio <wav> --lines <json> --language en|it --out <new receipt.json> selects frozen PCM and its line mapping.
+//                 Supply explicit --exe, --source-profile, --profile, --work, --port and --devtools.
 //   --offline     same with FILOW_OFFLINE=1, written under "offline": no connection may leave the PC
 //   --minutes N   long take of N minutes, written under "memory" (PERF-02): a rehearsal loop. The audio
 //                 loops; each time every point of section 1 is ticked the probe presses Reset, like a
@@ -60,7 +62,19 @@ if (EVICT_AT_MS != null && (!EVICT_OLLAMA || new URL(EVICT_OLLAMA).port === "114
   console.error("[take] --evict-at needs OLLAMA_URL on a test Ollama (not the user's, port 11434)");
   process.exit(2);
 }
-const OUT = path.join(ROOT, "tmp", "autoloop", "take.json");
+const OUT = path.resolve(opt("--out", path.join(ROOT, "tmp", "autoloop", "take.json")));
+const LANGUAGE = opt("--language", "en");
+if (!["en", "it"].includes(LANGUAGE)) throw new Error("Select en or it");
+const explicitAudio = opt("--audio", null);
+if (explicitAudio || LANGUAGE !== "en") {
+  for (const arg of ["--exe", "--source-profile", "--profile", "--work", "--out", "--audio", "--lines", "--port", "--devtools"]) {
+    if (!opt(arg, null)) throw new Error(`Missing ${arg} for the labelled take`);
+  }
+  if ([PROFILE, WORK, OUT].some(p => fs.existsSync(p))) throw new Error("Use fresh profile, work and output paths");
+  if (!fs.statSync(explicitAudio).isFile() || !fs.statSync(opt("--lines")).isFile()) throw new Error("Missing audio or line manifest");
+  const ports = [PORT, PORT + 1, DEVTOOLS];
+  if (new Set(ports).size !== ports.length || ports.some(p => !Number.isInteger(p) || p < 1 || p > 65535 || [4747, 4748, 11434].includes(p))) throw new Error("Invalid replay ports");
+}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const t0wall = Date.now();
 const errors = [];
@@ -93,7 +107,7 @@ fs.mkdirSync(WORK, { recursive: true });
 {
   const settings = JSON.parse(fs.readFileSync(path.join(SOURCE_PROFILE, "settings.json"), "utf8"));
   // The Cloudflare quick tunnel rate-limits test launches and is not part of a local take.
-  Object.assign(settings, { remoteShare: false, remoteShareChosen: true });
+  Object.assign(settings, { ...(explicitAudio ? { lang: LANGUAGE, speechLanguage: LANGUAGE } : {}), remoteShare: false, remoteShareChosen: true });
   fs.writeFileSync(path.join(PROFILE, "settings.json"), JSON.stringify(settings, null, 2));
   fs.copyFileSync(path.join(SOURCE_PROFILE, "script.md"), path.join(PROFILE, "script.md"));
   const model = path.join(PROFILE, "models", MODEL);
@@ -110,8 +124,8 @@ for (const l of script.slice(firstHeading + 1)) {
 }
 
 // ---------- the voice ----------
-const wav = path.join(WORK, "take.wav");
-const linesFile = path.join(WORK, "take-lines.json");
+const wav = explicitAudio ? path.resolve(explicitAudio) : path.join(WORK, "take.wav");
+const linesFile = explicitAudio ? path.resolve(opt("--lines")) : path.join(WORK, "take-lines.json");
 if (!fs.existsSync(wav) || !fs.existsSync(linesFile)) {
   const raw = path.join(WORK, "take-raw.wav");
   execFileSync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(ROOT, "tools", "autoloop", "e2e", "take-voice.ps1"), "-Out", raw, "-Lines", linesFile], { stdio: "inherit" });
@@ -126,7 +140,13 @@ if (!fs.existsSync(wav) || !fs.existsSync(linesFile)) {
   }
   fs.writeFileSync(wav, buf);
 }
-const spoken = JSON.parse(fs.readFileSync(linesFile, "utf8").replace(/^\uFEFF/, ""));
+const lines = JSON.parse(fs.readFileSync(linesFile, "utf8").replace(/^\uFEFF/, ""));
+const spoken = Array.isArray(lines) ? lines : lines.spoken;
+const mapping = Array.isArray(lines) ? VOICE : lines;
+if (!Array.isArray(spoken) || !spoken.length || spoken.some(s => typeof s !== "string") ||
+    !Array.isArray(mapping.lineOfPoint) || mapping.lineOfPoint.some(i => !Number.isInteger(i) || i < 0 || i >= spoken.length)) {
+  throw new Error("Invalid spoken lines or point-to-line mapping");
+}
 const wavSeconds = Math.round((wavData(fs.readFileSync(wav)).length / 32000) * 10) / 10;
 
 // UI labels, read from the dictionary so the probe follows wording changes in both languages.
@@ -219,9 +239,20 @@ const samplers = [
 
 // ---------- CDP ----------
 let target;
+let ownsReplayListeners = false;
 for (let i = 0; i < 90 && !target && !exited; i++) {
   await sleep(1000);
   try { target = (await (await fetch(`http://127.0.0.1:${DEVTOOLS}/json`)).json()).find((t) => t.type === "page" && t.url.startsWith(`http://127.0.0.1:${PORT}/`) && !t.url.includes("/okfilow/")); } catch { /* not up yet */ }
+}
+if (target && explicitAudio) {
+  await refreshTable();
+  const listeners = (await netstat()).filter(r => r.proto === "TCP" && r.state === "LISTENING");
+  const owned = new Set(treeNow.map(p => p.ProcessId));
+  ownsReplayListeners = [PORT, PORT + 1, DEVTOOLS].every(port => {
+    const atPort = listeners.filter(r => Number(splitAddr(r.local)[1]) === port);
+    return atPort.length && atPort.every(r => owned.has(r.pid));
+  });
+  if (!ownsReplayListeners) target = null;
 }
 if (!target) { console.error("[take] app did not come up"); await shutdown(); process.exit(2); }
 let mainShownMs = null;
@@ -294,7 +325,7 @@ listeners.push(async (d) => {
 // Local mode without the Cloud/Local dialog, English speech; then reload so the page reads them.
 // --gate-off: no embedding pre-filter in front of the model (a diagnosis switch; the default is the user's default, on).
 const GATE_OFF = argv.includes("--gate-off");
-await evaluate(`localStorage.setItem("prefs:startMode", "local"); localStorage.setItem("prefs:speechLang", "en"); ${GATE_OFF ? `localStorage.setItem("prefs:gate", "off")` : `localStorage.removeItem("prefs:gate")`}; true`);
+await evaluate(`localStorage.setItem("prefs:startMode", "local"); localStorage.setItem("prefs:speechLang", ${JSON.stringify(LANGUAGE)}); localStorage.setItem("prefs:lang", ${JSON.stringify(LANGUAGE)}); ${GATE_OFF ? `localStorage.setItem("prefs:gate", "off")` : `localStorage.removeItem("prefs:gate")`}; true`);
 await call("Page.reload");
 await sleep(2000);
 await call("Network.enable");
@@ -359,7 +390,7 @@ let cycleStart = 0, resetPending = false;
 // When each spoken line shows on screen: a point must tick after its own paraphrase, never from the
 // off-topic sentence, and after a Reset only from the paraphrase said again (take-lib.mjs).
 const heard = new HeardTracker(spoken);
-const ownLineHeard = (i, from, to) => heard.edges.find((e) => e.line === VOICE.lineOfPoint[i] && e.atMs >= from && e.atMs <= to)?.atMs ?? null;
+const ownLineHeard = (i, from, to) => heard.edges.find((e) => e.line === mapping.lineOfPoint[i] && e.atMs >= from && e.atMs <= to)?.atMs ?? null;
 let firstTranscriptMs = null, recordingAtMs = null, logOpened = false, dialogSeen = false;
 const transcripts = [];
 let lastTranscript = "", logLines = [];
@@ -432,7 +463,7 @@ while (Date.now() - tClick < durationMs && !appExit && !wsClosed) {
     // Long take: start section 1 over, like a speaker rehearsing it again, so decisions keep coming.
     // Each pass records when its points ticked and whether each followed its own paraphrase said again.
     const pass = { startMs: cycleStart, done: points.map((p) => p.doneAtMs) };
-    cycles.push({ ...pass, allDoneMs: Math.max(...pass.done), ...passFresh(pass, heard.edges) });
+    cycles.push({ ...pass, allDoneMs: Math.max(...pass.done), ...passFresh(pass, heard.edges, mapping.lineOfPoint, explicitAudio ? mapping.offTopicLine : null) });
     cycleStart = now;
     points = fresh();
     resetPending = true;
@@ -475,6 +506,7 @@ async function shutdown() {
   const ours = treeNow.map((p) => ({ pid: p.ProcessId, created: p.created }));
   if (!exited) {
     try {
+      if (explicitAudio && !ownsReplayListeners) throw new Error("Replay listeners were not verified");
       const v = await (await fetch(`http://127.0.0.1:${DEVTOOLS}/json/version`)).json();
       const b = new WebSocket(v.webSocketDebuggerUrl);
       await new Promise((r, j) => { b.onopen = r; b.onerror = j; });
@@ -534,7 +566,7 @@ const result = {
   at: new Date().toISOString(),
   mode: MODE, offline: OFFLINE, gate: GATE_OFF ? "off" : "default", build, probe: PROBE_URL ? { url: PROBE_URL, answer: probe } : undefined,
   commit: (() => { try { return execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim(); } catch { return ""; } })(),
-  audio: { wav, seconds: wavSeconds, spoken, ...VOICE },
+  audio: { wav, seconds: wavSeconds, spoken, language: LANGUAGE, lineOfPoint: mapping.lineOfPoint, offTopicLine: mapping.offTopicLine },
   offlineSeen,
   // every time a spoken line showed on screen (index into audio.spoken), and the best share of its words seen
   heard: { edges: heard.edges.slice(0, 2000), best: heard.best.map((b) => Math.round(b * 100) / 100) },

@@ -4,17 +4,17 @@
 # With -Text it says only that text (the speed baseline's questions, tools/eval/latency.mjs) between -LeadMs and
 # -TailMs of silence, in the same format; -Lines is then ignored.
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File take-voice.ps1 -Out <path.wav> [-Lines <path.json>] [-Voice David] [-Rate -1] [-Text <words> [-LeadMs 300] [-TailMs 1500]]
-param([Parameter(Mandatory = $true)][string]$Out, [string]$Lines = "", [string]$Voice = "", [int]$Rate = -1, [string]$Text = "", [int]$LeadMs = 300, [int]$TailMs = 1500)
+param([Parameter(Mandatory = $true)][string]$Out, [string]$Lines = "", [string]$Voice = "", [int]$Rate = -1, [string]$Text = "", [int]$LeadMs = 300, [int]$TailMs = 1500, [ValidateSet("en","it")][string]$Language = "en")
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Speech
 $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
-$english = $synth.GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -like "en-*" }
+$voices = $synth.GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.TwoLetterISOLanguageName -eq $Language }
 # (PowerShell names are case-insensitive: $speaker, not $voice, which is the [string] parameter)
 # Default David: Nemotron transcribes it almost word for word; Zira came out garbled ("artificial
 # intelligence" as "farta fish"), which tests the voice, not Filow.
-if (-not $Voice) { $Voice = if ($english | Where-Object { $_.VoiceInfo.Name -like "*David*" }) { "David" } else { "" } }
-$speaker = $english | Where-Object { $_.VoiceInfo.Name -like "*$Voice*" } | Select-Object -First 1
-if (-not $speaker) { throw "no English System.Speech voice matching '$Voice' installed" }
+if (-not $Voice -and $Language -eq "en") { $Voice = if ($voices | Where-Object { $_.VoiceInfo.Name -like "*David*" }) { "David" } else { "" } }
+$speaker = $voices | Where-Object { $_.VoiceInfo.Name -like "*$Voice*" } | Select-Object -First 1
+if (-not $speaker) { throw "no $Language System.Speech voice matching '$Voice' installed" }
 $synth.SelectVoice($speaker.VoiceInfo.Name)
 $synth.Rate = $Rate
 $sentences = @(
@@ -23,6 +23,7 @@ $sentences = @(
   "You cannot have a conversation with it, it is not able to use any tools, and it has no way to browse the internet.",
   "Now all the other companies are making their own version of it, and that tells you it has to be really good."
 )
+if (-not $Text -and $Language -ne "en") { throw "Supply -Text for the selected language" }
 if ($Text) { $sentences = @($Text) }
 elseif ($Lines) { $sentences | ConvertTo-Json | Set-Content -Encoding utf8 -Path $Lines }
 $fmt = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
