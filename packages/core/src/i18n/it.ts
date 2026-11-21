@@ -85,6 +85,7 @@ export const it: Dictionary = {
   "section.points": "{n} punti da trattare",
   "next.label": "Prossima sezione",
   "state.waiting": "In attesa",
+  "take.speechStopped": "Il riconoscimento vocale si è interrotto. Premi Avvia per continuare da questo punto.",
   "take.placeError": "Filow non riesce ad accedere alla posizione salvata su questo computer.",
   "state.reopened": "Riaperto",
   "state.active": "In corso",

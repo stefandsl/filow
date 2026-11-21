@@ -85,6 +85,7 @@ export const ja: Dictionary = {
   "section.points": "話すポイント{n}件",
   "next.label": "次のセクション",
   "state.waiting": "待機中",
+  "take.speechStopped": "音声認識が停止しました。開始を押すと、この位置から再開できます。",
   "take.placeError": "このコンピューターに保存した進行位置にアクセスできませんでした。",
   "state.reopened": "未完了に戻しました",
   "state.active": "進行中",

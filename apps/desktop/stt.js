@@ -553,9 +553,11 @@ class SttSession {
         // A worker replaced or disposed while it was loading must not leave its caller waiting.
         reject(new Error("speech recognition stopped before it was ready"));
         if (this.worker !== worker) return;
+          const lost = this.ready && !this.stopping;
         this.ready = false;
         this.worker = null;
         this.modelKey = null;
+          if (lost) this.onError("Speech recognition stopped");
       });
       worker.postMessage({
         type: "init",

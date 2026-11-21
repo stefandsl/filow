@@ -53,6 +53,30 @@ function desktopSession() {
 }
 
 describe("Step 4 stop seams", () => {
+  it("reports an active worker exit once, drops late results and starts a new worker on demand", async () => {
+    const session = desktopSession();
+    const listeners = new Set<(r: unknown) => void>();
+    session.onResult = (r: unknown) => listeners.forEach(fn => fn(r));
+    session.onError = (error: string) => session.onResult({ partial: "", committed: "", error });
+    vi.stubGlobal("filow", { stt: {
+      status: async () => ({ model: "ready" }), start: () => session.start("auto"), stop: () => session.stop(), feed() {},
+      onResult(fn: (r: unknown) => void) { listeners.add(fn); return () => listeners.delete(fn); },
+    } });
+    const backend = new SherpaStt();
+    const onError = vi.fn(() => backend.stop());
+    const onTranscript = vi.fn();
+    await backend.start({ onError, onTranscript });
+    const old = session.worker;
+    old.emit("exit", 1);
+    expect(onError).toHaveBeenCalledOnce();
+    expect(session.worker).toBeNull();
+    await backend.start({ onError, onTranscript });
+    old.emit("message", { type: "result", committed: "old", partial: "" });
+    session.worker.emit("message", { type: "result", committed: "fresh", partial: "" });
+    expect(onTranscript.mock.calls).toEqual([[{ committed: "fresh ", partial: "" }]]);
+    backend.stop();
+    session.worker.emit("message", { type: "stopped" });
+  });
   // Contract: apps/desktop/stt-worker.js stop branch: "flush what is still in the stream"; Q3.
   it("Sherpa stop must deliver the worker's final committed utterance", async () => {
     const listeners = new Set<(r: any) => void>();

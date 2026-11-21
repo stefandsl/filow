@@ -311,6 +311,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
 
   // ---- transcription ---------------------------------------------------
   const stopTake = useCallback(() => {
+    startAttempts.current.cancel();
+    setStarting(false);
     setMicWarning(null);
     backendRef.current?.stop();
     backendRef.current = null;
@@ -502,11 +504,16 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         onError: (m: string) => {
           if (!attempt.isCurrent()) return;
           pushLog(`error: ${m}`);
-          engine.setError(m);
+          if (backend === "sherpa") stopTake();
+          engine.setError(backend === "sherpa" ? t("take.speechStopped") : m);
         },
         onReady: () => { if (attempt.isCurrent()) pushLog("transcription ready"); },
         onLog: (line: string) => { if (attempt.isCurrent()) pushLog(line); },
-        onMicWarning: (warning: MicWarning | null) => { if (attempt.isCurrent()) setMicWarning(warning); },
+        onMicWarning: (warning: MicWarning | null) => {
+          if (!attempt.isCurrent()) return;
+          if (warning?.kind === "ended") stopTake();
+          setMicWarning(warning);
+        },
       };
       {
         // Explicit backend from the chosen mode: never fall back silently.

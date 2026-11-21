@@ -44,7 +44,7 @@ export type SherpaBridge = {
   start: (language: string) => Promise<SherpaStart>;
   feed: (samples: Float32Array) => void;
   stop: () => Promise<void>;
-  onResult: (fn: (r: { partial: string; committed: string }) => void) => () => void;
+  onResult: (fn: (r: { partial: string; committed: string; error?: string }) => void) => () => void;
   onStatus: (fn: (s: SherpaStatus) => void) => () => void;
 };
 
@@ -97,16 +97,17 @@ export class SherpaStt implements SttBackend {
     const started = await bridge.start(this.language && this.language !== "auto" ? this.language : "auto");
     if (started?.model) h.onLog?.(`stt: ${started.model}${started.streaming === false ? ", phrase by phrase" : ""}${started.notes?.includes("fallback") ? ", fallback model" : ""}`);
     this.off = bridge.onResult((r) => {
-      if (r.committed) h.onTranscript({ committed: r.committed + " ", partial: "" });
+      if (r.error) h.onError(r.error);
+      else if (r.committed) h.onTranscript({ committed: r.committed + " ", partial: "" });
       else h.onTranscript({ partial: r.partial });
     });
-    h.onReady?.();
     this.mic = await startMic(SAMPLE_RATE, (pcm16) => {
       const i16 = new Int16Array(pcm16);
       const f32 = new Float32Array(i16.length);
       for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 0x8000;
       bridge.feed(f32);
     }, h.onMicWarning, h.onLog);
+    h.onReady?.();
   }
 
   stop(): void {
