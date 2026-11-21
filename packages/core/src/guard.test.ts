@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import { checkClaim } from "./guard";
+import frozen from "../../../tools/autoloop/e2e/n03-cases.json";
 
 const blocked = (point: string, said: string) => checkClaim(point, said);
 
@@ -340,7 +341,16 @@ describe("claim guard: a negated point said in other words (TRK-2 held-out set)"
     expect(r.conflict?.kind).toBe("negation");
   });
 });
-import frozen from "../../../tools/autoloop/e2e/n03-cases.json";
+it.each([
+  ["Costs fell", "Costs fell while sales did not drop.", true],
+  ["Costs fell", "Costs, despite weak demand, did not drop.", false],
+  ["I costi sono diminuiti", "I costi sono diminuiti mentre le vendite non sono calate.", true],
+  ["I costi sono diminuiti", "I costi, nonostante la domanda debole, non sono calati.", false],
+  ["Three pilot teams", "We have three pilot teams.", true],
+  ["Tre gruppi pilota", "Abbiamo tre gruppi pilota.", true],
+] as const)("resolves the subject and ordinary count for %s / %s", (point, speech, pass) => {
+  expect(checkClaim(point, speech).ok).toBe(pass);
+});
 
 describe.each(Object.entries(frozen.journeys))("%s affirmative and corrected claims", (lang, journey) => {
   const date = lang === "en" ? "Launch date Monday" : "Data avvio lunedì";

@@ -236,6 +236,9 @@ type Reading = { conflict?: GuardConflict; carriesClaim: boolean; anchored: bool
 
 /** How one sentence relates to the point: a conflict, a statement of the claim, or neither. */
 function read(claim: Claim, sentence: string): Reading {
+  // An intervening concessive phrase leaves the subject attached to its predicate.
+  // The evidence retains the original sentence and offsets.
+  sentence = sentence.replace(/,\s*(?:despite|in spite of|nonostante|malgrado)\b[^,;.!?]+,\s*/giu, " ");
   const st = tokenize(sentence);
   const anchored = st.some((t) => matchesAny(claim.anchors, t.norm));
   const parts = clauses(sentence, st);
@@ -271,7 +274,14 @@ function read(claim: Claim, sentence: string): Reading {
 
   // negation: an affirmative point denied in the speech, or a negated point whose denied words are
   // affirmed, with no negation, in the clauses about it
-  if (!claim.negated && deniesPointWords(sentence, st, claim.words)) return { conflict: { kind: "negation", detail: "the speech denies the point" }, carriesClaim: true, anchored };
+  if (!claim.negated) {
+    const verbal = st.some(t => t.norm === "not" || t.norm === "non");
+    const denied = verbal && claim.direction && about.length ? about.some(c => {
+      const predicates = c.filter(t => directionAt(st, st.indexOf(t)) === claim.direction).map(t => t.norm);
+      return deniesPointWords(sentence, c, [...claim.words, ...predicates]);
+    }) : deniesPointWords(sentence, st, claim.words);
+    if (denied) return { conflict: { kind: "negation", detail: "the speech denies the point" }, carriesClaim: true, anchored };
+  }
   if (claim.negated) {
     const said = scope.some((c) => c.some((t) => t.norm === "senza" || t.norm === "without" || negates(st, st.indexOf(t))));
     if (!said && affirmsDenied(claim, scope.flat())) return { conflict: { kind: "negation", detail: "the point is a negation, the speech affirms it" }, carriesClaim: true, anchored };
