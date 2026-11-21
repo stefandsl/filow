@@ -19,7 +19,36 @@ Recheck the supplied WAV directory with `node tools/autoloop/e2e/n03-windows.mjs
 
 A separate replay through `Engine.feed` used a synthetic decision that recognizes the written owner's name in the committed window. In EN and IT only `s0b1` completed on the owner line and its evidence quoted that line. Reopen followed by the general backup sentence completed `s0b1` a second time from the old words. In section two, the positive restore-test partial set the hint on `s1b2`; the corrected final with an empty partial left the hint active. The unrelated manual mark on `s1b1` survived. These observations cover engine state only.
 
-The pinned bb source is `get-bb/bb` at `28cdd915db441933646c0e07543ddc05efa1b43f`, `packages/templates/src/templates/bb-guide-thread-messaging.md`. Its explicit thread identity is the pattern requested for point references. Its LICENSE names Michael Yong, copyright 2026, under MIT. Packaging the attribution and checking the built notice belong with the implementation.
+The script-scoped point references borrow the explicit identity pattern in `get-bb/bb` at `28cdd915db441933646c0e07543ddc05efa1b43f`, `packages/templates/src/templates/bb-guide-thread-messaging.md`. The notices generator includes the attribution and the packaged resources include the upstream MIT license, copyright 2026 Michael Yong. The operator verified the exact license text in the preview package.
+
+### Paired Windows replays
+
+In further main runs with a paired Chromium phone view, the operator played the near phrase before the correction so the date was still open. It wrongly turned green on 1/1 eligible opportunities in each language. The owner alias completed on 0/1 opportunities per language. English recognition changed Maya's name and Italian recognized Giulia. The two six-second noise clips produced zero wrong ticks (0/1 opportunity and 0/min in each language). The pilot completed on 1/1 opportunities per language.
+
+On preview `6e35502a19961fc8b952541f8fdcef24689df23f`, both surfaces agreed on the following counts with the canonical clip order. Each column represents one observation per label. The near phrase followed the correction with the date still open.
+
+| Label and denominator | English | Italian |
+|---|---|---|
+| Wrong noise ticks / opportunity | 0/1 in 6 s (0/min) | 0/1 in 6 s (0/min) |
+| Correct pilot ticks / opportunity | 1/1 | 1/1 |
+| Wrong new ticks during digression / opportunity | 0/1 | 0/1 |
+| Wrong corrected-date ticks / opportunity | 0/1, still tentative | 0/1, waiting |
+| Wrong near-phrase ticks / opportunity | 0/1 | 0/1 |
+| Correct owner ticks / opportunity | 0/1 | 0/1, tentative |
+| Correct fresh date ticks / opportunity | 1/1 | 1/1 |
+
+The operator also interrupted four independent sessions on each build. Times below are milliseconds after the fault. A retained display alone does not establish that fresh speech works.
+
+| Fault | Main | Preview `6e35502a` |
+|---|---|---|
+| Speech worker | Desktop/phone retained place at 305/307. Manual continuation at 1,865, recognizer stopped. | Desktop/phone at 312/313. Deliberate continuation at 8,847. |
+| Relay listener | Desktop/phone showed the place at 621/622. The next manual move failed to sync. | Desktop/phone at 625/4,955 with one re-pair. Deliberate continuation at 6,059. |
+| Renderer | Place lost at the 22,035 ms observation limit. | Place lost at 24,143 ms. |
+| Main | Place lost at the 22,116 ms observation limit. | Place lost at 24,008 ms. |
+
+The disk probe found section two in the saved file immediately before termination. On launch, the rehearsal recorder discarded the saved place and the initial load wrote section one back. The focused regression attaches the real recorder and checks the first published state, manual reopen and muted capture. The correction regression sends a weak positive score after a contradictory final and checks that the hint clears in both languages.
+
+Main switched from a USB microphone to a virtual capture input in 1,519 ms (EN) and 1,520 ms (IT) following simulated track-ended and device-change events. Physical unplugging and Bluetooth remain owner checks. Exact-candidate packaging, paired replays including fresh speech after each fault, native matcher scores, both endpoint trials, the thirty-minute resource comparison and factory CI remain open. The focused tests cover changed-script rejection, evidence, manual reopen, muted restoration and rejection of stale speech and commands.
 
 ## N-01 | Working baseline, 20 November 2026
 

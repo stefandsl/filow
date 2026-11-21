@@ -75,6 +75,10 @@ The Next section card below the points has a resize handle along its bottom edge
 
 In the prompter and a controllable mirror, Tab focuses points and missed items. Press Enter or Space to toggle a point or reopen a missed item. Double-clicking a point still works.
 
+If you correct yourself, the final words can clear a tentative highlight or reopen a point whose automatic tick depended on the earlier claim. A point you marked by hand keeps its mark. On the paired phone, tap **Why?** below a done point to read the supporting words or see that it was marked by hand. A point you reopen by hand stays open until you mark it again or use **Reset section** in its section.
+
+After a desktop restart, opening the same script restores the last saved section and point marks with the microphone muted. Read your place and select **Start take** when you are ready. If the selected microphone disconnects, select the replacement input and start again. If the phone returns to pairing, use the new code and approve control again.
+
 A point is ticked only on what the speech-to-text has committed (a finished sentence), never on the words still being recognised: those can change ("we will raise prices" becoming "we will not raise prices"), so while they match an open point it only shows In progress. Before a point is ticked, its numbers, units, direction words and negation are compared with what you said: "costs rose 30%" never ticks "costs fell 30%", nor does "we did not cut costs", 21% for 12%, or days for hours. A done point has a **Why?** link (hover it, or click to open it under the point): the sentence it rests on, when it was heard, the model and how sure it was, and how many of the point's words were heard, or that you marked it by hand.
 
 At high zoom or in a short window, the page scrolls to keep points and controls reachable. Start, screen-source and script-editor dialogs keep keyboard focus inside; Escape closes them and returns focus to the opener. Closing the log returns focus to More. Cancel also cancels pending automatic startup checks. Import failures appear immediately as an announced error above the points.
