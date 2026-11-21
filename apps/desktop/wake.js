@@ -100,7 +100,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       if (!fallback && !canEnable(saved.verification, sensitivity(mode))) throw new Error("Replay check required: recognise at least 4 of 5 takes and reject personal negatives");
       profile = saved; phase = "checking"; publish();
       const requirePrefix = profile.phrase === DEFAULTS.phrase && (!allowBare || fallback);
-      const loaded = await createDetectorsFn(dir, { ...profile, requirePrefix }, utilityProcess);
+      const loaded = await createDetectorsFn(dir, fallback ? { ...profile, requirePrefix, separatePrefix: true } : { ...profile, requirePrefix }, utilityProcess);
       if (token !== epoch) { loaded.stop(); return snapshot(); }
       detectors = loaded;
       const times = [];
@@ -188,7 +188,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       finally { replay.stop(); }
       if (token !== epoch) return snapshot();
       if (negatives.length && ["balanced", "strict"].some(m => !canEnable(candidate.verification, m))) {
-        const prefixed = { ...candidate, requirePrefix: true };
+        const prefixed = { ...candidate, requirePrefix: true, separatePrefix: true };
         const detector = await createDetectorsFn(dir, prefixed, utilityProcess);
         try {
           const checks = await replayEnrolment(detector, prefixed, [], negatives);

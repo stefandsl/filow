@@ -24,17 +24,20 @@ return {
   const started = performance.now();
   stream.acceptWaveform({ samples: m.samples, sampleRate: 16000 });
   let keyword = false;
-  let phraseEndMs;
+  let phraseEndMs, prefixEndMs;
   while (kws.isReady(stream)) {
     kws.decode(stream);
     const result = kws.getResult(stream);
     if (result.keyword) {
       keyword = true;
-      if (Array.isArray(result.timestamps) && result.timestamps.length) phraseEndMs = startAt + Math.max(...result.timestamps) * 1000 + 80;
+      const end = Array.isArray(result.timestamps) && result.timestamps.length
+        ? startAt + Math.max(...result.timestamps) * 1000 + 80 : m.at;
+      if (result.keyword.startsWith("prefix")) prefixEndMs = end;
+      else phraseEndMs = end;
       kws.reset(stream);
     }
   }
-  return { id: m.id, at: m.at, keyword, phraseEndMs, ms: performance.now() - started };
+  return { id: m.id, at: m.at, keyword, phraseEndMs, prefixEndMs, ms: performance.now() - started };
  }
 };
 }

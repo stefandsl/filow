@@ -30,10 +30,15 @@ function keywordText(profile) {
     throw new Error("Invalid wake phoneme list");
   }
   const prefixedTuning = profile.requirePrefix ? ":1 #0.4" : ":2.5 #0.05";
+  // The personal head recognises the name. For accent fallback the spotter
+  // may independently confirm the OK prefix, using the existing vowels.
+  const prefixes = profile.requirePrefix && profile.separatePrefix
+    ? [...new Set(LEGACY_SPELLINGS.map(s => s.split(/ (?:F|HH) /)[0]).filter(s => !s.startsWith("K ")))]
+    : [];
   return spellings.map((s, i) => {
     const tuning = BARE_SPELLINGS.includes(s) ? ":2.35 #0.12" : prefixedTuning;
     return `${s} ${tuning} @v${i + 1}`;
-  }).join("\n") + "\n";
+  }).concat(prefixes.map((s, i) => `${s} ${prefixedTuning} @prefix${i + 1}`)).join("\n") + "\n";
 }
 const sensitivity = (v) => ["strict", "balanced", "sensitive"].includes(v) ? v : DEFAULTS.sensitivity;
 function blocked(s) {
@@ -64,15 +69,16 @@ function createCombiner(thresholds, mode = "balanced", requirePrefix = false) {
   let heads = [], spots = [];
   return {
     reset() { last = -Infinity; heads = []; spots = []; },
-    push({ at, score, keyword }) {
+    push({ at, score, keyword, prefixEndMs }) {
       if (!Number.isFinite(at)) return false;
       if (Number.isFinite(score)) heads.push({ at, score });
-      if (keyword) spots.push(at);
+      if (keyword) spots.push({ at, prefixEndMs });
       heads = heads.filter((h) => h.at >= at - DEFAULTS.agreementMs);
-      spots = spots.filter((t) => t >= at - DEFAULTS.agreementMs);
+      spots = spots.filter((t) => t.at >= at - DEFAULTS.agreementMs);
       if (at - last < DEFAULTS.cooldownMs) return false;
       const hit = heads.some((h) => {
-        const matched = spots.some((t) => Math.abs(t - h.at) <= DEFAULTS.agreementMs);
+        const matched = spots.some((t) => Math.abs(t.at - h.at) <= DEFAULTS.agreementMs &&
+          (!Number.isFinite(t.prefixEndMs) || h.at >= t.prefixEndMs));
         return (!requirePrefix || matched) && combine(mode, h.score, matched, thresholds);
       });
       if (hit) { last = at; heads = []; spots = []; }

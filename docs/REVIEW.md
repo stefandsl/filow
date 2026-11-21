@@ -103,3 +103,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R89 (2026-11-21, wake-filow): accept caller-selected volumes for packaged QA. Check: supply separate executable and profile volumes and reject an existing profile.
 - R90 (2026-11-21, wake-filow): include the original microphone takes during bare training and keep Balanced available through prefix recognition when bare replay misses. Check: trace five clean inputs and enable an ineligible bare profile through Settings.
 - R91 (2026-11-21, wake-filow): select Strict eligibility per spoken form. Check: enable Strict on a failed bare replay, require the prefix and measure all forms under the effective detector.
+- R92 (2026-11-21, wake-filow): exercise a real prefixed call for each accent that needs fallback. Check: spot the prefix independently, require the personal head after its end, then enable both modes in packaged Settings and replay held-out OK calls.

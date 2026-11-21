@@ -84,7 +84,7 @@ async function run() {
         }
         profile.verification = verification;
         const fallbackModes = modes.filter(m => phrase === "bare" && prefixFallback(profile, m));
-        const prefixSpotter = fallbackModes.length ? spotter({ ...profile, requirePrefix: true }) : null;
+        const prefixSpotter = fallbackModes.length ? spotter({ ...profile, requirePrefix: true, separatePrefix: true }) : null;
         const counts = Object.fromEntries(modes.map(m => [m, { enabled: canEnable(verification, m) || fallbackModes.includes(m), prefixFallback: fallbackModes.includes(m), bare: 0, ok: 0, hey: 0, near: 0, normal: 0 }]));
         const totals = { bare: 0, ok: 0, hey: 0, near: 0 };
         let seconds = 0;

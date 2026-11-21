@@ -249,6 +249,18 @@ it.each(["balanced", "strict"])("automatically loads the prefix detector for an 
   const wake = createWake({ userData: dir, state: () => ready, changed: vi.fn(), detected: vi.fn(),
     verifyModelsFn: async () => {}, createDetectorsFn: load });
   expect(await wake.enable(mode)).toMatchObject({ listening: true, prefixFallback: { [mode]: true } });
-  expect(load).toHaveBeenCalledWith(expect.anything(), { ...p, requirePrefix: true }, undefined);
+  expect(load).toHaveBeenCalledWith(expect.anything(), { ...p, requirePrefix: true, separatePrefix: true }, undefined);
   wake.stop();
+});
+
+it("recognises OK independently of the enrolled name only on automatic fallback", () => {
+  const { keywordText, profileCombiner } = require("./wake-policy");
+  const manual = { phrase: "Filow", requirePrefix: true, thresholds };
+  const fallback = { ...manual, separatePrefix: true };
+  expect(keywordText(fallback)).toContain("OW2 K EY1 :1 #0.4 @prefix");
+  expect(keywordText(manual)).not.toContain("@prefix");
+  const combiner = profileCombiner(fallback, "strict");
+  expect(combiner.push({ at: 300, score: 9 })).toBe(false);
+  expect(combiner.push({ at: 700, keyword: true, prefixEndMs: 600 })).toBe(false);
+  expect(combiner.push({ at: 900, score: 9 })).toBe(true);
 });
