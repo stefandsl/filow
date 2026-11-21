@@ -966,5 +966,1456 @@
       }
     ],
     "asarSha256": "afe1d41c7b3f01c9c33821d7d5ac411477c077484ca01f9d831003f0abb2f245"
+  },
+  "roundThree": {
+    "source": "2d7aa6368ca8c42bc309ee9aeafd360470fe79cd",
+    "legacySource": "a7962fc38a290bb2b4b7282a4ee04eb625a7c37b",
+    "frozenManifest": "2006dd805a9d794c64ea8cba03318aca6bc23d0842a5459adc220f15b827a089",
+    "legacyEnrolment": {
+      "en": [
+        {
+          "kind": "enrol",
+          "file": "enrol-0.wav",
+          "text": "Okay Filow",
+          "sid": 5,
+          "speed": 0.8299999833106995,
+          "sha256": "0f21ef7dcbdb97258e95745f4d807f330e27ceaf849f653ad690bdfdf48a3ae3"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-1.wav",
+          "text": "Okay Filow",
+          "sid": 5,
+          "speed": 0.9300000071525574,
+          "sha256": "cd3c346cced60cb61823162a89ad8097866b3a112836bc8b7b53e6f118ffe2a7"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-2.wav",
+          "text": "Okay Filow",
+          "sid": 5,
+          "speed": 1.0,
+          "sha256": "a20a7edefa8d770c7bb76524de706cf45e0ee379913dc7d3618e472a9b1941e8"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-3.wav",
+          "text": "Okay Filow",
+          "sid": 5,
+          "speed": 1.090000033378601,
+          "sha256": "7139350190c004fabc9d687ec9c5e4916881625829bf8f334dc66bcc00fd872c"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-4.wav",
+          "text": "Okay Filow",
+          "sid": 5,
+          "speed": 1.2000000476837158,
+          "sha256": "59e5812702282ceca7ddffb54c15482600ee068e29bd648e447015d857a7c6fe"
+        }
+      ],
+      "it": [
+        {
+          "kind": "enrol",
+          "file": "enrol-0.wav",
+          "text": "Ok Filo",
+          "sid": 6,
+          "speed": 0.8299999833106995,
+          "sha256": "78a275f3c95f0e0c4080d24914849531ed9e0f2d7effaecfd9dc782dcd45e7c0"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-1.wav",
+          "text": "Ok Filo",
+          "sid": 6,
+          "speed": 0.9300000071525574,
+          "sha256": "6c21ba3dff003d92b9e1f6fd88e1483fab5b04159a8d97d3e49a30aa0be01472"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-2.wav",
+          "text": "Ok Filo",
+          "sid": 6,
+          "speed": 1.0,
+          "sha256": "3d3bd985ed5b62448c07d2bd63c525cf14f8bd0999a2b553c2e83cd741d322e5"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-3.wav",
+          "text": "Ok Filo",
+          "sid": 6,
+          "speed": 1.090000033378601,
+          "sha256": "056221bbb2f8fa631f527c46ed6eba8372806f0b69b9890eb6834f3b1c7e69a4"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-4.wav",
+          "text": "Ok Filo",
+          "sid": 6,
+          "speed": 1.2000000476837158,
+          "sha256": "faece0591d30e8c7ff68016a337359d4340f065f2a4df08d10dccb311cbc7c26"
+        }
+      ],
+      "ro": [
+        {
+          "kind": "enrol",
+          "file": "enrol-0.wav",
+          "text": "Okei Filo",
+          "sid": 7,
+          "speed": 0.8299999833106995,
+          "sha256": "5b61d1a96af782fe829f8c5dde09da72b52f5da33d4a76d03b29ddc54fddc492"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-1.wav",
+          "text": "Okei Filo",
+          "sid": 7,
+          "speed": 0.9300000071525574,
+          "sha256": "fbc48dcde7a62bd9c986ca178c054c26e9a7539711e36cfe0a82c849ce6e3e4f"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-2.wav",
+          "text": "Okei Filo",
+          "sid": 7,
+          "speed": 1.0,
+          "sha256": "32ad0e9cf61555a3f12a1982010cf9e745e7b91111496b3108a3d5fd71433c1e"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-3.wav",
+          "text": "Okei Filo",
+          "sid": 7,
+          "speed": 1.090000033378601,
+          "sha256": "d2d3fc32a7e9829d161e61740566fe3b8ff3e5baeff86453fbfb81cd10ea450a"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-4.wav",
+          "text": "Okei Filo",
+          "sid": 7,
+          "speed": 1.2000000476837158,
+          "sha256": "7287fc633f7d02fe095382d0a8311c1edace87e9ba3f149f54ea1ea4b1955ede"
+        }
+      ],
+      "ru": [
+        {
+          "kind": "enrol",
+          "file": "enrol-0.wav",
+          "text": "Окей Фило",
+          "sid": 5,
+          "speed": 0.8299999833106995,
+          "sha256": "dec5fa912b5c59897d4794e449ad8c2f0a9ef8e0b18d7c950d6353b77164592e"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-1.wav",
+          "text": "Окей Фило",
+          "sid": 5,
+          "speed": 0.9300000071525574,
+          "sha256": "91d2b1707dd303590a7774d070a53aa26f14b0895cbe0e71d58b895654de5a22"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-2.wav",
+          "text": "Окей Фило",
+          "sid": 5,
+          "speed": 1.0,
+          "sha256": "2fc422b117592c7e89e0347aeeb529ce6252426ca21e973ec018163516980f98"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-3.wav",
+          "text": "Окей Фило",
+          "sid": 5,
+          "speed": 1.090000033378601,
+          "sha256": "a3a25db61a93d6dc5beb5d68f1c1a19f1efb48f3035df8b04903ac7bfa11a3fc"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-4.wav",
+          "text": "Окей Фило",
+          "sid": 5,
+          "speed": 1.2000000476837158,
+          "sha256": "dbfbbce9a46de060459937a73bd7b1edd135d9689b2bd191f8d8a20e26e66e60"
+        }
+      ],
+      "ja": [
+        {
+          "kind": "enrol",
+          "file": "enrol-0.wav",
+          "text": "オーケー、フィロー",
+          "sid": 6,
+          "speed": 0.8299999833106995,
+          "sha256": "3a47cffbae2a1647fb76625ef1664bfc93b7acc03df60ef885d393ffac83ccfd"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-1.wav",
+          "text": "オーケー、フィロー",
+          "sid": 6,
+          "speed": 0.9300000071525574,
+          "sha256": "356649e2f69d8a29a6d8ec2afd00861ebac5d8485ec76d6e97faf9b8c6561cf0"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-2.wav",
+          "text": "オーケー、フィロー",
+          "sid": 6,
+          "speed": 1.0,
+          "sha256": "5e4eeeba057264d7abaa7eee8c31cc347384cd7c2689dfab04abb0577b851642"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-3.wav",
+          "text": "オーケー、フィロー",
+          "sid": 6,
+          "speed": 1.090000033378601,
+          "sha256": "f1c8f3180e4bb095a2a4a08dcc53c98051169057300d4285f2016650144dd827"
+        },
+        {
+          "kind": "enrol",
+          "file": "enrol-4.wav",
+          "text": "オーケー、フィロー",
+          "sid": 6,
+          "speed": 1.2000000476837158,
+          "sha256": "ccbb24412c0d470fc129228d978952b7d001c342fd1f2307febf71dd1ea8715d"
+        }
+      ]
+    },
+    "candidate": [
+      {
+        "lang": "en",
+        "phrase": "bare",
+        "seconds": 5400,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "prefixFallback": true,
+            "bare": 0,
+            "ok": 6,
+            "hey": 4,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 6,
+            "ok": 6,
+            "hey": 5,
+            "near": 3,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 6,
+            "ok": 6,
+            "hey": 5,
+            "near": 4,
+            "normal": 2
+          }
+        },
+        "totals": {
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 12
+        },
+        "verification": {
+          "strict": {
+            "total": 5,
+            "recognised": 2,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "balanced": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "sensitive": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          }
+        }
+      },
+      {
+        "lang": "it",
+        "phrase": "bare",
+        "seconds": 5400,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "prefixFallback": true,
+            "bare": 0,
+            "ok": 4,
+            "hey": 4,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "prefixFallback": true,
+            "bare": 0,
+            "ok": 4,
+            "hey": 4,
+            "near": 0,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 5,
+            "ok": 6,
+            "hey": 6,
+            "near": 3,
+            "normal": 0
+          }
+        },
+        "totals": {
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 12
+        },
+        "verification": {
+          "strict": {
+            "total": 5,
+            "recognised": 2,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "balanced": {
+            "total": 5,
+            "recognised": 3,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "sensitive": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          }
+        }
+      },
+      {
+        "lang": "ro",
+        "phrase": "bare",
+        "seconds": 2100,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 2,
+            "ok": 6,
+            "hey": 6,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 5,
+            "ok": 6,
+            "hey": 6,
+            "near": 2,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 5,
+            "ok": 6,
+            "hey": 6,
+            "near": 2,
+            "normal": 0
+          }
+        },
+        "totals": {
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 12
+        },
+        "verification": {
+          "strict": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "balanced": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "sensitive": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          }
+        }
+      },
+      {
+        "lang": "ru",
+        "phrase": "bare",
+        "seconds": 4800,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "prefixFallback": true,
+            "bare": 0,
+            "ok": 3,
+            "hey": 1,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 5,
+            "ok": 6,
+            "hey": 5,
+            "near": 2,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 6,
+            "ok": 6,
+            "hey": 6,
+            "near": 3,
+            "normal": 0
+          }
+        },
+        "totals": {
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 12
+        },
+        "verification": {
+          "strict": {
+            "total": 5,
+            "recognised": 2,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "balanced": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "sensitive": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          }
+        }
+      },
+      {
+        "lang": "ja",
+        "phrase": "bare",
+        "seconds": 3900,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "prefixFallback": true,
+            "bare": 0,
+            "ok": 2,
+            "hey": 0,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "prefixFallback": true,
+            "bare": 0,
+            "ok": 3,
+            "hey": 0,
+            "near": 0,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 6,
+            "ok": 6,
+            "hey": 6,
+            "near": 2,
+            "normal": 2
+          }
+        },
+        "totals": {
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 12
+        },
+        "verification": {
+          "strict": {
+            "total": 5,
+            "recognised": 0,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "balanced": {
+            "total": 5,
+            "recognised": 3,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "sensitive": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          }
+        }
+      }
+    ],
+    "legacy": [
+      {
+        "lang": "en",
+        "phrase": "ok",
+        "seconds": 5400,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "bare": 0,
+            "ok": 5,
+            "hey": 5,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "bare": 6,
+            "ok": 6,
+            "hey": 6,
+            "near": 6,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "bare": 6,
+            "ok": 6,
+            "hey": 6,
+            "near": 6,
+            "normal": 1
+          }
+        },
+        "totals": {
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 12
+        },
+        "verification": {
+          "strict": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "balanced": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "sensitive": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          }
+        }
+      },
+      {
+        "lang": "it",
+        "phrase": "ok",
+        "seconds": 5400,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "bare": 0,
+            "ok": 4,
+            "hey": 4,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "bare": 5,
+            "ok": 6,
+            "hey": 4,
+            "near": 2,
+            "normal": 1
+          },
+          "sensitive": {
+            "enabled": true,
+            "bare": 5,
+            "ok": 6,
+            "hey": 5,
+            "near": 2,
+            "normal": 2
+          }
+        },
+        "totals": {
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 12
+        },
+        "verification": {
+          "strict": {
+            "total": 5,
+            "recognised": 4,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "balanced": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "sensitive": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          }
+        }
+      },
+      {
+        "lang": "ro",
+        "phrase": "ok",
+        "seconds": 2100,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "bare": 0,
+            "ok": 6,
+            "hey": 6,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "bare": 6,
+            "ok": 6,
+            "hey": 6,
+            "near": 1,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "bare": 6,
+            "ok": 6,
+            "hey": 5,
+            "near": 1,
+            "normal": 0
+          }
+        },
+        "totals": {
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 12
+        },
+        "verification": {
+          "strict": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "balanced": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "sensitive": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          }
+        }
+      },
+      {
+        "lang": "ru",
+        "phrase": "ok",
+        "seconds": 4800,
+        "counts": {
+          "strict": {
+            "enabled": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 3,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "bare": 4,
+            "ok": 6,
+            "hey": 4,
+            "near": 0,
+            "normal": 2
+          },
+          "sensitive": {
+            "enabled": true,
+            "bare": 4,
+            "ok": 6,
+            "hey": 4,
+            "near": 0,
+            "normal": 3
+          }
+        },
+        "totals": {
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 12
+        },
+        "verification": {
+          "strict": {
+            "total": 5,
+            "recognised": 2,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "balanced": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "sensitive": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          }
+        }
+      },
+      {
+        "lang": "ja",
+        "phrase": "ok",
+        "seconds": 3900,
+        "counts": {
+          "strict": {
+            "enabled": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 0,
+            "near": 0,
+            "normal": 1
+          },
+          "balanced": {
+            "enabled": true,
+            "bare": 6,
+            "ok": 6,
+            "hey": 6,
+            "near": 3,
+            "normal": 1
+          },
+          "sensitive": {
+            "enabled": true,
+            "bare": 6,
+            "ok": 6,
+            "hey": 6,
+            "near": 3,
+            "normal": 2
+          }
+        },
+        "totals": {
+          "bare": 6,
+          "ok": 6,
+          "hey": 6,
+          "near": 12
+        },
+        "verification": {
+          "strict": {
+            "total": 5,
+            "recognised": 3,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "balanced": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          },
+          "sensitive": {
+            "total": 5,
+            "recognised": 5,
+            "negatives": 0,
+            "negativeAccepts": 0
+          }
+        }
+      }
+    ],
+    "package": {
+      "source": "2d7aa6368ca8c42bc309ee9aeafd360470fe79cd",
+      "asarSha256": "4f0d41df1d5f604ba152e695a3d8682b0f5a62a532ba237b26fd9fc2c658aacc",
+      "en": {
+        "themes": {
+          "light": {
+            "checked": true,
+            "label": "Consenti Filow da solo (disattiva per richiedere OK o Hey prima di Filow)",
+            "color": "rgb(17, 19, 24)"
+          },
+          "dark": {
+            "checked": true,
+            "label": "Consenti Filow da solo (disattiva per richiedere OK o Hey prima di Filow)",
+            "color": "rgb(243, 243, 241)"
+          }
+        },
+        "defaults": {
+          "bare": true,
+          "sensitivity": "balanced"
+        },
+        "cases": [
+          {
+            "file": "near0-0.wav",
+            "bareAllowed": true,
+            "expected": 0,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3590,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "file": "bare-6.wav",
+            "bareAllowed": true,
+            "expected": 1,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3575,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "file": "ok-6.wav",
+            "bareAllowed": true,
+            "expected": 1,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3702,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "file": "bare-6.wav",
+            "bareAllowed": false,
+            "expected": 0,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3598,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "file": "bare-6.wav",
+            "bareAllowed": false,
+            "expected": 0,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3572,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "file": "ok-6.wav",
+            "bareAllowed": false,
+            "expected": 1,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3674,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "file": "bare-6.wav",
+            "bareAllowed": true,
+            "expected": 1,
+            "delta": 1,
+            "questionEvents": 1,
+            "elapsedMs": 2281,
+            "phase": "busy",
+            "error": ""
+          }
+        ]
+      },
+      "it": {
+        "themes": {
+          "light": {
+            "checked": false,
+            "label": "Consenti Filow da solo (disattiva per richiedere OK o Hey prima di Filow)",
+            "color": "rgb(17, 19, 24)"
+          },
+          "dark": {
+            "checked": false,
+            "label": "Consenti Filow da solo (disattiva per richiedere OK o Hey prima di Filow)",
+            "color": "rgb(243, 243, 241)"
+          }
+        },
+        "defaults": {
+          "bare": true,
+          "sensitivity": "balanced"
+        },
+        "cases": [
+          {
+            "sensitivity": "balanced",
+            "file": "bare-0.wav",
+            "bareAllowed": true,
+            "expected": 0,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3790,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-0.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3905,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-1.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3697,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-2.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3598,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-3.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3596,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-4.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3482,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-5.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3395,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "bare-0.wav",
+            "bareAllowed": true,
+            "expected": 0,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3816,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-0.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3913,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-1.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3716,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-2.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3578,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-3.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3581,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-4.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3467,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-5.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3347,
+            "phase": "listening",
+            "error": ""
+          }
+        ]
+      },
+      "ja": {
+        "themes": {
+          "light": {
+            "checked": false,
+            "label": "Consenti Filow da solo (disattiva per richiedere OK o Hey prima di Filow)",
+            "color": "rgb(17, 19, 24)"
+          },
+          "dark": {
+            "checked": false,
+            "label": "Consenti Filow da solo (disattiva per richiedere OK o Hey prima di Filow)",
+            "color": "rgb(243, 243, 241)"
+          }
+        },
+        "defaults": {
+          "bare": true,
+          "sensitivity": "balanced"
+        },
+        "cases": [
+          {
+            "sensitivity": "balanced",
+            "file": "bare-0.wav",
+            "bareAllowed": true,
+            "expected": 0,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3803,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-0.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 4015,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-1.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3931,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-2.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3709,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-3.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3711,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-4.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3587,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "balanced",
+            "file": "ok-5.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3484,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "bare-0.wav",
+            "bareAllowed": true,
+            "expected": 0,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3791,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-0.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 4040,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-1.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3921,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-2.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 0,
+            "questionEvents": 0,
+            "elapsedMs": 3704,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-3.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3702,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-4.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3600,
+            "phase": "listening",
+            "error": ""
+          },
+          {
+            "sensitivity": "strict",
+            "file": "ok-5.wav",
+            "bareAllowed": true,
+            "expected": null,
+            "delta": 1,
+            "questionEvents": 0,
+            "elapsedMs": 3480,
+            "phase": "listening",
+            "error": ""
+          }
+        ]
+      }
+    },
+    "forcedFallbackDevelopment": [
+      {
+        "lang": "en",
+        "phrase": "prefix",
+        "seconds": 0,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 1,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 1,
+            "near": 0,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 1,
+            "near": 0,
+            "normal": 0
+          }
+        },
+        "totals": {
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 4
+        }
+      },
+      {
+        "lang": "it",
+        "phrase": "prefix",
+        "seconds": 0,
+        "counts": {
+          "strict": {
+            "enabled": false,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 2,
+            "hey": 1,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 2,
+            "hey": 1,
+            "near": 0,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 2,
+            "hey": 1,
+            "near": 0,
+            "normal": 0
+          }
+        },
+        "totals": {
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 4
+        }
+      },
+      {
+        "lang": "ro",
+        "phrase": "prefix",
+        "seconds": 0,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 1,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 1,
+            "near": 0,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 1,
+            "near": 0,
+            "normal": 0
+          }
+        },
+        "totals": {
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 4
+        }
+      },
+      {
+        "lang": "ru",
+        "phrase": "prefix",
+        "seconds": 0,
+        "counts": {
+          "strict": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 0,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 0,
+            "near": 0,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 3,
+            "hey": 0,
+            "near": 0,
+            "normal": 0
+          }
+        },
+        "totals": {
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 4
+        }
+      },
+      {
+        "lang": "ja",
+        "phrase": "prefix",
+        "seconds": 0,
+        "counts": {
+          "strict": {
+            "enabled": false,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 1,
+            "hey": 0,
+            "near": 0,
+            "normal": 0
+          },
+          "balanced": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 1,
+            "hey": 0,
+            "near": 0,
+            "normal": 0
+          },
+          "sensitive": {
+            "enabled": true,
+            "prefixFallback": false,
+            "bare": 0,
+            "ok": 1,
+            "hey": 0,
+            "near": 0,
+            "normal": 0
+          }
+        },
+        "totals": {
+          "bare": 3,
+          "ok": 3,
+          "hey": 1,
+          "near": 4
+        }
+      }
+    ],
+    "codeCI": "https://github.com/stefandsl/filow/actions/runs/44857060871"
   }
 }
