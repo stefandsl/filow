@@ -43,8 +43,10 @@ export function createWakeCapture(b: OkFilowBridge, open = startMic) {
           if (id !== generation || !wanted) return;
           const data = Float32Array.from(new Int16Array(pcm), (v) => v / 32768);
           if (!sending) void send(data);
-          else if (buffered.length < 2) buffered.push(data);
-          else fail("Wake detector cannot keep up with the microphone");
+          else {
+            if (buffered.length === 2) buffered.shift();
+            buffered.push(data);
+          }
         }, (warning) => {
           if (warning?.kind === "ended" && id === generation) { stop(); void b.wakeAction?.("error", "The selected microphone disconnected"); }
         }, undefined, { latencyHint: "playback" });

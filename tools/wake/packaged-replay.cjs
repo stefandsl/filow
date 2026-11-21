@@ -5,13 +5,20 @@ const net = require("node:net");
 const { spawn } = require("node:child_process");
 const { once } = require("node:events");
 const { setTimeout: wait } = require("node:timers/promises");
-const { chromium } = require("playwright-core");
+
 const { readSample, wav } = require("../../apps/desktop/wake-pcm");
-const [exe, models, clips, root] = process.argv.slice(2).map(p => path.resolve(p));
+function replayPaths(args) {
+  if (args.length !== 4) throw new Error("Pass FILOW_EXE MODELS CLIPS NEW_PROFILE");
+  const paths = args.map(p => path.resolve(p));
+  if (path.basename(path.dirname(paths[0])) !== "win-unpacked" || fs.existsSync(paths[3])) {
+    throw new Error("Expected an unpacked QA build and a fresh isolated profile");
+  }
+  return paths;
+}
 
 async function run() {
-  if (!/^g:/i.test(root) || fs.existsSync(root) || !/^g:/i.test(exe) ||
-      path.basename(path.dirname(exe)) !== "win-unpacked") throw new Error("Expected an unpacked QA build and a fresh isolated G: profile");
+  const [exe, models, clips, root] = replayPaths(process.argv.slice(2));
+  const { chromium } = require("playwright-core");
   const servers = [];
   let ports;
   try {
@@ -163,4 +170,5 @@ async function run() {
     if (app.exitCode === null) app.kill();
   }
 }
-run().catch(error => { console.error(error); process.exitCode = 1; });
+module.exports = { replayPaths };
+if (require.main === module) run().catch(error => { console.error(error); process.exitCode = 1; });

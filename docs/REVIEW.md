@@ -99,3 +99,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R85 (2026-11-21, wake-filow): finish retiring old recordings after an interrupted migration. Check: reopen a valid new profile with an orphaned old sample and verify only the current takes survive.
 - R86 (2026-11-21, wake-filow): record Settings state from the real checkbox during hidden packaged audio replay. Check: read the checked value in both themes and toggle it in each direction while listening.
 - R87 (2026-11-21, wake-filow): keep host paths and chosen port numbers in private packaged receipts. Check: the public evaluation names the isolation method and measurements, and contains no workstation paths or assigned ports.
+- R88 (2026-11-21, wake-filow): supersede R84 on backlog overflow. Check: delay one inference for eight blocks and verify capture delivers the first and newest two in order.
+- R89 (2026-11-21, wake-filow): accept caller-selected volumes for packaged QA. Check: supply separate executable and profile volumes and reject an existing profile.
