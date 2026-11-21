@@ -128,6 +128,11 @@ export class Engine {
   private unmentioned: string[] = [];
   private notes: ScreenNote[] = [];
   private lookNowSubs = new Set<() => void>();
+  private takeControl: { start(): void; stop(): void } | null = null;
+  private paused = false;
+  private takeFloor = 0;
+  private lastFinal = "";
+  private resetDuplicate = "";
 
   constructor(opts: EngineOptions) {
     this.o = {
@@ -188,6 +193,11 @@ export class Engine {
     this.lookNowSubs.add(fn);
     return () => this.lookNowSubs.delete(fn);
   }
+  /** The prompter owns the real microphone and its startup consent dialogs. */
+  onTakeControl(control: { start(): void; stop(): void }): () => void {
+    this.takeControl = control;
+    return () => { if (this.takeControl === control) this.takeControl = null; };
+  }
   subscribe(fn: Subscriber): () => void {
     this.subs.add(fn);
     return () => this.subs.delete(fn);
@@ -215,6 +225,8 @@ export class Engine {
       (!saved.here || script.sections[sectionIdx].bullets.some(b => b.id === saved.here)) &&
       Object.keys(saved.points).every(id => script.sections.some(s => s.bullets.some(b => b.id === id)));
     this.committed = "";
+    this.lastFinal = "";
+    this.resetDuplicate = "";
     this.segs = [];
     this.partial = "";
     this.lastSent = "";
@@ -236,8 +248,11 @@ export class Engine {
 
   // ---- inputs -----------------------------------------------------------------
   feed(e: TranscriptEvent): void {
+    if (this.paused || (e.committed && e.committed.trim() === this.resetDuplicate && !this.partial.trim())) return;
+    if (e.partial?.trim() || e.committed) this.resetDuplicate = "";
     let withdrawn: string[] = [];
     if (e.committed) {
+      this.lastFinal = e.committed.trim();
       if (this.o.guard) withdrawn = this.reconcileCorrection(e.committed);
       this.committed = (this.committed + e.committed).slice(-COMMITTED_CAP);
       this.committedTotal += e.committed.length;
@@ -388,6 +403,7 @@ export class Engine {
         // Words still being transcribed at the Reset were said before it: their segment is fenced off
         // too when it commits. "(reconnecting…)" is a status, not words: the socket that held them is gone.
         this.fences.set(s.sectionIdx, this.committedTotal);
+        this.resetDuplicate = this.lastFinal;
         this.fenceNextCommit = this.partial.trim() && !/^\s*\(reconnecting\b/.test(this.partial) ? s.sectionIdx : null;
         this.lastSent = "";
         this.invalidate();
@@ -402,10 +418,12 @@ export class Engine {
       case "reopen":
         return this.setPoint(cmd.id, { status: "waiting", confidence: 0, reopened: true });
       case "startTake":
-        this.start();
+        if (this.takeControl) this.takeControl.start();
+        else this.start();
         return { ok: true };
       case "stopTake":
-        this.stop();
+        if (this.takeControl) this.takeControl.stop();
+        else this.stop();
         return { ok: true };
       case "loadScript":
         this.loadScript(parseScript(cmd.text));
@@ -533,7 +551,8 @@ export class Engine {
 
   // ---- loop ---------------------------------------------------------------------
   start(): void {
-    if (this.timer) return;
+    if (this.timer !== null) return;
+    this.paused = false;
     this.invalidate();
     this.lastSent = "";
     this.notes = [];
@@ -546,13 +565,24 @@ export class Engine {
   }
 
   stop(): void {
-    if (this.timer) this.o.clearInterval(this.timer);
+    if (this.timer !== null) this.o.clearInterval(this.timer);
     this.timer = null;
+    this.paused = true;
+    this.takeFloor = this.committedTotal;
+    this.partial = "";
+    this.held.clear();
+    this.streak = {};
+    this.fenceNextCommit = null;
     this.invalidate();
     this.update((s) => {
       s.engine.recording = false;
       s.controlEpoch = (s.controlEpoch ?? 0) + 1;
       s.engine.backend = null;
+      s.transcriptTail = this.transcript.slice(-TAIL);
+      for (const p of Object.values(s.points)) {
+        delete p.active;
+        if (p.status === "waiting") p.confidence = 0;
+      }
     });
   }
 
@@ -608,7 +638,7 @@ export class Engine {
    * skips the pacing and the "same text" rule, which exist to stop idle or piled-up calls, not this one.
    */
   async tick(verifyNow = false): Promise<void> {
-    if (this.inFlight || this.reloading || this.warmWait) return;
+    if (this.paused || this.inFlight || this.reloading || this.warmWait) return;
     const s = this.state;
     const section = s.script.sections[s.sectionIdx];
     if (!section) return;
@@ -623,7 +653,7 @@ export class Engine {
     // start at a word boundary: "quattrocentocinquanta" must not become "centocinquanta"
     if (startIdx > 0 && !/\s/.test(raw[startIdx - 1])) while (startIdx < end && !/\s/.test(raw[startIdx])) startIdx++;
     // nothing said before this section's Reset is asked about again (the fence sits between two committed segments)
-    const fenceIdx = (this.fences.get(s.sectionIdx) ?? 0) - (this.committedTotal - raw.length);
+    const fenceIdx = Math.max(this.takeFloor, this.fences.get(s.sectionIdx) ?? 0) - (this.committedTotal - raw.length);
     if (fenceIdx > startIdx) startIdx = fenceIdx;
     while (startIdx < end && /\s/.test(raw[startIdx])) startIdx++;
     const windowText = raw.slice(startIdx, end);

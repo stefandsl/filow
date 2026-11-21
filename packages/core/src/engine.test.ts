@@ -46,6 +46,43 @@ const BIG = parseScript(`# One
 `);
 
 describe("script-scoped place", () => {
+  it("routes a phone Start and Stop through the registered microphone owner", () => {
+    const { e } = makeEngine();
+    const start = vi.fn();
+    const stop = vi.fn();
+    const off = e.onTakeControl({ start, stop });
+    e.dispatch({ type: "startTake" });
+    expect(start).toHaveBeenCalledOnce();
+    expect(e.getState().engine.recording).toBe(false);
+    e.start(); // the backend's successful opening
+    e.dispatch({ type: "stopTake" });
+    expect(stop).toHaveBeenCalledOnce();
+    off();
+    e.dispatch({ type: "stopTake" });
+    expect(e.getState().engine.recording).toBe(false);
+  });
+  it("rejects a repeated final at Reset and late speech at Stop while allowing a fresh take", async () => {
+    const { e, calls } = makeEngine([{ s0b0: 1 }]);
+    const words = "hello everyone. ";
+    e.start();
+    e.feed({ committed: words });
+    await e.tick();
+    e.dispatch({ type: "resetSection" });
+    e.feed({ committed: words });
+    await e.tick();
+    expect(e.getState().points).toEqual({});
+    e.feed({ partial: "hello everyone" });
+    e.stop();
+    e.feed({ committed: words });
+    e.start();
+    await e.tick();
+    expect(calls).toHaveLength(1);
+    expect(e.getState().points.s0b0?.active).toBeFalsy();
+    e.feed({ partial: "hello" });
+    e.feed({ committed: words });
+    await e.tick();
+    expect(e.getState().points.s0b0.status).toBe("started");
+  });
   it("changes the controller generation on Stop, Reset and replacement, independent of speech frames", () => {
     const { e } = makeEngine();
     const generation = () => e.getState().controlEpoch;

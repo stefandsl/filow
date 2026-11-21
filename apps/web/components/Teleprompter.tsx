@@ -549,6 +549,10 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     stopTake();
     setStarting(false);
   };
+  useEffect(() => engine.onTakeControl({
+    start: () => { if (!engine.getState().engine.recording && !starting && !startDialog) void requestStart(); },
+    stop: () => { setStartDialog(false); cancelStart(); },
+  }));
 
   useEffect(() => () => { startAttempts.current.cancel(); backendRef.current?.stop(); endOutbound(); }, [endOutbound]);
 
