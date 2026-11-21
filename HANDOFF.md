@@ -1,5 +1,22 @@
 # Filow hand-off
 
+## N-03 | Packaged Windows baseline
+
+The operator replayed the two-section support journey with local Sherpa and paced PCM at the packaged capture callback on main `d22031efab8086a5e7dda79cf844bbda4dbdd25b`. The private archive matches its SHA-512 manifest. Both runs clicked Start. Counts below are per desktop run at the end of each clip.
+
+| Label | English | Italian |
+|---|---|---|
+| Noise, wrong ticks / opportunity | 0/1 in 6 s (0/min) | 0/1 in 6 s (0/min) |
+| Pilot, correct target / opportunity | 1/1 Bristol | 1/1 Vicenza |
+| Digression, wrong new ticks / opportunity | 0/1, pilot retained | 0/1, pilot retained |
+| Corrected launch date, wrong ticks / opportunity | 1/1 | 1/1 |
+| Support owner alias, correct target / opportunity | 0/1, recognizer returned “Myo” | 0/1, Giulia recognized, row still tentative |
+| Near phrase and later positive launch-date line | 0 eligible for each | 0 eligible for each |
+
+In both languages the launch date was already green before the near phrase. The phone stayed on its join screen. It supplied zero paired observations. The ambiguous alias, general backup remark, interruption timings, physical microphone switch and Bluetooth trial have no measurements in these receipts.
+
+Recheck the supplied WAV directory with `node tools/autoloop/e2e/n03-windows.mjs fixtures <directory>`. For each private receipt run `node tools/autoloop/e2e/n03-windows.mjs score <receipt.json> d22031efab8086a5e7dda79cf844bbda4dbdd25b`. Both exit 1. The receipts contain desktop rows, submitted frame counts and recognizer events. They lack per-clip digests, paired rows and fault observations. Use the same external driver, speech model, PCM bytes and schedule for the candidate.
+
 ## N-01 | Working baseline, 20 November 2026
 
 The operator observed `stefandsl/filow` at **`44569cfaad1bd2036871dda478e7e9d750d30f1f`** on `origin/main` at 07:49:15.712 UTC. The primary checkout, assigned `ticket/n01` worktree and private builder checkout all started at that SHA with zero tracked changes and zero untracked files. Hold the comparison if the baseline moves or unexplained edits appear. All seven prepared Windows checks passed on that commit. The earlier prepared run had 4,217 passes and 12 skips. [Delivery plan](docs/PLAN.md)
