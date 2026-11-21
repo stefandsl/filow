@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import {
   currentPoint,
   pointDisplayState,
+  scriptIdentity,
   missedPoints,
   notesToMarkdown,
   parseScript,
@@ -82,7 +83,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
   const [logOpen, setLogOpen] = useState(false);
   const actionMenuRef = useRef<HTMLButtonElement>(null);
   const { engine, state } = useEngine();
-  const sessionInfo = useSession(engine);
+  const [placeReady, setPlaceReady] = useState(false);
+  const sessionInfo = useSession(engine, placeReady);
   // Re-anchoring (clicker keys, clicks, a section's name said aloud) and the Display panel: prompter/useReanchor.ts, prompter/DisplayPanel.tsx
   const reanchor = useReanchor(engine, state.sectionIdx);
   const { slideMoved } = reanchor;
@@ -226,12 +228,60 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
   };
 
   // ---- script ----------------------------------------------------------
+  const loadNumber = useRef(0);
+  const writer = useRef<{ key: string; id: string; last: string } | null>(null);
+  const checkpointError = useRef("");
+  checkpointError.current = t("take.placeError");
+  const persistPlace = useCallback(() => {
+    const bridge = desktopBridge()?.takePlace;
+    const owner = writer.current;
+    if (!bridge || !owner) return;
+    const place = engine.committedPlace();
+    if (!place || place.scriptKey !== owner.key) return;
+    const { sectionId, here, points } = place;
+    const payload = { sectionId, here, points };
+    const encoded = JSON.stringify(payload);
+    if (owner.last === encoded) return;
+    owner.last = encoded;
+    const failed = () => {
+      if (writer.current !== owner || owner.last !== encoded) return;
+      owner.last = "";
+      engine.setError(checkpointError.current);
+    };
+    void bridge.save(owner.id, engine.getState().version, payload).then(ok => { if (!ok) failed(); }, failed);
+  }, [engine]);
+  useEffect(() => engine.subscribe((_state, ops) => {
+    if (ops.some(op => /^\/(points(?:\/|$)|sectionIdx$|here$)/.test(op.path))) persistPlace();
+  }), [engine, persistPlace]);
+
+  const installScript = useCallback(async (text: string, script: Script, number: number, recover: boolean) => {
+    if (number !== loadNumber.current) return;
+    const bridge = desktopBridge()?.takePlace;
+    const key = bridge && scriptIdentity(script);
+    let saved = null;
+    writer.current = null;
+    if (bridge && key) {
+      try {
+        const opened = await bridge.begin(key);
+        if (number !== loadNumber.current) return;
+        writer.current = { key, id: opened.writer, last: "" };
+        if (recover && opened.place) saved = { ...opened.place, scriptKey: key };
+      } catch {
+        if (number !== loadNumber.current) return;
+        engine.setError(checkpointError.current);
+      }
+    }
+    setScriptText(text);
+    engine.loadScript(script, saved);
+    persistPlace();
+    setPlaceReady(true);
+  }, [engine, persistPlace]);
   const loadScript = useCallback(async () => {
+    const number = ++loadNumber.current;
     const res = await fetch("/api/script");
     const { text, script } = (await res.json()) as { text: string; script: Script };
-    setScriptText(text);
-    engine.loadScript(script);
-  }, [engine]);
+    await installScript(text, script, number, true);
+  }, [installScript]);
 
   useEffect(() => {
     setHasWebSpeech(browserSupported());
@@ -240,9 +290,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     void fetch("/api/stt/status")
       .then((r) => r.json())
       .then((s: SttStatus) => setSttStatus(s));
+    return () => { ++loadNumber.current; writer.current = null; };
   }, [loadScript]);
 
   const saveScript = async (text: string) => {
+    const number = ++loadNumber.current;
     await ensureEngineToken();
     const res = await fetch("/api/script", {
       method: "PUT",
@@ -250,8 +302,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       body: JSON.stringify({ text }),
     });
     const { script } = (await res.json()) as { script: Script };
-    setScriptText(text);
-    engine.loadScript(script);
+    await installScript(text, script, number, false);
     setEditing(false);
   };
 

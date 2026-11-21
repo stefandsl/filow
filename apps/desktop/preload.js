@@ -109,6 +109,10 @@ contextBridge.exposeInMainWorld("filow", {
   /** system | light | dark; the shell colours (title bar, dialogs, splash) follow. */
   setTheme: (theme) => ipcRenderer.send("ui:theme", theme),
   reportSession: (info) => ipcRenderer.send("session:report", info),
+  takePlace: {
+    begin: (key) => ipcRenderer.invoke("take:openPlace", key),
+    save: (writer, version, place) => ipcRenderer.invoke("take:savePlace", writer, version, place),
+  },
   /** Live slide show (PowerPoint via COM / AppleScript): {running, index, total, title}. */
   slideshowState: () => ipcRenderer.invoke("slideshow:state"),
   onSlideshow: (fn) => {

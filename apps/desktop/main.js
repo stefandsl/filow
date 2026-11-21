@@ -618,6 +618,16 @@ function wireScreenSense() {
   appOn("localai:install", () => void startOllamaInstall());
   // the script editor's local translation found Ollama stopped: start what is installed, download nothing
   appOn("localai:start", () => startOllamaIfWanted("the editor needs Ollama to translate", { needed: true }));
+  let checkpoint;
+  appHandle("take:openPlace", (event, key) => {
+    if (event.sender !== mainWin?.webContents) throw new Error("Denied");
+    checkpoint ??= require("./take-checkpoint").createTakeCheckpoint(userData);
+    return checkpoint.begin(key);
+  });
+  appHandle("take:savePlace", (event, writer, version, place) => {
+    if (event.sender !== mainWin?.webContents) throw new Error("Denied");
+    return checkpoint?.save(writer, version, place) ?? false;
+  });
   appOn("session:report", (_e, info) => {
     if (info && typeof info.code === "string" && typeof info.id === "string") {
       const changedSession = !currentSession || currentSession.id !== info.id;

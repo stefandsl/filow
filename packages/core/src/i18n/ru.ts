@@ -85,6 +85,7 @@ export const ru: Dictionary = {
   "section.points": "Пунктов в разделе: {n}",
   "next.label": "Следующий раздел",
   "state.waiting": "Ожидает",
+  "take.placeError": "Filow не удалось получить доступ к сохранённой позиции на этом компьютере.",
   "state.reopened": "Открыт повторно",
   "state.active": "В процессе",
   "state.done": "Сказано",

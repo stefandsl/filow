@@ -85,6 +85,7 @@ export const it: Dictionary = {
   "section.points": "{n} punti da trattare",
   "next.label": "Prossima sezione",
   "state.waiting": "In attesa",
+  "take.placeError": "Filow non riesce ad accedere alla posizione salvata su questo computer.",
   "state.reopened": "Riaperto",
   "state.active": "In corso",
   "state.done": "Detto",

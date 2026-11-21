@@ -5,6 +5,10 @@
  * 3. Otherwise: same host, port 4748 (dev).
  */
 export type DesktopBridge = {
+  takePlace?: {
+    begin(key: string): Promise<{ writer: string; place: Omit<import("@filow/core").CommittedPlace, "scriptKey"> | null }>;
+    save(writer: string, version: number, place: Omit<import("@filow/core").CommittedPlace, "scriptKey">): Promise<boolean>;
+  };
   desktop: true;
   account?: {
     status(): Promise<{ configured: boolean; service?: string; user: { email: string; name: string } | null; plan: "local" | "pro"; billing: boolean; checkout?: "open" | "unconfigured" | "billing_not_open"; paidUntil?: string | null }>;

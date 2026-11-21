@@ -61,7 +61,7 @@ function storedPassword(): string {
  * Engine side of ARCHITECTURE.md §5.4: create a session, connect as engine,
  * publish every state change, apply incoming commands.
  */
-export function useSession(engine: Engine) {
+export function useSession(engine: Engine, ready = true) {
   const [info, setInfo] = useState<SessionInfo | null>(null);
   const [status, setStatus] = useState<string>("offline");
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +113,7 @@ export function useSession(engine: Engine) {
   useEffect(() => okFilowSettingsBridge()?.onPhoneAskOff?.((id) => clientRef.current?.allowAsk(id, false)), []);
 
   useEffect(() => {
+    if (!ready) return;
     let cancelled = false;
     let unsub: (() => void) | null = null;
     (async () => {
@@ -195,7 +196,7 @@ export function useSession(engine: Engine) {
       clientRef.current?.close();
       clientRef.current = null;
     };
-  }, [engine, newCode]);
+  }, [engine, newCode, ready]);
 
   return { info, status, error, pairRequests, decidePair, newCode, devices, revokeDevice, allowAsk, approveDevice };
 }

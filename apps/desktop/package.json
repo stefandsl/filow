@@ -57,6 +57,7 @@
       "wake-data/**",
       "stt-worker.js",
       "stt.js",
+      "take-checkpoint.js",
       "stt-download.js",
       "dictation.js",
       "dictation-core.js",

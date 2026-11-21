@@ -85,6 +85,7 @@ export const en = {
   "section.points": "{n} points to cover",
   "next.label": "Next section",
   "state.waiting": "Waiting",
+  "take.placeError": "Filow could not access your saved place on this computer.",
   "state.reopened": "Reopened",
   "state.active": "In progress",
   "state.done": "Said",
