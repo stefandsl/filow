@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import type { EffectCallback } from "react";
+import { describe, expect, it, vi } from "vitest";
+import * as client from "@filow/client";
+import { engineTokenStore, useSession } from "../useSession";
 import { DEFAULT_DISPLAY, Engine, parseScript, type SessionState } from "@filow/core";
 import { takeRecorder } from "../TimerClock";
 import { LangProvider, StageView } from "@filow/ui";
@@ -8,8 +11,59 @@ import { keyBelongsToControl } from "./useReanchor";
 import { DisplayPanel, displayAttributes } from "./DisplayPanel";
 import { ReanchorNotice } from "./ReanchorNotice";
 
+// Run the mounted session effects in this DOM-free replay. Normal server-render
+// assertions in this file use React's own useEffect.
+const mount = vi.hoisted(() => ({ effects: null as EffectCallback[] | null }));
+vi.mock("react", async load => {
+  const react = await load<typeof import("react")>();
+  return { ...react, useEffect: (effect: EffectCallback, deps?: readonly unknown[]) => {
+    if (mount.effects) mount.effects.push(effect);
+    else react.useEffect(effect, deps);
+  } };
+});
+
 const el = (matches: boolean, editable = false) => ({ closest: () => (matches ? {} : null), isContentEditable: editable }) as unknown as EventTarget;
 const doc = (dialogOpen: boolean) => ({ querySelector: () => (dialogOpen ? {} : null) }) as unknown as Document;
+
+it("pauses capture on confirmed session loss and keeps listening during an ordinary reconnect", async () => {
+  const effects: EffectCallback[] = [];
+  const cleanups: Array<() => void> = [];
+  const engine = new Engine({ decide: vi.fn(), setInterval: () => 1, clearInterval: () => {} });
+  const stop = vi.fn(() => engine.stop());
+  engine.onTakeControl({ start: () => engine.start(), stop });
+  engine.loadScript(parseScript("# Pilot\n- Support team"));
+  engine.dispatch({ type: "reopen", id: "s0b0" });
+  engine.start();
+  function Presenter() { useSession(engine); return null; }
+  const originalToken = engineTokenStore.token;
+  try {
+    vi.stubGlobal("filow", { sessionUrl: "http://fixture.invalid", mirrorOrigin: "http://fixture.invalid" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: "fixture", code: "fixture", engineToken: "fixture" }) }));
+    const connection = vi.spyOn(client, "connect").mockResolvedValue({
+      onCommand: vi.fn(), onResync: vi.fn(), publishState: vi.fn(), publishPatch: vi.fn(), close: vi.fn(),
+    } as unknown as client.SessionClient);
+    mount.effects = effects;
+    renderToStaticMarkup(<Presenter />);
+    for (const effect of effects) {
+      const cleanup = effect();
+      if (cleanup) cleanups.push(cleanup);
+    }
+    await vi.waitFor(() => expect(connection).toHaveBeenCalledOnce());
+    const status = connection.mock.calls[0][0].onStatus!;
+    status("connecting", "reconnecting");
+    expect(engine.getState().engine.recording).toBe(true);
+    status("closed", "session lost");
+    expect(stop).toHaveBeenCalledOnce();
+    expect(engine.getState().engine.recording).toBe(false);
+    expect(engine.getState().points.s0b0.reopened).toBe(true);
+  } finally {
+    mount.effects = null;
+    for (const undo of cleanups.reverse()) undo();
+    engineTokenStore.token = originalToken;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  }
+});
 
 it("publishes the recovered section in the first load observed by the real rehearsal clock", () => {
   const engine = () => new Engine({ decide: async () => ({ decisions: [], latencyMs: 0, cost: 0, model: "test" }) });

@@ -173,7 +173,12 @@ export function useSession(engine: Engine, ready = true) {
           onStatus: (s, d) => {
             if (cancelled) return;
             setStatus(d ? `${s}: ${d}` : s);
-            if (s === "closed" && d === "session lost") replaceLostSession();
+            if (s === "closed" && d === "session lost" && !retry) {
+              // The relay has discarded the session. Close active or opening capture
+              // before advertising the replacement and requesting a new pairing.
+              engine.dispatch({ type: "stopTake" });
+              replaceLostSession();
+            }
           },
           onPairRequest: (req) => {
             setPairRequests((r) => (r.some((p) => p.token === req.token) ? r : [...r, req]));
