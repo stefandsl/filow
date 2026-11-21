@@ -85,6 +85,7 @@ export const ro: Dictionary = {
   "section.points": "Puncte de abordat: {n}",
   "next.label": "Secțiunea următoare",
   "state.waiting": "În așteptare",
+  "state.reopened": "Redeschis",
   "state.active": "În curs",
   "state.done": "Spus",
   "why.button": "De ce?",

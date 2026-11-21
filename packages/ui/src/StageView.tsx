@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Icon } from "../../../apps/web/components/icons";
 import type { Command, SessionState } from "@filow/core";
-import { currentPoint, evidenceSummary, missedPoints, moveCommand } from "@filow/core";
+import { currentPoint, evidenceSummary, explainEvidence, missedPoints, moveCommand, pointDisplayState } from "@filow/core";
 import { MarkSaidButton } from "./MarkSaidButton";
 import { OnScreenStrip } from "./OnScreenStrip";
 import { useLang, useT } from "./lang";
@@ -66,12 +66,14 @@ export function StageView({ state, onCommand, banner, stage, compact, markButton
             {section.bullets.map((b, i) => {
               const st = points[b.id] ?? { status: "waiting", confidence: 0 };
               const started = st.status === "started";
-              const hot = !started && (st.confidence >= 0.3 || st.active === true);
+              const display = pointDisplayState(st);
+              const hot = display === "active";
               const toggle = () => send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id });
               const row = (
                 <div
                   key={b.id}
                   data-point-id={b.id}
+                  data-state={display}
                   className={`point ${i >= 10 && !compact ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""} ${here === b.id ? "here" : ""}`}
                   // a tap says "I am here"; a click with no pointer (detail 0: a screen reader in browse mode) toggles, as aria-pressed says
                   onClick={can ? (e) => (e.detail === 0 ? toggle() : send({ type: "anchor", idx: sectionIdx, pointId: b.id })) : undefined}
@@ -95,19 +97,27 @@ export function StageView({ state, onCommand, banner, stage, compact, markButton
                 >
                   <span className="mark">{started ? pointMark : null}</span>
                   <span className="status">
-                    {t(`status.${st.status}`)}
+                    {t(display === "missed" ? "status.missed" : `state.${display}`)}
                     {!started && <span className="pct">· {Math.round(st.confidence * 100)}%</span>}
                   </span>
                   <span className="text" id={markButton ? `point-text-${b.id}` : undefined}>{b.text}</span>
                 </div>
               );
-              if (!(can && markButton)) return row;
-              return (
+              const controls = !(can && markButton) ? row : (
                 <div key={b.id} className="point-item has-mark">
                   {row}
                   <MarkSaidButton done={started} label={t(started ? "point.unmarkSaid" : "point.markSaid")} describedBy={`point-text-${b.id}`} onToggle={toggle} />
                 </div>
               );
+              if (!stage || compact || !started || !st.evidence) return controls;
+              const why = explainEvidence(st.evidence, lang);
+              return <div key={b.id}>{controls}
+                <details className="stage-evidence" data-evidence-for={b.id}>
+                  <summary>{t("why.button")}</summary>
+                  {why.quote && <q>{why.quote}</q>}
+                  {why.lines.map(line => <p key={line}>{line}</p>)}
+                </details>
+              </div>;
             })}
           </div>
 
@@ -135,7 +145,7 @@ export function StageView({ state, onCommand, banner, stage, compact, markButton
               <div className="label">{t("stage.missed", { n: missed.length })}</div>
               <div className="row scroll">
                 {missed.map((b) => (
-                  <span key={b.id} className="missed-item" onClick={can ? () => send({ type: "reopen", id: b.id }) : undefined}
+                  <span key={b.id} data-missed-id={b.id} className="missed-item" onClick={can ? () => send({ type: "reopen", id: b.id }) : undefined}
                     role={can ? "button" : undefined} tabIndex={can ? 0 : undefined}
                     onKeyDown={can ? (e) => {
                       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); send({ type: "reopen", id: b.id }); }

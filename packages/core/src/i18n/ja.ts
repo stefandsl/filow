@@ -85,6 +85,7 @@ export const ja: Dictionary = {
   "section.points": "話すポイント{n}件",
   "next.label": "次のセクション",
   "state.waiting": "待機中",
+  "state.reopened": "未完了に戻しました",
   "state.active": "進行中",
   "state.done": "発言済み",
   "why.button": "理由",

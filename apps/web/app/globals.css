@@ -498,6 +498,10 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .app.stage .point-item.has-mark > .point { padding-right: 72px; }
 .app.stage .point-mark { top: 50%; right: 12px; transform: translateY(-50%); width: 48px; height: 48px; }
 .app.stage .point-mark svg { width: 28px; height: 28px; }
+.stage-evidence { color: var(--text); padding-inline: 12px; }
+.stage-evidence summary { cursor: pointer; padding-block: 12px; color: var(--muted); }
+.stage-evidence summary:focus-visible { outline: 2px solid var(--accent); }
+.stage-evidence p { margin-block: 4px; }
 
 /* ---- Re-anchoring, the Display panel and the points window (feat-prompter) ---- */
 /* The point the presenter is on: a ring and a filled number, on the prompter and on the mirror. */

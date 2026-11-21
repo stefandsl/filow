@@ -146,6 +146,21 @@ describe("the same button on the phone mirror", () => {
     expect(mirror.match(/markButton=\{role === "controller"\}/g)).toHaveLength(3);
   });
 
+  it("offers touch evidence beside the phone row and reports the same reopened and tentative IDs", () => {
+    const next = structuredClone(state);
+    next.points.s0b0 = { status: "waiting", reopened: true, confidence: 0 };
+    next.points.s0b1.evidence = { source: "model", quote: "Revenue has doubled.", decision: 1, fromMs: 1, toMs: 2, lexical: 1, model: "fixture" };
+    for (const lang of ["en", "it"] as const) {
+      const html = renderToStaticMarkup(<LangProvider lang={lang}><StageView state={next} stage /></LangProvider>);
+      expect(html).toMatch(/<details[^>]*data-evidence-for="s0b1"/);
+      expect(html).toContain("<q>Revenue has doubled.</q>");
+      expect(html).toContain(t("why.button", lang));
+      expect(html).toMatch(/data-point-id="s0b0"[^>]*data-state="reopened"/);
+    }
+    next.points.s0b0 = { status: "waiting", confidence: 0, active: true };
+    expect(renderToStaticMarkup(<StageView state={next} stage />)).toMatch(/data-point-id="s0b0"[^>]*data-state="active"/);
+  });
+
   it("sends the toggle to the PC through the controller's command path, mark then undo", async () => {
     vi.resetModules();
     vi.doMock("../../../../packages/ui/src/lang", () => ({ useT: () => (key: string) => t(key as never, "en"), useLang: () => "en" }));

@@ -85,6 +85,7 @@ export const en = {
   "section.points": "{n} points to cover",
   "next.label": "Next section",
   "state.waiting": "Waiting",
+  "state.reopened": "Reopened",
   "state.active": "In progress",
   "state.done": "Said",
   "why.button": "Why?",

@@ -85,6 +85,7 @@ export const ru: Dictionary = {
   "section.points": "Пунктов в разделе: {n}",
   "next.label": "Следующий раздел",
   "state.waiting": "Ожидает",
+  "state.reopened": "Открыт повторно",
   "state.active": "В процессе",
   "state.done": "Сказано",
   "why.button": "Почему?",

@@ -2,7 +2,14 @@
 // section, a presentation clicker, or saying a section's name). Pure helpers, no DOM: the engine's
 // "anchor" command (engine.ts) does the move; these decide which move an input means.
 import { contentTokens, quantities, similarity, tokenize, FUZZY_MIN } from "./text";
-import type { Command, SessionState } from "./types";
+import type { Command, PointState, SessionState } from "./types";
+
+export function pointDisplayState(point?: PointState) {
+  if (point?.status === "started") return "done";
+  if (point?.status === "missed") return "missed";
+  if (point?.reopened) return "reopened";
+  return point && (point.active || point.confidence >= 0.3) ? "active" : "waiting";
+}
 
 export type ClickerMove = "next" | "prev";
 

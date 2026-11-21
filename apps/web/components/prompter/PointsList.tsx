@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { evidenceSummary, explainEvidence, type Evidence } from "@filow/core";
 import { MarkSaidButton, useLang, useT } from "@filow/ui";
 import { Icon } from "../icons";
-import type { PointState } from "../../lib/pointState";
+import type { pointDisplayState } from "@filow/core";
+
+type PointState = ReturnType<typeof pointDisplayState>;
 
 const pct = (x: number) => Math.round(Math.max(0, Math.min(1, x)) * 100);
 
@@ -60,7 +62,7 @@ export function PointsList({ points, onToggle, onHere, current }: {
   return <div className="points prompter-points"><div className="sr-only" role="status" aria-live="polite">{said}</div>{points.map((point, i) => {
     const percent = point.state === "done" ? 100 : point.state === "waiting" ? 0 : pct(point.confidence);
     const icon = point.state === "done" ? "check" : point.state === "active" ? "circle" : "clock";
-    const label = t(`state.${point.state}`);
+    const label = t(point.state === "missed" ? "status.missed" : `state.${point.state}`);
     const why = point.state === "done" && point.evidence ? point.evidence : null;
     const whyId = `why-${point.id}`;
     const isOpen = open === point.id;

@@ -6,6 +6,7 @@ import type { MicWarning } from "@filow/stt";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import {
   currentPoint,
+  pointDisplayState,
   missedPoints,
   notesToMarkdown,
   parseScript,
@@ -54,7 +55,6 @@ import { ReanchorNotice } from "./prompter/ReanchorNotice";
 import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useCodesForWindows, useDisplayPrefs, useEyeline, usePointsWindow } from "./prompter/DisplayPanel";
 import { openWhiteboard } from "@/lib/whiteboard/open";
 import { anchorOf, canAskOkFilow, openOkFilow } from "@/lib/buddy/openAsk";
-import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
 import { refocusIfLost } from "@/lib/focusHandoff";
 import { decisionRecipient, localServer, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
@@ -584,7 +584,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         {rehearsal.timer}
         {section && <PointsList points={section.bullets.map(b => {
           const st = points[b.id] ?? {status: "waiting", confidence: 0};
-          return {id:b.id, text:b.text, confidence:st.confidence, evidence:st.evidence, state:pointState({started:st.status === "started",confidence:st.confidence},st.confidence >= 0.3 || st.active === true)};
+          return {id:b.id, text:b.text, confidence:st.confidence, evidence:st.evidence, state:pointDisplayState(st)};
         })} onToggle={id => engine.dispatch(points[id]?.status === "started" ? {type:"reopen",id} : {type:"markStarted",id})}
           onHere={id => reanchor.toPoint(sectionIdx, id)} current={here} />}
         {state.screen && <OnScreenStrip screen={state.screen} unmentioned={state.unmentioned} analysing={state.screenStats?.analysing} onLookNow={screen.lookNow} onForget={screen.forget} />}
@@ -593,7 +593,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
               <div className="label">{t("stage.missed", { n: missed.length })}</div>
               <div className="row scroll">
                 {missed.map((b) => (
-                  <span key={b.id} className="missed-item" title={t("stage.reopen")} onClick={() => engine.dispatch({ type: "reopen", id: b.id })}
+                  <span key={b.id} data-missed-id={b.id} className="missed-item" title={t("stage.reopen")} onClick={() => engine.dispatch({ type: "reopen", id: b.id })}
                     role="button" tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); engine.dispatch({ type: "reopen", id: b.id }); }
