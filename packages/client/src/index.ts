@@ -147,6 +147,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
   let backoff = 500;
   let engineGone = false;
   let seq = 0;
+  let publishedEpoch: number | undefined;
 
   const client: SessionClient = {
     id: session.id,
@@ -166,16 +167,18 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
         if (!ws || ws.readyState !== 1) return resolve({ ok: false, error: "not connected" });
         const id = String(++seq);
         pending.set(id, resolve);
-        ws.send(JSON.stringify({ t: "cmd", id, cmd }));
+        ws.send(JSON.stringify({ t: "cmd", id, cmd, epoch: client.state?.controlEpoch }));
         setTimeout(() => {
           if (pending.delete(id)) resolve({ ok: false, error: "no ack" });
         }, 5000);
       });
     },
     publishState(state) {
+      publishedEpoch = state.controlEpoch;
       if (ws?.readyState === 1) ws.send(JSON.stringify({ t: "state", version: state.version, state }));
     },
     publishPatch(version, ops) {
+      for (const op of ops) if (op.path === "/controlEpoch" && "value" in op) publishedEpoch = op.value;
       if (ws?.readyState === 1) ws.send(JSON.stringify({ t: "patch", version, ops }));
     },
     onCommand(fn) {
@@ -315,6 +318,10 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
           }
           case "cmd": {
             const id = String(msg.id);
+            if (msg.epoch !== undefined && msg.epoch !== publishedEpoch) {
+              sock.send(JSON.stringify({ t: "ack", id, ok: false, error: "place-changed" }));
+              break;
+            }
             const raw = msg.from && typeof msg.from === "object" ? (msg.from as { id?: unknown; device?: unknown; peer?: unknown }) : null;
             const from: CommandFrom | undefined = raw
               ? { id: String(raw.id ?? ""), device: String(raw.device ?? ""), ...(raw.peer === "app" || raw.peer === "lan" || raw.peer === "remote" ? { peer: raw.peer } : {}) }

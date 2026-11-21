@@ -120,6 +120,8 @@ export type SessionStats = {
 export type SessionState = {
   id: string;
   version: number;
+  /** Changes at a take, script or reset boundary. Phones echo it when issuing a command. */
+  controlEpoch?: number;
   script: Script;
   sectionIdx: number;
   points: Record<string, PointState>;

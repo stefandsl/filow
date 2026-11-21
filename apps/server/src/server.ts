@@ -562,6 +562,7 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
   };
 
   function attach(ws: WebSocket, s: Session, req: IncomingMessage, engineOnly: boolean, ip: string) {
+    let lastCommand = 0;
     let me: View | null = null;
     let isEngine = false;
     // Counted until its hello is taken or it closes (the engine's socket was proven at the upgrade).
@@ -715,12 +716,18 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
             relay = { type: "askOkFilow", text };
           }
           if (!s.engine || s.engine.readyState !== WebSocket.OPEN) return ack(id, "engine offline");
+          const epoch = (s.lastState as { controlEpoch?: number } | null)?.controlEpoch;
+          if (msg.epoch !== undefined) {
+            const sequence = Number(id);
+            if (msg.epoch !== epoch || !Number.isSafeInteger(sequence) || sequence <= lastCommand) return ack(id, "place-changed");
+            lastCommand = sequence;
+          }
           // Rebuilt, never passed through: the engine reads `from` from here only. The engine sees the
           // relay's own id, so its ack can go back to this device only (never to another with the same id).
           const relayId = randomToken();
           if (s.acks.size >= 1000) s.acks.delete(s.acks.keys().next().value!);
           s.acks.set(relayId, { view: me, id });
-          s.engine.send(JSON.stringify({ t: "cmd", id: relayId, cmd: relay, from }));
+          s.engine.send(JSON.stringify({ t: "cmd", id: relayId, cmd: relay, from, epoch }));
         } else if (msg.t === "resync") {
           if (s.lastState) ws.send(JSON.stringify({ t: "state", version: s.version, state: s.lastState }));
         }

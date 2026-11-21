@@ -46,6 +46,21 @@ const BIG = parseScript(`# One
 `);
 
 describe("script-scoped place", () => {
+  it("changes the controller generation on Stop, Reset and replacement, independent of speech frames", () => {
+    const { e } = makeEngine();
+    const generation = () => e.getState().controlEpoch;
+    const first = generation();
+    e.feed({ partial: "hello" });
+    expect(generation()).toBe(first);
+    e.stop();
+    const stopped = generation();
+    expect(stopped).not.toBe(first);
+    e.dispatch({ type: "resetSection" });
+    const reset = generation();
+    expect(reset).not.toBe(stopped);
+    e.loadScript(SCRIPT);
+    expect(generation()).not.toBe(reset);
+  });
   const text = "# One\n- Same\n- Same\n# Two\n- Finish";
   it("recovers duplicate labels by their shared point IDs on an unchanged legacy script", () => {
     const { e } = makeEngine();

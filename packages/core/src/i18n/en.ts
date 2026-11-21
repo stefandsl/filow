@@ -85,6 +85,7 @@ export const en = {
   "section.points": "{n} points to cover",
   "next.label": "Next section",
   "state.waiting": "Waiting",
+  "take.placeChanged": "The take changed. Check the current point and try again.",
   "take.speechStopped": "Speech recognition stopped. Start again to continue from this point.",
   "take.placeError": "Filow could not access your saved place on this computer.",
   "state.reopened": "Reopened",

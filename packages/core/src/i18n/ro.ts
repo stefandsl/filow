@@ -85,6 +85,7 @@ export const ro: Dictionary = {
   "section.points": "Puncte de abordat: {n}",
   "next.label": "Secțiunea următoare",
   "state.waiting": "În așteptare",
+  "take.placeChanged": "Sesiunea s-a schimbat. Verifică punctul curent și încearcă din nou.",
   "take.speechStopped": "Recunoașterea vocală s-a oprit. Apasă pe Pornire pentru a continua de aici.",
   "take.placeError": "Filow nu a putut accesa poziția salvată pe acest computer.",
   "state.reopened": "Redeschis",

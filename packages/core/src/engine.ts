@@ -225,6 +225,7 @@ export class Engine {
     this.unmentioned = [];
     this.update((s) => {
       s.script = script;
+      s.controlEpoch = (s.controlEpoch ?? 0) + 1;
       s.sectionIdx = restored ? sectionIdx : 0;
       s.points = restored ? structuredClone(saved.points) : {};
       delete s.here;
@@ -375,6 +376,7 @@ export class Engine {
         const section = s.script.sections[s.sectionIdx];
         if (!section) return { ok: false, error: "no section" };
         this.update((st) => {
+          st.controlEpoch = (st.controlEpoch ?? 0) + 1;
           for (const b of section.bullets) delete st.points[b.id];
         });
         for (const b of section.bullets) {
@@ -537,6 +539,7 @@ export class Engine {
     this.notes = [];
     this.update((s) => {
       s.engine.recording = true;
+      s.controlEpoch = (s.controlEpoch ?? 0) + 1;
       s.engine.error = undefined;
     });
     this.timer = this.o.setInterval(() => void this.tick(), this.o.tickMs);
@@ -548,6 +551,7 @@ export class Engine {
     this.invalidate();
     this.update((s) => {
       s.engine.recording = false;
+      s.controlEpoch = (s.controlEpoch ?? 0) + 1;
       s.engine.backend = null;
     });
   }

@@ -125,7 +125,8 @@ function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     void client?.send(cmd).then((r) => {
       // Refused by the relay for a reason the phone can say in words (not accepted on the computer yet, too many taps).
       const refused = r.ok ? null : remoteErrorKey(r.error);
-      if (refused) setError(t(refused));
+      if (r.error === "place-changed") setError(t("take.placeChanged"));
+      else if (refused) setError(t(refused));
       else if (!r.ok) setError(t("mirror.commandError", { error: r.error ?? "" }));
       else setError(null);
     });

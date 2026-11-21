@@ -58,6 +58,27 @@ describe("pairing", () => {
 });
 
 describe("relay", () => {
+  it("refuses controller input from before Stop or Reset and executes a fresh input just once", async () => {
+    const { id, code, engineToken } = await createSession();
+    const engine = open(id, { role: "engine", token: engineToken });
+    await engine.next();
+    engine.send({ t: "state", version: 5, state: { version: 5, controlEpoch: 3 } });
+    const { viewToken } = await (await post("/api/session/pair", { code })).json();
+    const phone = open(id, { role: "view", token: viewToken });
+    await phone.next();
+    await phone.next();
+    phone.send({ t: "cmd", id: "1", epoch: 2, cmd: { type: "prevSection" } });
+    phone.send({ t: "cmd", id: "2", epoch: 3, cmd: { type: "nextSection" } });
+    const fresh = await engine.next();
+    expect(fresh).toMatchObject({ t: "cmd", epoch: 3, cmd: { type: "nextSection" } });
+    expect(await phone.next()).toMatchObject({ t: "ack", id: "1", ok: false });
+    engine.send({ t: "ack", id: fresh.id, ok: true });
+    expect(await phone.next()).toMatchObject({ t: "ack", id: "2", ok: true });
+    phone.send({ t: "cmd", id: "2", epoch: 3, cmd: { type: "nextSection" } });
+    expect(await phone.next()).toMatchObject({ t: "ack", id: "2", ok: false });
+    engine.ws.close();
+    phone.ws.close();
+  });
   it("replays state to new views, forwards patches and commands, rejects a second engine", async () => {
     const { id, code, engineToken } = await createSession();
     const engine = open(id, { role: "engine", token: engineToken });
