@@ -226,6 +226,16 @@ Use an existing fixture or saved lesson. Approve the slice when the reply's reve
 
 - **Requests** R-180
 
+### X-16 Keep background listening under one core
+
+**Goal.** Background listening for the wake word and live speech uses at most one CPU core on average and no more peak private memory. Preserve wake recall and zero drops. Set thread counts explicitly and share one pool where the runtime allows. Three ONNX Runtime thread pools currently each size themselves to the machine.
+
+**Acceptance test.** Repeat the same packaged 30-minute paced microphone capture with the default wake setting on main and the branch on the same machine. Main used about 6.0 CPU cores on average (5.99 to 6.01), about 1.5 GB peak private memory and had zero drops. The branch uses at most one core on average and no more peak private memory than main. Wake recall on the frozen held-out set stays the same and drops stay at zero.
+
+**Verification.** Report average CPU cores, peak private memory, drops and wake recall on the frozen held-out set for both builds. Repeat the comparison on a low-spec 4-core machine and report the same measures.
+
+- **Requests** R-181
+
 ## Later/Icebox
 
 Return to these for the named decision or evidence.
@@ -496,6 +506,7 @@ Request statuses come from the owner's private request register (not in the repo
 | R-178 | Open | [X-13](#x-13-continue-a-decision-or-factory-assignment-when-an-approved-model-runs-out-of-quota) |
 | R-179 | Open | [X-14](#x-14-act-in-another-app-through-one-measured-driver) |
 | R-180 | Open | [X-15](#x-15-win-back-wake-recall-at-the-default-setting) |
+| R-181 | Open | [X-16](#x-16-keep-background-listening-under-one-core) |
 
 </details>
 
