@@ -81,6 +81,14 @@ export type Evidence =
 /** @deprecated use PointState */
 export type BulletState = PointState;
 
+/** Only the committed part of a take. IDs are meaningful inside the identified script. */
+export type CommittedPlace = {
+  scriptKey: string;
+  sectionId: string;
+  here?: string;
+  points: Record<string, PointState>;
+};
+
 export type SttBackendId = "browser" | "elevenlabs" | "openai" | "whisper" | "sherpa";
 
 export type ScreenSummary = {

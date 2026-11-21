@@ -44,6 +44,43 @@ const BIG = parseScript(`# One
 - p6
 `);
 
+describe("script-scoped place", () => {
+  const text = "# One\n- Same\n- Same\n# Two\n- Finish";
+  it("recovers duplicate labels by their shared point IDs on an unchanged legacy script", () => {
+    const { e } = makeEngine();
+    e.loadScript(parseScript(text));
+    e.dispatch({ type: "markStarted", id: "s0b1" });
+    e.dispatch({ type: "anchor", idx: 1, pointId: "s1b0" });
+    const fresh = makeEngine().e;
+    fresh.loadScript(parseScript(text.replaceAll("\n", "\r\n")), e.committedPlace());
+    expect(fresh.getState()).toMatchObject({
+      sectionIdx: 1, here: "s1b0", points: {
+        s0b0: { status: "missed" }, s0b1: { status: "started", evidence: { source: "manual" } },
+      },
+    });
+  });
+  it("drops an anchor when a replacement reuses its positional ID", () => {
+    const { e } = makeEngine();
+    e.dispatch({ type: "anchor", idx: 0, pointId: "s0b1" });
+    e.loadScript(parseScript(text));
+    expect(e.getState().here).toBeUndefined();
+  });
+  it("rejects a changed, reordered or ambiguously identified script", () => {
+    const { e } = makeEngine();
+    e.loadScript(parseScript(text));
+    e.dispatch({ type: "markStarted", id: "s0b1" });
+    const saved = e.committedPlace();
+    const ambiguous = parseScript(text);
+    ambiguous.sections[0].bullets[1].id = "s0b0";
+    for (const script of [parseScript(text.replace("Same", "Edited")), parseScript("# Two\n- Finish\n# One\n- Same\n- Same"), ambiguous]) {
+      e.loadScript(script, saved);
+      expect(e.getState().points).toEqual({});
+    }
+    e.dispatch({ type: "markStarted", id: "s0b0" });
+    expect(e.committedPlace()).toBeNull();
+  });
+});
+
 describe("Engine regression audit (Step 2)", () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {

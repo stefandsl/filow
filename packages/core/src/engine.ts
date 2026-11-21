@@ -5,10 +5,10 @@ import type { DecideRequest, DecideResponse, Decision, Verification } from "./ap
 import { lexicalScores } from "./gate";
 import { checkClaim, type ClaimCheck } from "./guard";
 import { sentences } from "./text";
-import { parseScript } from "./script";
+import { parseScript, scriptIdentity } from "./script";
 import { isScreenScript, sectionFromSummary, type ScreenNote } from "./screen";
 import { PHONE_ASK } from "./phone-ask";
-import type { Bullet, Command, CommandResult, Evidence, PointState, ScreenSummary, Script, SessionState, SttBackendId } from "./types";
+import type { Bullet, Command, CommandResult, CommittedPlace, Evidence, PointState, ScreenSummary, Script, SessionState, SttBackendId } from "./types";
 
 export type TranscriptEvent = { committed?: string; partial?: string };
 
@@ -95,6 +95,7 @@ const ANCHOR_RECENT_MS = 6000;
 export class Engine {
   private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard" | "onVerify" | "reload" | "warming">> & Pick<EngineOptions, "onGuard" | "onVerify" | "reload" | "warming">;
   private state: SessionState;
+  private scriptKey: string | null = null;
   private committed = "";
   private partial = "";
   private lastSent = "";
@@ -193,8 +194,26 @@ export class Engine {
   }
 
   // ---- script ---------------------------------------------------------------
-  loadScript(script: Script): void {
+  committedPlace(): CommittedPlace | null {
+    const { script, sectionIdx, here, points } = this.state;
+    if (!this.scriptKey || script.source === "screen" || !script.sections[sectionIdx]) return null;
+    const committed: Record<string, PointState> = {};
+    for (const [id, point] of Object.entries(points)) {
+      if (point.status !== "waiting") {
+        committed[id] = structuredClone(point);
+        delete committed[id].active;
+      }
+    }
+    return { scriptKey: this.scriptKey, sectionId: script.sections[sectionIdx].id, ...(here ? { here } : {}), points: committed };
+  }
+
+  loadScript(script: Script, saved?: CommittedPlace | null): void {
     this.invalidate();
+    this.scriptKey = scriptIdentity(script);
+    const sectionIdx = saved?.scriptKey === this.scriptKey ? script.sections.findIndex(s => s.id === saved.sectionId) : -1;
+    const restored = saved && sectionIdx >= 0 &&
+      (!saved.here || script.sections[sectionIdx].bullets.some(b => b.id === saved.here)) &&
+      Object.keys(saved.points).every(id => script.sections.some(s => s.bullets.some(b => b.id === id)));
     this.committed = "";
     this.segs = [];
     this.partial = "";
@@ -206,8 +225,10 @@ export class Engine {
     this.unmentioned = [];
     this.update((s) => {
       s.script = script;
-      s.sectionIdx = 0;
-      s.points = {};
+      s.sectionIdx = restored ? sectionIdx : 0;
+      s.points = restored ? structuredClone(saved.points) : {};
+      delete s.here;
+      if (restored && saved.here) s.here = saved.here;
       s.transcriptTail = "";
     });
   }
@@ -468,6 +489,7 @@ export class Engine {
       }
       for (const p of Object.values(st.points)) delete p.active;
       st.sectionIdx = target;
+      if (target !== s.sectionIdx) delete st.here;
     });
     this.lastSent = "";
     if (target !== s.sectionIdx) this.invalidate();

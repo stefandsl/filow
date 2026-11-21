@@ -15,6 +15,26 @@ export const SLIDES_MARKER = "<!-- source: slides -->";
 /** A script built by /api/import carries this marker. Slides win when both are present. */
 export const IMPORT_MARKER = "<!-- source: import -->";
 
+/** Explicit identity scope for shared point references (adapted from bb, see licenses/bb).
+ * Preserve legacy IDs, including duplicate labels. Reuse across different scripts is unsafe.
+ * Canonical input to the desktop checkpoint digest, independent of JSON property order and EOL.
+ */
+export function scriptIdentity(script: Script): string | null {
+  const sectionIds = new Set<string>();
+  const pointIds = new Set<string>();
+  if (!script.sections.length) return null;
+  for (const section of script.sections) {
+    if (!section.id || sectionIds.has(section.id)) return null;
+    sectionIds.add(section.id);
+    for (const point of section.bullets) {
+      if (!point.id || pointIds.has(point.id) || Object.hasOwn(Object.prototype, point.id)) return null;
+      pointIds.add(point.id);
+    }
+  }
+  return JSON.stringify([script.source ?? "markdown", script.minutes ?? null, script.sections.map(s =>
+    [s.id, s.title, s.minutes ?? null, s.bullets.map(b => [b.id, b.text])])]);
+}
+
 /** Optional heading prefix: "Intro - What is a decision model?" is the label "Intro" and the title after it. */
 export function sectionLabel(title: string): { label: string; title: string } {
   const separator = title.indexOf(" - ");
