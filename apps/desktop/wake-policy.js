@@ -109,7 +109,7 @@ function checkRecording(samples) {
 // No idle capture may borrow the authorization for a question or another audio channel.
 function captureAllowed(channel, s) {
   if (channel === "wake") return s.wakeListening === true && s.indicator === true && !blocked(s);
-  if (channel === "question") return s.held === true || s.handsFree === true || s.releaseTail === true || s.wakeQuestion === true;
+  if (channel === "question") return s.held === true || s.handsFree === true || s.releaseTail === true || s.wakeQuestion === true || s.panelQuestion === true;
   return false;
 }
 module.exports = { DEFAULTS, SPELLINGS, keywordText, sensitivity, blocked, combine, createCombiner, profileCombiner, checkRecording, captureAllowed };

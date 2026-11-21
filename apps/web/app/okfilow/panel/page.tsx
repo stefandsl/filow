@@ -1120,7 +1120,7 @@ export default function OkFilowPanel() {
       // "auto" here means the spoken language set in Settings (the shell resolves it); only when that is
       // automatic too does the recognizer detect what is spoken. The interface language is never used.
       // Dictation uses its own language setting ("auto" there means the speech language in Settings).
-      const loading = b.stt.start(dict ? dict.language : "auto").then(
+      const loading = b.stt.start(dict ? dict.language : "auto", why === "talk" && panelMic.current).then(
         (info) => {
           recognizerReady = true;
           for (const s of queued) b.stt.feed(s);

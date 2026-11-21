@@ -865,10 +865,11 @@ function createOkFilow(deps) {
     });
     panel.setContentProtection(hidden());
     panel.on("blur", () => panel && !panel.isDestroyed() && !noticeOpen && panel.hide());
-    panel.on("closed", () => { panel = null; noticeOpen = false; outbound.clear("web:"); });
+    panel.on("hide", () => { panelQuestion = false; });
+    panel.on("closed", () => { panelQuestion = false; panel = null; noticeOpen = false; outbound.clear("web:"); });
     // A panel that crashed or reloaded can no longer end its sends: they are over.
-    panel.webContents.on("render-process-gone", () => { noticeOpen = false; outbound.clear("web:"); });
-    panel.webContents.on("did-start-loading", () => { noticeOpen = false; outbound.clear("web:"); });
+    panel.webContents.on("render-process-gone", () => { panelQuestion = false; noticeOpen = false; outbound.clear("web:"); });
+    panel.webContents.on("did-start-loading", () => { panelQuestion = false; noticeOpen = false; outbound.clear("web:"); });
     panel.webContents.on("console-message", (e) => { if (e.level === "warning" || e.level === "error") logLine(`okfilow panel ${e.level}: ${String(e.message).slice(0, 300)}`); });
     lockDown(panel);
     panel.loadURL(`${appUrl}/okfilow/panel`);
@@ -1020,6 +1021,7 @@ function createOkFilow(deps) {
   let gestures = null;
   let purpose = null; // "talk" | "dictate" while the mic is open from a hold
   let handsFree = false;
+  let panelQuestion = false;
   let strokes = []; // [{ displayId, points: [[x, y] global DIP] }]
   let selection = Promise.resolve(""); // text selected in the focused app when the talk began
   let dictateCap = null;
@@ -1681,13 +1683,14 @@ function createOkFilow(deps) {
 
   // Speech-to-text on this PC: its own sherpa session, so it never steals the presenter's.
   ipcMain.handle("okfilow:stt:status", guard(() => ({ ready: sttLocal.modelReady(userData) })));
-  ipcMain.handle("okfilow:stt:start", async (event, language) => {
+  ipcMain.handle("okfilow:stt:start", async (event, language, fromPanelButton) => {
     if (!ourSender(event)) throw new Error("Denied");
     // First use on a clean PC: start the download instead of only refusing.
     if (!sttLocal.modelReady(userData)) { deps.sttDownload?.(); throw new Error(menuText("okfNoStt")); }
     // the model the user chose (Settings > Advanced) for dictation or for OK Filow's questions, whichever is listening
     if (!stt) stt = new sttLocal.SttSession(userData, logLine, { task: () => (purpose === "dictate" ? "dictation" : "questions") });
     const wc = event.sender;
+    panelQuestion = fromPanelButton === true && panel?.webContents === wc && panel.isVisible();
     stt.onResult = (r) => !wc.isDestroyed() && wc.send("okfilow:stt:result", { partial: r.partial, committed: r.committed });
     stt.onError = (m) => !wc.isDestroyed() && wc.send("okfilow:stt:result", { partial: "", committed: "", error: m });
     return stt.start(typeof language === "string" ? language : "auto");
@@ -1696,7 +1699,7 @@ function createOkFilow(deps) {
     if (!ourSender(e)) return;
     // The watchdog: the microphone never keeps running with the keys up and no hands-free mode on.
     // (A release still waiting for its tail counts as held.) The panel is told to stop, and nothing of it is used.
-    if (captureWatch.frame(require("./wake-policy").captureAllowed("question", { held, handsFree, releaseTail: releaseTail.waiting, wakeQuestion }))) {
+    if (captureWatch.frame(require("./wake-policy").captureAllowed("question", { held, handsFree, releaseTail: releaseTail.waiting, wakeQuestion, panelQuestion }))) {
       logLine("okfilow: the microphone was still open with no key held: stopped");
       sendPanel("okfilow:cancel", { purpose: null, watchdog: true });
     }
@@ -1704,7 +1707,7 @@ function createOkFilow(deps) {
     if (held && purpose === "dictate") dictation.diag.mark("audio", {}, { once: true }); // the microphone delivers sound
     stt.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
   });
-  ipcMain.handle("okfilow:stt:stop", guard(() => stt?.stop()));
+  ipcMain.handle("okfilow:stt:stop", guard(() => { panelQuestion = false; return stt?.stop(); }));
 
   // The natural voice on this PC (tts.js, docs/okfilow/VOICE.md). A model that arrives or leaves
   // changes which voice speaks by default, so the windows get the new config.

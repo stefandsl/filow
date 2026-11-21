@@ -335,7 +335,7 @@ export type OkFilowBridge = {
   onWelcome(fn: (tray: { x: number; y: number } | null) => void): Off;
   stt: {
     status(): Promise<{ ready: boolean }>;
-    start(language: string): Promise<unknown>;
+    start(language: string, fromPanelButton?: boolean): Promise<unknown>;
     feed(samples: Float32Array): void;
     stop(): Promise<unknown>;
     onResult(fn: (r: { partial: string; committed: string; error?: string }) => void): Off;

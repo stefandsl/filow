@@ -142,7 +142,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   onWelcome: on("okfilow:welcome"),
   stt: {
     status: () => ipcRenderer.invoke("okfilow:stt:status"),
-    start: (language) => ipcRenderer.invoke("okfilow:stt:start", language),
+    start: (language, fromPanelButton) => ipcRenderer.invoke("okfilow:stt:start", language, fromPanelButton),
     feed: (samples) => ipcRenderer.send("okfilow:stt:feed", samples),
     stop: () => ipcRenderer.invoke("okfilow:stt:stop"),
     onResult: on("okfilow:stt:result"),

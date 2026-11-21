@@ -99,6 +99,9 @@ describe("wake privacy defaults", () => {
     expect(pillLive("idle", { hears: false })).toBe(false);
     expect(captureAllowed("wake", { ...ready, wakeListening: true })).toBe(true);
     expect(captureAllowed("question", { ...ready, wakeListening: true })).toBe(false);
+    expect(captureAllowed("question", { panelQuestion: true })).toBe(true);
+    expect(captureAllowed("question", { panelQuestion: false })).toBe(false);
+    expect(captureAllowed("wake", { ...ready, panelQuestion: true })).toBe(false);
     expect(captureAllowed("question", { wakeQuestion: true })).toBe(true);
     expect(captureAllowed("wake", { ...ready, wakeQuestion: true })).toBe(false);
   });
