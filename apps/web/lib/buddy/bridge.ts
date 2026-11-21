@@ -270,7 +270,6 @@ export type OkFilowBridge = {
   bubbleOpen?(): Promise<boolean>;
   closeBubbleByVoice?(): void;
   detachBubble?(generation: number): void;
-  bubbleFocus?(on: boolean): void;
   closeBubble?(): void;
   /** Main -> overlays: the bubble goes away now (its time is up, Escape, its close button). */
   onBubbleClose?(fn: (why: string | undefined) => void): Off;

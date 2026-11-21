@@ -34,9 +34,9 @@ function setup() {
   const context = {
     cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint, overlayMouse, ipcMain, modelHit, modelWin: model,
     overlays: new Map([[1, overlay], [2, second]]), ourSender: () => allowed,
-    mediaRects: new Map(), mediaOn: new Set(), stopHover: new Set(), mouseWas: new Map(), bubbleHover: new Set(), bubbleFocus: new Set(), shake: { reset: vi.fn() }, detachedDisplay: null, bubbleGeneration: 0,
-    observeEscape: vi.fn(), hook: null, escapeKey: 1,
-    mouseCaught: false, mode: "idle", pill: {}, bubble: { open: () => false, setHover: vi.fn(), setFocus: vi.fn() }, QA_SHOTS: false,
+    mediaRects: new Map(), mediaOn: new Set(), stopHover: new Set(), mouseWas: new Map(), bubbleHover: new Set(), shake: { reset: vi.fn() }, detachedDisplay: null, bubbleGeneration: 0,
+    syncEscape: vi.fn(),
+    mouseCaught: false, mode: "idle", pill: {}, bubble: { open: () => false, setHover: vi.fn() }, QA_SHOTS: false,
     lastCursor: "", screen: { getCursorScreenPoint: () => cursor, getDisplayMatching: () => ({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } }) },
     applyMouse: (_w: typeof overlay) => {}, mediaHit: (_w: typeof overlay, _p: unknown) => {},
     watchHitRects: (_w: typeof overlay, _hit?: unknown) => {},

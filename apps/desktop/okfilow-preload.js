@@ -92,7 +92,6 @@ contextBridge.exposeInMainWorld("okFilow", {
   bubbleOpen: () => ipcRenderer.invoke("okfilow:bubble:open"),
   closeBubbleByVoice: () => ipcRenderer.send("okfilow:bubble:voice"),
   detachBubble: generation => ipcRenderer.send("okfilow:bubble:detach", generation),
-  bubbleFocus: on => ipcRenderer.send("okfilow:bubble:focus", on),
   closeBubble: () => ipcRenderer.send("okfilow:bubble:close"),
   onBubbleClose: on("okfilow:bubble:close"),
   spoken: (index) => ipcRenderer.send("okfilow:spoken", index),

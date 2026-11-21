@@ -70,8 +70,8 @@ function noticeMs(text) {
   return Math.min(20000, 6000 + readingUnits(text) * BUBBLE.msPerChar);
 }
 
-function bubbleHold({ mode, text, answer, stopped, actions, paused, hover, focus, holdMs, shownMs = 0 }) {
-  if ((actions && (answer || stopped)) || paused || hover || focus || answering(mode) || mode === "opening" || mode === "listening") return null;
+function bubbleHold({ mode, text, answer, stopped, actions, paused, hover, holdMs, shownMs = 0 }) {
+  if ((actions && (answer || stopped)) || paused || hover || answering(mode) || mode === "opening" || mode === "listening") return null;
   if (!text) return stopped ? BUBBLE.stoppedMs : 0;
   if (answer || stopped) return Math.max(BUBBLE.lingerMs, readingMs(text) - shownMs);
   if (holdMs > 0) return Math.min(BUBBLE.noteMaxMs, Math.max(BUBBLE.noteMinMs, holdMs));
@@ -86,7 +86,6 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
   let dismissedAnswer = false;
   let paused = false;
   let hover = false;
-  let focus = false;
   let actions = false;
   let holdMs = 0;
   let shownMs = 0;
@@ -108,7 +107,7 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
     if (open() || why === "escape") dismissedAnswer = answering(mode);
     if (!open()) return false;
     text = "";
-    stopped = answer = hover = focus = false;
+    stopped = answer = hover = false;
     remaining = null;
     dismiss(why);
     return true;
@@ -118,10 +117,10 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
     const at = now();
     if (counting) shownMs += at - lastPlan;
     lastPlan = at;
-    counting = open() && answer && !paused && !hover && !focus && !actions;
+    counting = open() && answer && !paused && !hover && !actions;
     if (reset) remaining = null;
     if (!open()) return;
-    const duration = bubbleHold({ mode, answer, stopped, paused, hover, focus, text, holdMs, shownMs, actions });
+    const duration = bubbleHold({ mode, answer, stopped, paused, hover, text, holdMs, shownMs, actions });
     const ms = duration === null ? null : remaining ?? duration;
     onPlan?.(ms);
     if (ms === null) return;
@@ -156,7 +155,6 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
     },
     setActions(on) { if (actions !== on) { actions = on; plan(); } },
     setHover(on) { if (hover !== on) { hover = on; plan(); } },
-    setFocus(on) { if (focus !== on) { focus = on; plan(); } },
     setPaused(on) { if (paused !== on) { paused = on; plan(); } },
   };
 }

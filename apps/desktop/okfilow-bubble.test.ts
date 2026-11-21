@@ -211,7 +211,7 @@ describe("the bubble's life: every end state schedules the dismissal", () => {
     h.bubble.setMode("idle", { holdMs: 5000 });
     expect(h.due()).toBe(5000);
   });
-  it("stays while paused and while the pointer is on it; resumes the remaining time after hover and focus end", () => {
+  it("stays while paused and while the pointer is on it; resumes the remaining time after hover ends", () => {
     const h = harness();
     h.bubble.setMode("thinking");
     h.bubble.setText(LONG);
@@ -229,10 +229,7 @@ describe("the bubble's life: every end state schedules the dismissal", () => {
     expect(h.pending()).toBe(0);
     h.pass(600000);
     expect(h.closed).toEqual([]);
-    h.bubble.setFocus(true);
     h.bubble.setHover(false);
-    h.pass(90000);
-    h.bubble.setFocus(false);
     expect(h.due()).toBe(BUBBLE.lingerMs - 1000);
     h.pass(h.due());
     expect(h.closed).toEqual(["timer"]);
@@ -275,11 +272,8 @@ describe("reading and dismissing a bubble", () => {
     h.pass(2240);
     h.bubble.setHover(true);
     h.pass(50000);
-    h.bubble.setFocus(true);
-    h.bubble.setHover(false);
-    h.pass(50000);
     expect(h.closed).toEqual([]);
-    h.bubble.setFocus(false);
+    h.bubble.setHover(false);
     expect(h.due()).toBe(4000);
     h.pass(4000);
     expect(h.closed).toEqual(["timer"]);

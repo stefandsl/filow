@@ -5,7 +5,7 @@
 // because the overlay window never takes the keyboard from the app in use.
 import { Fragment, useLayoutEffect, useRef, type ReactNode, type Ref, type UIEvent } from "react";
 import { observeBubbleSize } from "@/lib/buddy/bubble-size";
-import { okFilowBridge, type OkFilowMode } from "@/lib/buddy/bridge";
+import type { OkFilowMode } from "@/lib/buddy/bridge";
 import { sentenceParts } from "@/lib/buddy/turn";
 import type { OkfKey } from "@/lib/buddy/text";
 
@@ -54,9 +54,6 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
     <div
       ref={bubbleRef}
       className={"okf-bubble" + (shown ? "" : " okf-hidden") + (mode === "error" ? " okf-bubble--error" : "") + (answer ? " okf-bubble--answer" : "")}
-      tabIndex={-1}
-      onFocus={() => okFilowBridge()?.bubbleFocus?.(true)}
-      onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) okFilowBridge()?.bubbleFocus?.(false); }}
       role="group"
       aria-label="OK Filow"
       data-testid="okf-bubble"

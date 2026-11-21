@@ -29,7 +29,7 @@ process. Cards, media and Resume keep their answer available. The always-visible
 | State | The bubble stays |
 | --- | --- |
 | Listening, thinking, speaking, paused | as long as that lasts |
-| Hovered or focused | the reading timer resumes with its remaining time once both end (replaces the old 2.5 s after hover) |
+| Hovered | the reading timer resumes with its remaining time once the pointer leaves (replaces the old 2.5 s after hover) |
 | Finished or stopped answer with text | 60 ms per unit, bounded to 5-90 s, less time already shown with a minimum 4 s linger |
 | Stopped before text arrived | 8 s |
 | Answer with cards, media or Resume | until dismissed or replaced |
@@ -60,7 +60,7 @@ replace the old words at once.
 
 ## Keyboard
 
-Clicking the bubble or its X keeps keyboard focus in the current app. While speech is playing or the bubble is open, Filow listens for Escape through the passive gesture hook. It removes the Escape listener when both end.
+Clicking the bubble or its X keeps keyboard focus in the current app. Filow observes Escape passively while answering, listening, dictating, or showing a model, pinned items or a bubble. An active answer stops first. Otherwise Escape closes the model, pinned items or bubble in that order. A second press within 700 ms clears all three. Filow removes the listener when idle with nothing shown.
 
 ## Where it lives
 
