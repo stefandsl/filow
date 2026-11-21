@@ -355,6 +355,21 @@ it.each([
 describe.each(Object.entries(frozen.journeys))("%s affirmative and corrected claims", (lang, journey) => {
   const date = lang === "en" ? "Launch date Monday" : "Data avvio lunedì";
   const restore = lang === "en" ? "Backup restore test" : "Backup: test di ripristino";
+  it("keeps an unscheduled launch date open without borrowing another date's denial", () => {
+    const [unset, other, confirmed] = lang === "en" ? [
+      "The launch date has not been set.",
+      "The launch date is Monday while the review date has not been set.",
+      "The launch date has been set for Monday.",
+    ] : [
+      "La data di avvio non è ancora fissata.",
+      "La data di avvio è lunedì mentre la data della revisione non è stata fissata.",
+      "La data di avvio è stata fissata per lunedì.",
+    ];
+    expect(checkClaim(date, unset).ok).toBe(false);
+    expect(checkClaim(date, other).ok).toBe(true);
+    expect(checkClaim(date, confirmed).ok).toBe(true);
+    expect(checkClaim(date, unset + " " + confirmed).ok).toBe(true);
+  });
   it("distinguishes the meal from the start and accepts the actual start", () => {
     expect(checkClaim(date, journey.clips.near.text).ok).toBe(false);
     expect(checkClaim(date, journey.clips.correction.text).ok).toBe(false);

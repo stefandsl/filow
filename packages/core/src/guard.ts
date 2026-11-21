@@ -80,6 +80,18 @@ const START_EVENT = /^(?:launch|rollout|kickoff|avvio|lancio|partenza)$/;
 const MEAL = /^(?:breakfast|lunch|dinner|colazione|pranzo|cena)$/;
 const WEEKDAY = /^(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)$/;
 
+/** Match the date's own predicate. A second date in the same sentence may still be undecided. */
+function deniesScheduledDay(words: string[], parts: Token[][]): boolean {
+  if (!words.some(w => WEEKDAY.test(w))) return false;
+  const event = words.find(w => START_EVENT.test(w));
+  if (!event) return false;
+  return parts.some(part => {
+    const clause = part.map(t => t.norm === event ? "<event>" : t.norm).join(" ");
+    return /(?:<event> date|\bdate of (?:the )?<event>) (?:has not|had not|is not|was not|hasn t|hadn t|isn t|wasn t) (?:yet )?(?:been )?(?:set|scheduled|confirmed|decided)\b/.test(clause) ||
+      /\bdata (?:di |del |dell )?<event> non (?:e |era )?(?:ancora )?(?:stata )?(?:fissata|stabilita|decisa|confermata|definita)\b/.test(clause);
+  });
+}
+
 /** A meal explicitly scheduled for the same weekday can sound like the start of a project. */
 function schedulesMeal(words: string[], toks: Token[]): boolean {
   return words.some(w => START_EVENT.test(w)) && toks.some(t => MEAL.test(t.norm)) &&
@@ -244,6 +256,10 @@ function read(claim: Claim, sentence: string): Reading {
   const parts = clauses(sentence, st);
   const about = parts.filter((c) => c.some((t) => matchesAny(claim.anchors.length ? claim.anchors : claim.words, t.norm)));
   const scope = about.length ? about : parts;
+
+  if (!claim.negated && deniesScheduledDay(claim.words, about)) {
+    return { conflict: { kind: "negation", detail: "the event date has not been set" }, carriesClaim: true, anchored };
+  }
 
   // A short test label often leaves the successful outcome implicit. Require the test itself
   // as subject immediately before the denied result, so an audit denied elsewhere still passes.
