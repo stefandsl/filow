@@ -1,5 +1,12 @@
 # Filow hand-off
 
+## N-07 | Owner trials
+
+Both trials require the same Windows x64 installer (source version 0.9.44). After the build, the coordinator will record the full source SHA and installer SHA512 in the private owner sheet and supply SHA512.txt with the installer.
+
+- **2026-11-22 | N-04 Stage | HOLD** pending a learner trial with the presenter's usual mic and a physical LAN phone. Show the local cloud photo and the four directed water-cycle relations. Decline and count zero opens, then select **Open once** on a fresh request and count one Cloud Lab opening. Record whether the learner cools below the displayed dew point, hears why condensation forms and explains a cold window unaided. Check that desktop and phone resume at the selected point.
+- **2026-11-22 | N-05 Daily | HOLD** pending the owner's two actual days in **Day-by-day**. On day one, use **Talk** to record two tasks for tomorrow. Check that confirming delivery completes only the slides task, a confirmed correction reopens it, and **Undo** affects only the selected revision. The next morning, reopen the list and edit the still-unfinished worksheets task.
+
 ## N-05 | Daily list operator replay
 
 Use the desktop prompter's **Day-by-day** entry. Local recognition offers editable drafts and proposed task changes. Every suggested change requires presenter confirmation. The text decision route remains unqualified under N-06. The [N-06 scorecard](docs/perf/N06-SCORECARD.md) records the per-language status and the private decision, lesson and packaged timing procedures.
