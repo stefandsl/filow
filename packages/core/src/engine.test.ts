@@ -154,6 +154,43 @@ describe("script-scoped place", () => {
 });
 
 describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries", (_lang, journey) => {
+  it.each([true, false])("credits a fresh restore assertion after an unpunctuated denial (spoken correction: %s)", async (withCorrection) => {
+    const [general, weekly, correction, fresh] = _lang === "en" ? [
+      "We do backups", "We hold a weekly review",
+      "The backup restore test passed.  I mean the backup restore test has not passed",
+      "We passed the backup restore test",
+    ] : [
+      "Facciamo dei backup", "Facciamo una revisione settimanale",
+      "Il test di ripristino del backup è riuscito.  Mi correggo, il test di ripristino del backup non è riuscito",
+      "Il test di ripristino del backup è riuscito",
+    ];
+    const matcher = matcherDecide(async () => [new Float32Array(1)], () => ({ key: "lexical", ids: [], vectors: [] }));
+    const requests: DecideRequest[] = [];
+    let time = 1000;
+    const { e } = makeEngine([], 0, { now: () => time, decide: req => {
+      requests.push(req);
+      return matcher(req);
+    } });
+    e.loadScript(parseScript(journey.script));
+    e.feed({ committed: general + " ", partial: "" });
+    e.feed({ committed: weekly + " ", partial: "" });
+    e.dispatch({ type: "anchor", idx: 1, keep: "recent" });
+    await e.tick();
+    const denial = withCorrection ? correction : correction.split(_lang === "en" ? "I mean " : "Mi correggo, ")[1];
+    e.feed({ committed: denial + " ", partial: "" });
+    await e.tick();
+    expect(pointDisplayState(e.getState().points.s1b2)).toBe("waiting");
+    time += 4000;
+    e.feed({ committed: fresh + " ", partial: "" });
+    await e.tick();
+    const window = requests.at(-1)!.transcript;
+    expect(window).toContain(_lang === "en" ? "has not passed" : "non è riuscito");
+    expect(window.endsWith(fresh)).toBe(true);
+    expect(e.getState().points.s1b2).toMatchObject({
+      status: "started", evidence: { quote: fresh, fromMs: time, toMs: time },
+    });
+    expect(e.getState().points.s1b1?.status).not.toBe("started");
+  });
   it("withdraws the visual hint even when the model returns a weak positive score on the correction", async () => {
     const { e } = makeEngine([{ s0b2: 0.48 }]);
     e.loadScript(parseScript(journey.script));

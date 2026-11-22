@@ -268,10 +268,17 @@ export class Engine {
     if (accepted) onAccepted?.();
     let withdrawn: string[] = [];
     if (e.committed) {
-      this.lastFinal = e.committed.trim();
-      if (accepted && this.o.guard) withdrawn = this.reconcileCorrection(e.committed);
-      this.committed = (this.committed + e.committed).slice(-COMMITTED_CAP);
-      this.committedTotal += e.committed.length;
+      let segment = e.committed;
+      this.lastFinal = segment.trim();
+      if (accepted && this.o.guard) {
+        const correction = this.reconcileCorrection(segment);
+        withdrawn = correction.withdrawn;
+        // A recognizer can close an utterance without supplying punctuation. End an
+        // established denial here so its negation cannot reach into the next final.
+        if (correction.endsClaim) segment = segment.trimEnd() + "\n";
+      }
+      this.committed = (this.committed + segment).slice(-COMMITTED_CAP);
+      this.committedTotal += segment.length;
       this.segs.push({ end: this.committedTotal, at: this.o.now() });
       const keepFrom = this.committedTotal - this.committed.length;
       while (this.segs.length > 1 && this.segs[0].end <= keepFrom) this.segs.shift();
@@ -290,20 +297,24 @@ export class Engine {
   }
 
   /** Account for a correction even if its first version was already accepted or is in flight. */
-  private reconcileCorrection(final: string): string[] {
+  private reconcileCorrection(final: string): { withdrawn: string[]; endsClaim: boolean } {
     const { script, sectionIdx, points } = this.state;
     const cue = /(?:^|[.!?,]\s*|^sorry[, ]+)\s*(?:sorry[, ]+)?(?:i mean|mi correggo)\b/i.exec(final);
     const from = cue ? cue.index + cue[0].length : 0;
     const correction = final.slice(from);
     const withdrawn: string[] = [];
     let revise = Boolean(cue);
+    let endsClaim = revise;
     for (const b of script.sections[sectionIdx]?.bullets ?? []) {
       const automatic = points[b.id]?.evidence?.source === "model";
-      if (!automatic && !this.inFlight && !this.streak[b.id] && !this.held.has(b.id)) continue;
+      const pending = this.inFlight || !!this.streak[b.id] || this.held.has(b.id);
+      if (!automatic && !pending && (endsClaim || !canAutoMark(points[b.id]))) continue;
       const check = checkClaim(b.text, correction);
       // Another event can have the same date. It only retracts a previous event when the
       // speaker explicitly replaces it. A direct denial of the same claim needs no cue.
       if (check.ok || (check.conflict?.kind === "subject" && !cue)) continue;
+      endsClaim = true;
+      if (!automatic && !pending) continue;
       if (automatic) withdrawn.push(b.id);
       delete this.streak[b.id];
       this.held.delete(b.id);
@@ -314,7 +325,7 @@ export class Engine {
       this.fences.set(sectionIdx, this.committedTotal + from);
       this.lastSent = "";
     }
-    return withdrawn;
+    return { withdrawn, endsClaim };
   }
 
   /**
