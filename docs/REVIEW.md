@@ -219,10 +219,10 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R202 (N-04): Draw precipitation from clouds to ground and runoff from ground to lake. Read both relations in English and Italian.
 - R203 (N-04): Keep unrelated command text out of the approval flow. Check the unmatched reply and absent decision, then submit the exact phrase.
 - R204 (N-04): Disable Open once during its click handler. Deliver two clicks before a render and count one approval request.
-- R205 (N-04): Include the numeric loopback lesson host in the Edge resolver exceptions. Measure the private Edge process tree through a successful authenticated navigation and record public and loopback traffic separately.
-- R206 (N-04): Disclose Edge background traffic before Prepare starts the browser. Render an idle desktop board and check that the disclosure precedes the launch button.
+- R205 (N-04): Include the numeric loopback lesson host in the Edge resolver exceptions. Measure the private Edge process tree through a successful authenticated navigation and record public and loopback traffic separately. (superseded: the lesson now opens in Filow's own window, see R208)
+- R206 (N-04): Disclose Edge background traffic before Prepare starts the browser. Render an idle desktop board and check that the disclosure precedes the launch button. (superseded: the lesson now opens in Filow's own window, see R208)
 - R207 (N-04): Grade frozen-topic generations individually and record delivery and audit replay separately. Preserve the prompt hash, model, per-arm trial counts and critical errors for each rendered lesson.
-- R207 (N-04): Exercise both presenter confirmation paths and expire stale decisions after 120 seconds. Retry review and count opens.
+- R211 (N-04): Exercise both presenter confirmation paths and expire stale decisions after 120 seconds. Retry review and count opens.
 - R208 (N-04): Run a packaged approve and observe cycle in a private Electron session. Attribute non-loopback traffic to the application process tree.
 - R209 (N-04): Remove the response instance and turn referrer checks separately and verify that their negative tests fail.
 - R210 (N-04): Record critical errors with graded denominators for both arms and keep live generation HELD until the N-06 factual gate passes.

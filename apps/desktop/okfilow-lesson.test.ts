@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { runInNewContext } from "node:vm";
+import { expect, it, vi } from "vitest";
 import { createLesson, createLessonDraft, LESSON_URL, arrived, cooled } from "./okfilow-lesson";
 
 function trial(speakerAvailable = () => true) {
@@ -128,6 +131,56 @@ it("drops a target check that finishes after keyboard or on-screen Stop", async 
   assert.equal(lesson.view().phase, "idle");
 });
 
+it("opens the lesson in a sandboxed window with an isolated temporary session and restricted navigation", async () => {
+  const turn = "lesson-test-turn";
+  const start = `about:blank#filow-${turn}`;
+  const setWindowOpenHandler = vi.fn<(handler: (details: { url: string }) => { action: string }) => void>();
+  const onBeforeRequest = vi.fn<(handler: (request: { url: string }, done: (result: { cancel: boolean }) => void) => void) => void>();
+  const isolated = { webRequest: { onBeforeRequest }, setPermissionRequestHandler: vi.fn() };
+  const fromPartition = vi.fn(() => isolated);
+  const windowOptions = vi.fn<(options: unknown) => void>();
+  class BrowserWindow {
+    id = 1;
+    webContents = {
+      id: 2, setWindowOpenHandler,
+      debugger: { attach() {}, on() {}, async sendCommand(method: string) {
+        if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "frame", loaderId: "loader", url: "about:blank", urlFragment: `#filow-${turn}` } } };
+        if (method === "Page.getNavigationHistory") return { currentIndex: 0, entries: [{ id: 1, url: start }] };
+      } },
+    };
+    constructor(options: unknown) { windowOptions(options); }
+    on() {}
+    async loadURL(url: string) { assert.equal(url, start); }
+    isMinimized() { return false; }
+  }
+  const localRequire = createRequire(import.meta.url);
+  const module = { exports: {} as typeof import("./okfilow-lesson") };
+  runInNewContext(readFileSync(new URL("./okfilow-lesson.js", import.meta.url), "utf8"), {
+    module,
+    require(id: string) {
+      if (id === "electron") return { BrowserWindow, session: { fromPartition } };
+      if (id === "./cloud-lab") return { LESSON_URL, serveCloudLab: async () => ({ instance: "test", close() {} }) };
+      return localRequire(id);
+    },
+  });
+
+  await module.exports.electronDriver().prepare(turn, new AbortController().signal);
+
+  expect(fromPartition).toHaveBeenCalledExactlyOnceWith(`lesson-${turn}`, { cache: false });
+  expect(windowOptions).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+    webPreferences: expect.objectContaining({ sandbox: true, nodeIntegration: false, contextIsolation: true, session: isolated }),
+  }));
+  const open = setWindowOpenHandler.mock.calls[0][0];
+  const beforeRequest = onBeforeRequest.mock.calls[0][0];
+  const otherUrls = ["https://example.invalid/", new URL("/other", LESSON_URL).href, `${LESSON_URL}?other=1`, "file:///other.html"];
+  for (const url of [LESSON_URL, start, ...otherUrls]) {
+    expect(open({ url })).toEqual({ action: "deny" });
+    const done = vi.fn();
+    beforeRequest({ url }, done);
+    expect(done).toHaveBeenCalledExactlyOnceWith({ cancel: otherUrls.includes(url) });
+  }
+});
+
 it("refuses a foreign listener before creating a window", async () => {
   const { createServer } = await import("node:http");
   const { electronDriver } = await import("./okfilow-lesson");
@@ -165,6 +218,22 @@ it.each(["never enrolled", "wake off"])("uses a focused presenter confirmation w
   assert.equal(decision.teacher, "presenter-click");
   await x.lesson.approve(x.owner, decision);
   assert.deepEqual(x.effects, [LESSON_URL]);
+});
+
+it("refuses a valid presenter fallback click after the presenter window loses focus", async () => {
+  const x = trial(() => false);
+  const { turn } = await x.lesson.prepare(x.owner);
+  const prompt = x.lesson.request(x.owner, turn, "Open Cloud Lab");
+  assert.equal(prompt.phase, "presenter");
+  assert.ok(prompt.confirmation);
+
+  x.blur();
+  const result = x.lesson.confirmPresenter(x.owner, turn, prompt.confirmation);
+
+  assert.equal(result.phase, "held");
+  assert.equal(result.decision, undefined);
+  assert.equal(x.lesson.view().phase, "presenter");
+  assert.deepEqual(x.effects, []);
 });
 
 it("expires the speaker step at 120 seconds and requires a new review", async () => {
