@@ -29,3 +29,10 @@ it("offers an in-page confirmation before erasing every date", () => {
   expect(html).toMatch(/<details[^>]*><summary[^>]*>Delete entire list<\/summary>/);
   expect(html).toContain(t("daily.clearConfirm", "en"));
 });
+
+it("discloses the local data flow and model download before consent", () => {
+  surface.lang = "en";
+  vi.mocked(useState).mockReturnValueOnce([{ session:"s", version:0, day:"2026-06-02", tasks:[], offset:0 }, () => {}]);
+  const html = renderToStaticMarkup(<DayByDay />);
+  for (const term of ["task text", "report", "loopback", "Settings", "4.3 GiB", "Ollama", "Apache 2.0"]) expect(html).toContain(term);
+});

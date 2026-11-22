@@ -118,6 +118,9 @@ it("revalidates a person choice and consumes a typed confirmation across restart
   const report = review("delivery", "Andre received the charts");
   v = daily.control("confirm", { ...v, token: report.token, id: v.tasks[0].id });
   assert.equal(v.ack.rev, 2);
+  assert.ok(!v.tasks.some((r: any) => r.id === report.targets[0].id));
+  v = daily.control("day", { ...v, offset: 2 });
+  assert.equal(v.tasks[0].id, report.targets[0].id);
   v = daily.control("reopen", { ...v, ...v.tasks[0], op: "manual" });
   const resumed = createDaily({ store });
   v = resumed.control("open");

@@ -48,3 +48,13 @@ describe("launch helpers (coldstart.mjs, take.mjs, tools/eval/latency.mjs)", () 
     expect(() => stopTree(Number.NaN)).toThrow(/refusing/);
   });
 });
+
+it("blocks unsafe profiles and inherited Ollama endpoints before spawning a normal build", async () => {
+  const { testLaunchEnv } = await import("./test-launch.cjs");
+  const env = { FILOW_USER_DATA_DIR: dir, FILOW_PORT:"51201", FILOW_SESSION_PORT:"51202" };
+  expect(() => testLaunchEnv({ APPDATA: dir })).toThrow();
+  for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
+    expect(() => testLaunchEnv({ ...env, OLLAMA_URL: "http://" + host + ":11434" })).toThrow();
+  }
+  expect(testLaunchEnv(env).OLLAMA_URL).toBe("http://127.0.0.1:0");
+});

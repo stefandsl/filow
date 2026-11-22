@@ -19,15 +19,15 @@ it("sweeps at startup before onboarding and again each day without opening the l
   dir = mkdtempSync(join(tmpdir(), "daily-expiry-"));
   const day = 86400000;
   const journal = join(dir, "daily.json");
-  writeFileSync(journal, JSON.stringify({ version: 1, seen: [], tasks: [30, 29].map(age => ({
-    text: String(age), done: false, changed: Date.now() - age * day,
+  writeFileSync(journal, JSON.stringify({ version: 1, seen: [], tasks: [30, 29, 40].map(age => ({
+    text: String(age), done: age !== 40, changed: Date.now() - age * day,
   })) }));
   const rows = () => JSON.parse(readFileSync(journal, "utf8")).tasks.map((row: { text: string }) => row.text);
   const lifecycle = load("./day-by-day-store").startDailyRetention(dir);
   try {
-    expect(rows()).toEqual(["29"]);
+    expect(rows()).toEqual(["29", "40"]);
     vi.advanceTimersByTime(day);
-    expect(rows()).toEqual([]);
+    expect(rows()).toEqual(["40"]);
     expect(main).toMatch(/loadSettings\(\);[^}]+startDailyRetention\(userData[^}]+/);
     expect(main.indexOf("startDailyRetention(userData")).toBeLessThan(main.indexOf("await showWelcome()"));
   } finally { lifecycle.stop(); }

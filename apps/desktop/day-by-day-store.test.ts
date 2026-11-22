@@ -56,12 +56,19 @@ for (const type of ["delete", "clear", "undo"]) it("persists " + type + " after 
   assert.deepEqual(open().view().tasks.map((r: any) => r.id), type === "clear" ? [] : [second.id]);
   assert.equal(store.apply(action), null);
 });
-it("expires tasks and their evidence after thirty days of inactivity", () => {
+it("retains unfinished rows and expires archives from completion even after a rename", () => {
   dir = mkdtempSync(join(tmpdir(), "daily-"));
   let clock = Date.now();
   const store = loadStore("./day-by-day-store").openDailyStore(dir, () => clock);
-  store.apply({ type: "create", op: "old", text: "Old item", due: "2026-06-05" });
-  clock += 30 * 86400000;
-  assert.deepEqual(store.view().tasks, []);
-  assert.deepEqual(open().view().tasks, []);
+  const create = (text: string) => store.apply({ type: "create", op: text, text, due: "2026-06-05" });
+  const keep = create("keep"), archive = create("archive");
+  clock += 31 * 86400000;
+  assert.equal(store.view().tasks.length, 2);
+  store.apply({ ...archive, type: "complete", op: "completed" });
+  clock += 29 * 86400000;
+  store.apply({ id: archive.id, rev: 2, type: "edit", op: "edit", text: "renamed" });
+  assert.equal(store.view().tasks.length, 2);
+  clock += 86400000;
+  assert.deepEqual(store.view().tasks.map((r: any) => r.id), [keep.id]);
+  assert.deepEqual(open().view().tasks.map((r: any) => r.id), [keep.id]);
 });

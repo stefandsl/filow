@@ -103,3 +103,38 @@ it("requires all semantic checks for a paraphrased outcome", async () => {
     assert.equal(await match("The booklet now has its binding", tasks, {}), null);
   }
 });
+
+it("requires an installed, currently granted model for speech ticks, including a failed chat", async () => {
+  const rows = [{ ...tasks[0], text: "Call Ada Wynn" }];
+  let grant = false, installed = false, fail = false, calls = 0;
+  const daily = load("./day-by-day-model").dailyModel({ origin: "http://localhost:51623", hasGrant: () => grant,
+    request: async (url: string) => {
+      calls++;
+      if (url.endsWith("tags")) return Response.json({ models: installed ? [{name:"gemma4:e2b"}] : [] });
+      if (fail) throw Error("offline");
+      return Response.json({ message: { content: JSON.stringify({ ...aligned, verdict:"yes", reason:"called" }) } });
+    } });
+  const voice = () => daily.match("I called Ada Wynn", rows, { speech: true });
+  assert.equal(await voice(), null);
+  assert.equal(calls, 0);
+  grant = true;
+  assert.equal(await voice(), null);
+  installed = true;
+  assert.equal((await voice()).type, "complete");
+  fail = true;
+  assert.equal(await voice(), null);
+  grant = false;
+  const before = calls;
+  assert.equal(await voice(), null);
+  assert.equal((await daily.match("I called Ada Wynn", rows, {speech:false})).type, "complete");
+  assert.equal(calls, before);
+});
+
+it("resolves partial names and titles and asks about ambiguous pronouns", async () => {
+  const rows = ["Call Petra Dal Monte", "Call Amber Wells"].map((text,i) => ({...tasks[i],text}));
+  const match = matcher(() => ({ ...aligned, reason:"called", verdict:"yes" }));
+  for (const name of ["Petra", "Dal Monte", "Mr. Dal Monte", "Mrs Dal Monte", "dott. Dal Monte", "signora Dal Monte"]) {
+    assert.deepEqual((await match("I called " + name, rows, {}))?.targets.map((r:any) => r.id), ["0"], name);
+  }
+  assert.equal((await match("I called her", rows, {})).which, true);
+});
