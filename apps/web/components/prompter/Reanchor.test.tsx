@@ -10,6 +10,7 @@ import { PointsList } from "./PointsList";
 import { keyBelongsToControl } from "./useReanchor";
 import { DisplayPanel, displayAttributes } from "./DisplayPanel";
 import { ReanchorNotice } from "./ReanchorNotice";
+import Teleprompter from "../Teleprompter";
 
 // Run the mounted session effects in this DOM-free replay. Normal server-render
 // assertions in this file use React's own useEffect.
@@ -24,6 +25,45 @@ vi.mock("react", async load => {
 
 const el = (matches: boolean, editable = false) => ({ closest: () => (matches ? {} : null), isContentEditable: editable }) as unknown as EventTarget;
 const doc = (dialogOpen: boolean) => ({ querySelector: () => (dialogOpen ? {} : null) }) as unknown as Document;
+
+it("discards a checkpoint read completed after presenter cleanup", async () => {
+  const effects: EffectCallback[] = [];
+  const reads: Array<(result: { writer: string; place: null }) => void> = [];
+  const begin = () => new Promise(resolve => reads.push(resolve));
+  const save = vi.fn().mockResolvedValue(true);
+  const install = vi.spyOn(Engine.prototype, "loadScript");
+  const text = "# Pilot\n- Weekly review";
+  try {
+    vi.stubGlobal("filow", { takePlace: { begin, save } });
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ json: async () =>
+      url === "/api/script" ? { text, script: parseScript(text) } : {} })));
+    mount.effects = effects;
+    renderToStaticMarkup(<Teleprompter />);
+    const setup = effects.find(effect => effect.name === "initializePresenter")!;
+    // StrictMode runs setup, cleanup and setup again with the same refs.
+    const firstCleanup = setup();
+    await vi.waitFor(() => expect(reads).toHaveLength(1));
+    firstCleanup!();
+    const secondCleanup = setup();
+    await vi.waitFor(() => expect(reads).toHaveLength(2));
+    reads[1]({ writer: "live", place: null });
+    await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+    reads[0]({ writer: "stale", place: null });
+    await Promise.resolve();
+    secondCleanup!();
+    const lastCleanup = setup();
+    await vi.waitFor(() => expect(reads).toHaveLength(3));
+    lastCleanup!();
+    reads[2]({ writer: "unmounted", place: null });
+    await Promise.resolve();
+    expect(install).toHaveBeenCalledOnce();
+    expect(save.mock.calls.map(([writer]) => writer)).toEqual(["live"]);
+  } finally {
+    mount.effects = null;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  }
+});
 
 it("pauses capture on confirmed session loss and keeps listening during an ordinary reconnect", async () => {
   const effects: EffectCallback[] = [];

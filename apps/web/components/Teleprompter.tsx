@@ -283,14 +283,17 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     await installScript(text, script, number, true);
   }, [installScript]);
 
-  useEffect(() => {
+  useEffect(function initializePresenter() {
     setHasWebSpeech(browserSupported());
     setMounted(true);
     void loadScript();
     void fetch("/api/stt/status")
       .then((r) => r.json())
       .then((s: SttStatus) => setSttStatus(s));
-    return () => { ++loadNumber.current; writer.current = null; };
+    return () => {
+      loadNumber.current += 1;
+      writer.current = null;
+    };
   }, [loadScript]);
 
   const saveScript = async (text: string) => {
