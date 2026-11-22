@@ -1773,6 +1773,7 @@ export default function OkFilowPanel() {
           onChange={(next) => void configure({ seeScreen: next ? "on" : "off" })} />
       )}
       {bridge.showWhiteboard && <p className="okf-hint okf-board-link"><button type="button" onClick={() => { bridge.showWhiteboard?.(typed.trim()); setTyped(""); }}>{t("whiteboard")}</button> {t("whiteboardHint")}</p>}
+      {!lessonEntry && bridge.preparedBoard && <button type="button" disabled={capturing || answering} onClick={() => void bridge.preparedBoard?.()}>{lessonText("lesson.prepared", lang)}</button>}
 
       <section className="okf-jobs" aria-label={t("agentsTitle")}>
         <h2>{t("agentsTitle")}</h2>

@@ -332,6 +332,7 @@ export type OkFilowBridge = {
   onHandsFree(fn: (on: boolean) => void): Off;
   onQuickAsk(fn: () => void): Off;
   onLessonEntry?(fn: (turn: string) => void): Off;
+  preparedBoard?(): Promise<boolean> | false;
   lessonDraft?(turn: string, words: string): Promise<boolean>;
   onLessonEnd?(fn: () => void): Off;
   /** First run: where the tray icon is (global DIP), or null. */

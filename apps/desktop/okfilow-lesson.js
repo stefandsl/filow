@@ -43,7 +43,7 @@ function createLessonDraft() {
 
 function createLesson({ driver, focused, journal }) {
   let active = null;
-  const view = () => active ? { phase: active.phase, turn: active.turn, decision: active.decision, reading: active.reading } : { phase: "idle" };
+  const view = () => active ? { phase: active.phase, turn: active.turn, decision: active.decision && { ...active.decision }, reading: active.reading } : { phase: "idle" };
   const owns = (owner, turn) => active && active.owner === owner && active.turn === turn;
   function stop(owner, turn) {
     if (!owns(owner, turn)) return;
@@ -76,7 +76,7 @@ function createLesson({ driver, focused, journal }) {
   }
   function request(owner, turn, words) {
     if (!owns(owner, turn) || active.phase !== "ready" || !focused()) return held;
-    if (typeof words !== "string" || !/^(?:(?:(?:please )?open|apri|deschide|открой) cloud lab|cloud lab を開いて)[.!?。]?$/iu.test(words.trim())) return view();
+    if (typeof words !== "string" || !/^(?:(?:(?:please )?open|apri|deschide|открой) cloud lab|cloud lab を開いて)[.!?。]?$/iu.test(words.trim())) return { ...view(), unmatched: true };
     const { origin } = active;
     active.decision = { teacher: owner, turn, window: origin.window, tab: origin.tab, action: "open", url: LESSON_URL };
     active.expires = Date.now() + 120_000;
@@ -91,7 +91,7 @@ function createLesson({ driver, focused, journal }) {
     try {
       const target = await driver.current();
       if (active !== a) return held;
-      if (a.phase !== "checking" || Date.now() >= a.expires || !focused() || !matches(a.origin, target, SAME_PAGE)) {
+      if (a.phase !== "checking" || Date.now() >= a.expires || !focused() || target?.selected !== true || !matches(a.origin, target, SAME_PAGE)) {
         a.phase = "held";
         return view();
       }
@@ -186,6 +186,7 @@ async function connectBrowser(dir, signal) {
   if (!/^\d{1,5}$/.test(port) || !/^\/devtools\/browser\/[a-f0-9-]{36}$/.test(route)) throw Error("browser unavailable");
   const socket = new WebSocket("ws://127.0.0.1:" + port + route);
   const pending = new Map();
+  let onEvent = null;
   let seq = 0;
   const close = () => {
     socket.close();
@@ -201,6 +202,7 @@ async function connectBrowser(dir, signal) {
   socket.addEventListener("message", event => {
     let response;
     try { response = JSON.parse(event.data); } catch { return; }
+    if (response.method) { onEvent?.(response); return; }
     pending.get(response.id)?.(response);
   });
   await new Promise((resolve, reject) => {
@@ -223,7 +225,7 @@ async function connectBrowser(dir, signal) {
       try { socket.send(JSON.stringify({ id, method, params, sessionId })); } catch { done(null); }
     });
   }
-  return { id: route.slice(route.lastIndexOf("/") + 1), send, close };
+  return { id: route.slice(route.lastIndexOf("/") + 1), send, close, listen(fn) { onEvent = fn; } };
 }
 
 // Executed in a named isolated world of the exact top-level lesson document. Read DOM state
@@ -268,14 +270,23 @@ function edgeDriver(userData) {
   let connection, session, tab;
   const page = (method, params) => connection.send(method, params, session);
   async function current() {
-    const [{ windowId }, { frameTree }, history] = await Promise.all([
+    const [{ windowId, bounds }, { frameTree }, history] = await Promise.all([
       connection.send("Browser.getWindowForTarget", { targetId: tab }),
       page("Page.getFrameTree"), page("Page.getNavigationHistory"),
     ]);
     const frame = frameTree.frame;
     const entry = history.entries[history.currentIndex];
+    let selected = false;
+    if (entry.url.startsWith("about:blank#filow-") && bounds.windowState !== "minimized") {
+      // The prepared Edge app window has exactly one page. An added tab makes it ambiguous,
+      // even if Chromium still answers queries addressed to the original background target.
+      const { targetInfos } = await connection.send("Target.getTargets");
+      const otherPages = targetInfos.filter(t => t.type === "page" && t.targetId !== tab);
+      const windows = await Promise.all(otherPages.map(t => connection.send("Browser.getWindowForTarget", { targetId: t.targetId })));
+      selected = windows.every(other => other.windowId !== windowId);
+    }
     return { browser: connection.id, tab, window: windowId, frame: frame.id, loader: frame.loaderId, url: entry.url, entry: entry.id,
-      previous: history.entries[history.currentIndex - 1]?.id, frameUrl: frame.url + (frame.urlFragment || "") };
+      selected, previous: history.entries[history.currentIndex - 1]?.id, frameUrl: frame.url + (frame.urlFragment || "") };
   }
   async function bind(client, targetId, signal) {
     const attached = await client.send("Target.attachToTarget", { targetId, flatten: true });
@@ -335,7 +346,17 @@ function edgeDriver(userData) {
         await page("Network.enable");
         await page("Network.setCacheDisabled", { cacheDisabled: true });
         await page("Network.setBypassServiceWorker", { bypass: true });
-        return await current();
+        const prepared = await current();
+        client.listen(event => {
+          if (event.sessionId !== session || event.method !== "Fetch.requestPaused") return;
+          const { requestId, frameId, request, responseStatusCode } = event.params;
+          const approved = frameId === prepared.frame && request.url === LESSON_URL && responseStatusCode === 200;
+          // A redirect response is stopped before Chromium follows its Location.
+          void client.send(approved ? "Fetch.continueRequest" : "Fetch.failRequest",
+            approved ? { requestId } : { requestId, errorReason: "Aborted" }, session).catch(() => {});
+        });
+        await page("Fetch.enable", { patterns: [{ urlPattern: LESSON_URL, resourceType: "Document", requestStage: "Response" }] });
+        return prepared;
       } catch { client?.close(); }
     }
     throw Error("lesson browser unavailable");

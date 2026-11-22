@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld("filow", {
       ipcRenderer.on("lesson:draft", listener);
       return () => ipcRenderer.removeListener("lesson:draft", listener);
     },
+    onBoard: fn => {
+      const listener = () => fn();
+      ipcRenderer.on("lesson:board", listener);
+      return () => ipcRenderer.removeListener("lesson:board", listener);
+    },
   },
   account: {
     status: () => ipcRenderer.invoke("account:status"),

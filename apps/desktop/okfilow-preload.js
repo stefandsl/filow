@@ -141,6 +141,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   onQuickAsk: on("okfilow:quickAsk"),
   lessonDraft: (turn, words) => ipcRenderer.invoke("okfilow:lessonDraft", turn, words),
   onLessonEntry: on("okfilow:lessonEntry"),
+  preparedBoard: () => navigator.userActivation.isActive && ipcRenderer.invoke("okfilow:preparedBoard"),
   onLessonEnd: on("okfilow:lessonEnd"),
   onWelcome: on("okfilow:welcome"),
   stt: {

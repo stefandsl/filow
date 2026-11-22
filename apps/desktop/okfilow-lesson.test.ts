@@ -3,7 +3,7 @@ import { it } from "vitest";
 import { createLesson, createLessonDraft, LESSON_URL, arrived, cooled } from "./okfilow-lesson";
 
 function trial() {
-  const origin = { browser: "edge-1", window: 38, tab: "tab-1", frame: "f", loader: "before", url: "about:blank#class", entry: 1 };
+  const origin = { browser: "edge-1", window: 38, tab: "tab-1", frame: "f", loader: "before", url: "about:blank#class", entry: 1, selected: true };
   const effects: string[] = [];
   const saved: unknown[] = [];
   let current = { ...origin };
@@ -21,7 +21,8 @@ function trial() {
     assert.equal(result.phase, "approval");
     return result.decision;
   }
-  return { lesson, proposal, owner, effects, saved, changeTarget: () => { current = { ...origin, tab: "elsewhere" }; }, blur: () => { foreground = false; } };
+  return { lesson, proposal, owner, effects, saved, changeTarget: () => { current = { ...origin, tab: "elsewhere" }; },
+    backgroundTab: () => { current = { ...origin, selected: false }; }, blur: () => { foreground = false; } };
 }
 
 it("accepts only the current visible lesson panel's one draft and drops delayed speech after Stop", () => {
@@ -73,10 +74,11 @@ it("refuses each changed field, a changed target, loss of focus, decline and a s
     await x.lesson.approve(x.owner, { ...decision, [key]: "other" });
     assert.deepEqual(x.effects, [], key);
   }
-  for (const change of ["owner", "target", "blur", "decline", "stop"]) {
+  for (const change of ["owner", "target", "background tab", "blur", "decline", "stop"]) {
     const x = trial();
     const decision = await x.proposal();
     if (change === "target") x.changeTarget();
+    if (change === "background tab") x.backgroundTab();
     if (change === "blur") x.blur();
     if (change === "stop" || change === "decline") x.lesson.stop(x.owner, decision.turn);
     await x.lesson.approve(change === "owner" ? "phone" : x.owner, decision);
@@ -107,4 +109,20 @@ it("reconciles the interrupted dispatch without sending it again and retires the
     assert.equal(points, matching ? 1 : 0);
     assert.equal(opens, 0);
   }
+});
+
+it("drops a target check that finishes after keyboard or on-screen Stop", async () => {
+  let finish!: (value: object) => void;
+  let sends = 0;
+  const target = { browser: "edge", window: 2, tab: "tab", selected: true, url: "about:blank" };
+  const driver = { prepare: async () => target, close() {}, current: () => new Promise(resolve => { finish = resolve; }), open() { sends++; } };
+  const lesson = createLesson({ driver, focused: () => true, journal: { read: () => null, write() {} } });
+  const { turn } = await lesson.prepare("teacher");
+  const { decision } = lesson.request("teacher", turn, "Open Cloud Lab");
+  const approval = lesson.approve("teacher", decision);
+  lesson.stop("teacher", turn);
+  finish(target);
+  await approval;
+  assert.equal(sends, 0);
+  assert.equal(lesson.view().phase, "idle");
 });

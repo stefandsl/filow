@@ -1,6 +1,7 @@
 import type { Dictionary } from "./en";
 
 export const ja: Dictionary = {
+  "lesson.tryCommand": "このページを開くには「{command}」と話すか入力してください。",
   "lesson.guide": "気温は {temperature} °C です。強調表示された Air temperature スライダーを動かして、露点の {dew} °C より低くしてください。",
   "lesson.result": "気温は現在 {temperature} °C です。空気は露点の {dew} °C まで冷えると飽和します。さらに冷えると水蒸気が凝結して液体の水滴になります。",
   "lesson.transfer": "冷えた密閉ボトルの外側につく水滴はどこから来ますか？",

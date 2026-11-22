@@ -216,6 +216,11 @@ function createOkFilow(deps) {
   ipcMain.handle("okfilow:lessonDraft", (event, turn, words) => lessonDraft.submit(
     ourSender(event) && event.sender === panel?.webContents && panel.isFocused() && panel.isVisible()
       && new URL(event.senderFrame.url).pathname === "/okfilow/panel", turn, words));
+  ipcMain.handle("okfilow:preparedBoard", event => {
+    if (!ourSender(event) || event.sender !== panel?.webContents || !panel.isFocused()
+        || new URL(event.senderFrame.url).pathname !== "/okfilow/panel") return false;
+    return Boolean(deps.openPreparedBoard?.());
+  });
   let tray = null;
   let mode = "idle"; // idle | listening | thinking | speaking | error
   /** The question being answered took the screen with it (the eye on the pill next to the pointer). */

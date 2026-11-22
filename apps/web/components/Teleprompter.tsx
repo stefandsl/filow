@@ -112,6 +112,24 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
   // The Whiteboard button found OK Filow not running in the desktop app (lib/whiteboard/open.ts): said in words, never a dead button.
   const [boardDown, setBoardDown] = useState(false);
   const [lessonOpen, setLessonOpen] = useState(false);
+  const [lessonResult, setLessonResult] = useState("");
+  const closeLesson = useCallback(() => {
+    setLessonOpen(false);
+    engine.resumeControlEpoch(engine.getState().controlEpoch ?? 0);
+  }, [engine]);
+  const finishLesson = useCallback((explanation: string) => {
+    closeLesson();
+    setLessonResult(explanation);
+  }, [closeLesson]);
+  useEffect(() => {
+    if (!lessonOpen && !lessonResult) return;
+    return engine.subscribe((_snapshot, ops) => {
+      if (ops.some(op => /^\/(?:script(?:\/|$)|sectionIdx$|here(?:\/|$)|points(?:\/|$)|controlEpoch$)/.test(op.path))) {
+        setLessonOpen(false);
+        setLessonResult("");
+      }
+    });
+  }, [engine, lessonOpen, lessonResult]);
   // The OK Filow button (lib/buddy/openAsk.ts): drawn in the desktop app only, and says in words when OK Filow is not running.
   const [okfHere, setOkfHere] = useState(false);
   const [okfDown, setOkfDown] = useState(false);
@@ -560,9 +578,17 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     stopTake(reason);
     setStarting(false);
   };
+  const openLesson = useCallback(() => {
+    setStartDialog(false);
+    setLessonResult("");
+    outbound.dismissAll();
+    stopTake("interruption");
+    setLessonOpen(true);
+  }, [outbound, stopTake]);
+  useEffect(() => desktopBridge()?.lesson?.onBoard(openLesson), [openLesson]);
   useEffect(() => engine.onTakeControl({
     start: () => { if (!lessonOpen && !engine.getState().engine.recording && !starting && !startDialog) void requestStart(); },
-    stop: reason => { setStartDialog(false); cancelStart(reason); },
+    stop: reason => { setLessonOpen(false); setStartDialog(false); cancelStart(reason); },
   }));
 
   useEffect(() => () => { startAttempts.current.cancel(); backendRef.current?.stop(); endOutbound(); }, [endOutbound]);
@@ -611,11 +637,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       </header>
       <SectionNav sections={script.sections} current={sectionIdx} onSelect={reanchor.toSection}
         toolActions={<>
-          {okfHere && <button type="button" className="btn" aria-haspopup="dialog" onClick={() => {
-            setStartDialog(false);
-            cancelStart("interruption");
-            setLessonOpen(true);
-          }}><Icon name="board" /><span className="action-label">{lessonText("lesson.prepared", lang)}</span></button>}
+          {okfHere && <button type="button" className="btn" aria-haspopup="dialog" onClick={openLesson}><Icon name="board" /><span className="action-label">{lessonText("lesson.prepared", lang)}</span></button>}
           {okfHere && <button type="button" className="btn okfilow-link" onClick={(e) => { setOkfDown(false); void openOkFilow(anchorOf(e.currentTarget)).then((went) => setOkfDown(went === "unavailable")); }} aria-label={t("ctl.okfilow")} title={t("ctl.okfilowTitle")}><Icon name="ask" /><span className="action-label">{t("ctl.okfilow")}</span></button>}
           <button type="button" className="btn display-link" onClick={() => setDisplayOpen(true)} aria-label={t("display.open")} title={t("display.openTitle")} aria-haspopup="dialog"><Icon name="sliders" /><span className="action-label">{t("display.open")}</span></button>
           <button type="button" className="btn whiteboard-link" onClick={() => { setBoardDown(false); void openWhiteboard().then((went) => setBoardDown(went === "unavailable")); }} aria-label={t("ctl.whiteboard")} title={t("ctl.whiteboardTitle")}><Icon name="board" /><span className="action-label">{t("ctl.whiteboard")}</span></button>
@@ -631,10 +653,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         />
 
       <PageOutboundNotice />
-      {lessonOpen && <PreparedWaterCycle onClose={() => setLessonOpen(false)} />}
+      {lessonOpen && <PreparedWaterCycle onClose={closeLesson} onComplete={finishLesson} />}
       <div className="prompter-content" ref={readingRef}>
       <main className="prompter-main">
       <ReanchorNotice notice={reanchor.notice} onUndo={reanchor.undo} onDismiss={reanchor.dismiss} />
+      {lessonResult && <aside role="status"><p>{lessonResult}</p><p>{lessonText("lesson.transfer", lang)}</p></aside>}
       <PageOutboundSignal className="okf-out-region--bar" />
       {update?.status === "downloaded" && !updateDismissed && !eng.recording && (
         <div className="update-banner">
@@ -1024,7 +1047,7 @@ export function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; on
   );
 }
 
-export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
+export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; onComplete?(explanation: string): void }) {
   const bridge = desktopBridge()?.lesson;
   const lang = useLang();
   const t = (key: LessonTextKey, vars?: Record<string, string | number>) => lessonText(key, lang, vars);
@@ -1037,6 +1060,7 @@ export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
   const nextRequest = useCallback(() => ++generation.current, []);
   const usingBrowser = useRef(false);
   useEffect(() => {
+    window.speechSynthesis?.getVoices();
     const off = bridge?.onStop(() => {
       nextRequest();
       usingBrowser.current = false;
@@ -1066,16 +1090,23 @@ export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
   const narration = view.reading && (view.phase === "guiding" || view.phase === "explained")
     ? t(view.phase === "guiding" ? "lesson.guide" : "lesson.result", view.reading) : "";
   useEffect(() => {
-    if (!narration || !window.speechSynthesis) return;
+    if (!narration) return;
+    const id = generation.current;
+    let live = true;
+    const finished = () => {
+      if (live && generation.current === id && view.phase === "explained") onComplete?.(narration);
+    };
     const speech = window.speechSynthesis;
-    const voice = speech.getVoices().find(v => v.localService && v.lang.split(/[-_]/)[0] === lang);
-    if (!voice) return;
+    const voice = speech?.getVoices().find(v => v.localService && v.lang.split(/[-_]/)[0] === lang);
+    if (!voice) { finished(); return; }
     const utterance = new SpeechSynthesisUtterance(narration);
     utterance.voice = voice;
     utterance.lang = voice.lang;
+    utterance.onend = finished;
+    utterance.onerror = finished;
     speech.speak(utterance);
-    return () => speech.cancel();
-  }, [lang, narration]);
+    return () => { live = false; speech.cancel(); };
+  }, [lang, narration, onComplete, view.phase]);
   const control = async (action: "prepare" | "talk" | "request" | "approve" | "reconcile" | "stop") => {
     if (!bridge) return;
     const id = nextRequest();
@@ -1108,6 +1139,7 @@ export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
         <button type="button" className="btn" onClick={() => void control("talk")}>{t("ctl.okfilow")}</button>
         {view.micUnavailable && <p>{t("ctl.okfilowDown")}</p>}
         <label>{t("lesson.request")} <input value={words} placeholder={t("lesson.command")} onChange={e => setWords(e.target.value)} /></label>
+        {view.unmatched && <p role="status">{t("lesson.tryCommand", { command: t("lesson.command") })}</p>}
         <button className="btn" disabled={!words.trim()}>{t("lesson.review")}</button>
       </form>}
       {view.phase === "approval" && view.decision && <>

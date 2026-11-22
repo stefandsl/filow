@@ -1681,6 +1681,12 @@ function startOkFilow() {
       // Phone questions wait in OK Filow's inbox; during a slide show nothing of them shows (okfilow-phone.js).
       slideShowRunning: () => slideShow.running,
       takeRunning: () => takeLive,
+      openPreparedBoard: () => {
+        if (!mainWin || mainWin.isDestroyed() || mainWin.webContents.getURL().split(/[?#]/)[0] !== APP_URL + "/") return false;
+        mainWin.webContents.send("lesson:board");
+        if (showWindow(mainWin, "main window")) mainWin.focus();
+        return true;
+      },
       // A phone ignored three times in a row: the main window (it holds the session) switches its right to ask off.
       phoneAskOff: (id) => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send("okfilow:phoneAskOff", id); },
     // macOS: the plain-words prompt that opens the right System Settings pane (mac-permissions.js).
@@ -2634,7 +2640,13 @@ async function main() {
       });
       return opened ? lesson.view() : { ...lesson.view(), micUnavailable: true };
     }
-    if (action === "observe") return lesson.observe(owner, turn);
+    if (action === "observe") {
+      const previous = lesson.view().phase;
+      const result = await lesson.observe(owner, turn);
+      if (previous === "guiding" && result.phase === "explained" && lesson.view().turn === turn
+          && !win.isDestroyed() && showWindow(win, "main window")) win.focus();
+      return result;
+    }
     if (action === "reconcile") return lesson.reconcile(owner, turn);
     if (action === "stop" && (!turn || lesson.view().turn === turn)) { stopLesson(); return { phase: "idle" }; }
     if (action === "request") return lesson.request(owner, turn, payload);

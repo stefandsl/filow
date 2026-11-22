@@ -1,6 +1,7 @@
 // English: the reference dictionary. Every other language has exactly these keys
 // (packages/core/src/i18n/i18n.test.ts and tools/autoloop/checks/i18n-parity.mjs).
 export const en = {
+  "lesson.tryCommand": "To request this page, say or type “{command}”.",
   "lesson.guide": "Air temperature is {temperature} °C. Lower the highlighted Air temperature slider past the dew point of {dew} °C.",
   "lesson.result": "Air temperature is now {temperature} °C. As the air cooled to its dew point of {dew} °C, it reached saturation. Further cooling allows water vapour to condense into liquid droplets.",
   "lesson.transfer": "Where do the droplets on the outside of a cold, sealed bottle come from?",
