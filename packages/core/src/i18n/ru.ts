@@ -1,6 +1,10 @@
 import type { Dictionary } from "./en";
 
 export const ru: Dictionary = {
+  "lesson.guide": "Температура воздуха составляет {temperature} °C. Передвиньте выделенный ползунок Air temperature ниже точки росы {dew} °C.",
+  "lesson.result": "Сейчас температура воздуха составляет {temperature} °C. При охлаждении до точки росы {dew} °C воздух достиг насыщения. При дальнейшем охлаждении водяной пар может конденсироваться в капли воды.",
+  "lesson.transfer": "Откуда берутся капли на внешней поверхности холодной закрытой бутылки?",
+  "lesson.reconcile": "Проверить прерванное действие в браузере",
   "lesson.command": "Открой Cloud Lab",
   "lesson.browser": "Подготовить окно Edge для урока",
   "lesson.request": "Вернитесь в Filow и попросите открыть Cloud Lab",

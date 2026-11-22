@@ -2625,6 +2625,8 @@ async function main() {
     }
     if (!lesson || owner !== lessonOwner) return { phase: "idle" };
     if (action === "state") return lesson.view();
+    if (action === "observe") return lesson.observe(owner, turn);
+    if (action === "reconcile") return lesson.reconcile(owner, turn);
     if (action === "stop" && (!turn || lesson.view().turn === turn)) { stopLesson(); return { phase: "idle" }; }
     if (action === "request") return lesson.request(owner, turn, payload);
     if (action === "approve" && turn === payload?.turn) return lesson.approve(owner, payload);

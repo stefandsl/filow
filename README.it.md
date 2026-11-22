@@ -738,6 +738,8 @@ ripetere il confronto: `docs/gauntlet/BASELINE.md`.
 
 Nel suggeritore desktop, scegli **Lavagna preparata sul ciclo dell’acqua** per sospendere l’ascolto al punto corrente. Scegli una fotografia locale delle nuvole e segui le quattro frecce con la classe. **Torna al mio punto** chiude la lavagna. Riavvia l’ascolto quando vuoi riprendere. La foto resta sul computer.
 
+Per l’esercizio Cloud Lab su Windows, l’insegnante avvia il server della pagina locale con `node tools/autoloop/e2e/n04-windows.mjs`. Scegli **Prepara una finestra di Edge per la lezione**, torna a Filow e inserisci **Apri Cloud Lab**. Verifica la finestra, il turno e l’indirizzo esatto prima di scegliere **Apri una volta**. L’alunno sposta il cursore evidenziato della temperatura. Filow legge la temperatura e il punto di rugiada dalla pagina e spiega il cambiamento. Scegli **Ferma la lezione** o premi Ctrl+Shift+F12 per interrompere. Dopo un arresto imprevisto, riapri la lavagna e controlla l’azione interrotta. Se manca un’osservazione, l’esercizio resta in pausa.
+
 Trascina l'angolo di un elemento per ridimensionarlo in tempo reale: vista 3D,
 schede con immagini, galleria, video, slide e fumetto della risposta seguono il
 puntatore prima del rilascio. La maniglia a puntini sposta l'elemento.

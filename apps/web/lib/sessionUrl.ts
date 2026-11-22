@@ -5,10 +5,13 @@
  * 3. Otherwise: same host, port 4748 (dev).
  */
 export type LessonDecision = { teacher: string; turn: string; window: number; tab: string; action: "open"; url: string };
-export type LessonView = { phase: "idle" | "preparing" | "ready" | "approval" | "checking" | "dispatched" | "held"; turn?: string; decision?: LessonDecision };
+export type LessonView = {
+  phase: "idle" | "preparing" | "ready" | "approval" | "checking" | "dispatched" | "guiding" | "explained" | "interrupted" | "held";
+  turn?: string; decision?: LessonDecision; reading?: { temperature: number; dew: number };
+};
 export type DesktopBridge = {
   lesson?: {
-    control(action: "prepare" | "request" | "approve" | "state" | "stop", turn?: string, payload?: string | LessonDecision): Promise<LessonView>;
+    control(action: "prepare" | "request" | "approve" | "reconcile" | "observe" | "state" | "stop", turn?: string, payload?: string | LessonDecision): Promise<LessonView>;
     onStop(fn: () => void): () => void;
   };
   relayIdentity?: {

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cloud Lab</title>
+<style>
+  :root { color-scheme: light dark; font: 110%/1.5 system-ui, sans-serif; }
+  body { max-width: 36rem; margin: 8vh auto; padding: 1rem; }
+  label { display: block; margin-top: 2rem; }
+  input { width: 100%; min-height: 2rem; }
+  output { font-variant-numeric: tabular-nums; }
+</style>
+<h1>Cloud Lab</h1>
+<p>Dew point <output aria-label="Dew point">{{dew}} °C</output></p>
+<label for="air">Air temperature</label>
+<input id="air" type="range" min="-40" max="50" value="{{temperature}}" aria-valuetext="{{temperature}} °C">
+<output for="air" id="reading">{{temperature}} °C</output>
+<label for="wind">Wind speed</label>
+<input id="wind" type="range" min="0" max="30" value="5">
+<output for="wind" id="wind-reading">5 km/h</output>
+<script>
+  const air = document.getElementById("air");
+  air.addEventListener("input", () => {
+    const text = air.value + " °C";
+    air.setAttribute("aria-valuetext", text);
+    document.getElementById("reading").value = text;
+  });
+  const wind = document.getElementById("wind");
+  wind.addEventListener("input", () => { document.getElementById("wind-reading").value = wind.value + " km/h"; });
+</script>
+</html>

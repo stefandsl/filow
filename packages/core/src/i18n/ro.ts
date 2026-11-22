@@ -1,6 +1,10 @@
 import type { Dictionary } from "./en";
 
 export const ro: Dictionary = {
+  "lesson.guide": "Temperatura aerului este de {temperature} °C. Coboară cursorul evidențiat Air temperature sub punctul de rouă de {dew} °C.",
+  "lesson.result": "Temperatura aerului este acum de {temperature} °C. La răcirea până la punctul de rouă de {dew} °C, aerul a ajuns la saturație. Răcirea în continuare permite condensarea vaporilor în picături de apă.",
+  "lesson.transfer": "De unde provin picăturile de pe exteriorul unei sticle reci și închise?",
+  "lesson.reconcile": "Verifică acțiunea întreruptă din browser",
   "lesson.command": "Deschide Cloud Lab",
   "lesson.browser": "Pregătește o fereastră Edge pentru lecție",
   "lesson.request": "Revino în Filow și cere deschiderea Cloud Lab",

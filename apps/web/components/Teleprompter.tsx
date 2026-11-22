@@ -1027,6 +1027,7 @@ export function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; on
 export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
   const t = useT();
   const bridge = desktopBridge()?.lesson;
+  const lang = useLang();
   const [view, setView] = useState<LessonView>({ phase: "idle" });
   const [words, setWords] = useState("");
   const generation = useRef(0);
@@ -1045,12 +1046,39 @@ export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
       if (usingBrowser.current) void bridge?.control("stop").catch(() => {});
     };
   }, [bridge, nextRequest]);
-  const control = async (action: "prepare" | "request" | "approve" | "stop") => {
+  useEffect(() => {
+    if (!bridge || (view.phase !== "dispatched" && view.phase !== "guiding")) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const id = generation.current;
+    const poll = async () => {
+      const next = await bridge.control("observe", view.turn).catch((): LessonView => ({ phase: "held" }));
+      if (disposed || generation.current !== id) return;
+      setView(next);
+      if (next.phase === view.phase) timer = setTimeout(() => void poll(), 350);
+    };
+    timer = setTimeout(() => void poll(), 100);
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [bridge, view.turn, view.phase]);
+  const narration = view.reading && (view.phase === "guiding" || view.phase === "explained")
+    ? t(view.phase === "guiding" ? "lesson.guide" : "lesson.result", view.reading) : "";
+  useEffect(() => {
+    if (!narration || !window.speechSynthesis) return;
+    const speech = window.speechSynthesis;
+    const voice = speech.getVoices().find(v => v.localService && v.lang.split(/[-_]/)[0] === lang);
+    if (!voice) return;
+    const utterance = new SpeechSynthesisUtterance(narration);
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
+    speech.speak(utterance);
+    return () => speech.cancel();
+  }, [lang, narration]);
+  const control = async (action: "prepare" | "request" | "approve" | "reconcile" | "stop") => {
     if (!bridge) return;
     const id = nextRequest();
     usingBrowser.current = true;
     const result = bridge.control(action, view.turn, action === "approve" ? view.decision : action === "request" ? words : undefined);
-    if (action === "prepare" || action === "approve") setView({ phase: action === "prepare" ? "preparing" : "checking" });
+    if (action === "prepare" || action === "approve" || action === "reconcile") setView({ phase: action === "prepare" ? "preparing" : "checking" });
     try {
       const next = await result;
       if (id === generation.current) setView(next);
@@ -1083,6 +1111,9 @@ export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
         <button className="btn primary" onClick={() => void control("approve")}>{t("lesson.allow")}</button>
       </>}
       {["checking", "preparing", "dispatched"].includes(view.phase) && <p>{t("lesson.waiting")}</p>}
+      {view.phase === "interrupted" && <button className="btn" onClick={() => void control("reconcile")}>{t("lesson.reconcile")}</button>}
+      {narration && <p>{narration}</p>}
+      {view.phase === "explained" && <p>{t("lesson.transfer")}</p>}
       {view.phase === "held" && <p role="status">{t("lesson.held")}</p>}
       {view.phase !== "idle" && <button className="btn" onClick={() => void control("stop")}>{t("lesson.stop")}</button>}
     </section>}

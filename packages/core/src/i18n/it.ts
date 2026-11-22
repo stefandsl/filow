@@ -1,6 +1,10 @@
 import type { Dictionary } from "./en";
 
 export const it: Dictionary = {
+  "lesson.guide": "L’aria è a {temperature} °C. Abbassa il cursore evidenziato Air temperature sotto il punto di rugiada di {dew} °C.",
+  "lesson.result": "La temperatura dell’aria ora è di {temperature} °C. Raffreddandosi fino al punto di rugiada di {dew} °C, l’aria ha raggiunto la saturazione. Un ulteriore raffreddamento permette al vapore acqueo di condensare in goccioline liquide.",
+  "lesson.transfer": "Da dove vengono le goccioline all’esterno di una bottiglia fredda e chiusa?",
+  "lesson.reconcile": "Controlla l’azione interrotta nel browser",
   "lesson.command": "Apri Cloud Lab",
   "lesson.browser": "Prepara una finestra di Edge per la lezione",
   "lesson.request": "Torna a Filow e chiedi di aprire Cloud Lab",
