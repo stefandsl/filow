@@ -85,13 +85,27 @@ const RETENTION_TERM = /^(?:retention|conservazione)$/;
 const RETENTION_ACTION = /^(?:retain(?:s|ed)?|keep|keeps|kept|expir(?:e|es|ed|y|ation)|conserv\w*|manteniamo|mantenut[ie]|teniamo|scad\w*)$/;
 
 /** A restore test can take thirty days without saying how long a copy is kept.
- * Only count a retention predicate in a clause about the copies themselves. */
-function retentionEvidence(sentence: string, tokens: Token[]): boolean | undefined {
-  if (!tokens.some(t => BACKUP_COPY.test(t.norm))) return undefined;
-  return clauses(sentence, tokens).some(part =>
-    part.some(t => BACKUP_COPY.test(t.norm)) &&
-    part.some(t => RETENTION_TERM.test(t.norm) || RETENTION_ACTION.test(t.norm))
-  );
+ * Track the object of each predicate, including "we keep them" after an explicit
+ * mention. A new object ends that reference. */
+function retentionEvidence(sentence: string, topic: { copies: boolean; heading: boolean }): boolean | undefined {
+  let evidence: boolean | undefined;
+  for (const part of sentence.split(/[,;:!?]|\b(?:and|but|while|whereas|e|ma|mentre|invece)\b/iu)) {
+    const words = tokenize(part).map(t => t.norm);
+    if (!words.length) continue;
+    const namesCopy = words.some(w => BACKUP_COPY.test(w));
+    const policy = words.some(w => RETENTION_TERM.test(w));
+    const phrase = words.join(" ");
+    const pronoun = /\b(?:they|them)\b|^(?:li|le) (?:conserv|manteni|teniamo|elimin|cancell)/.test(phrase);
+    const copies = namesCopy || (topic.copies && pronoun) || (topic.heading && policy);
+    if (copies) {
+      const timedDisposal = /\b(?:delet\w*|discard\w*|remov\w*|elimin\w*|cancell\w*)\b/.test(phrase) &&
+        /\b(?:after|older than|once|dopo|oltre|trascors\w*)\b/.test(phrase);
+      evidence ||= policy || timedDisposal || words.some(w => RETENTION_ACTION.test(w));
+    }
+    topic.copies = copies;
+    topic.heading = namesCopy && words.length === 1;
+  }
+  return evidence;
 }
 
 /** Read the weekday attached to the event noun or verb in a compact date label. */
@@ -396,6 +410,7 @@ const round = (x: number) => Math.round(x * 100) / 100;
 export function checkClaim(point: string, transcript: string): ClaimCheck {
   const claim = claimOf(point);
   const retentionPoint = claim.words.some(w => RETENTION_TERM.test(w)) && claim.words.some(w => BACKUP_COPY.test(w));
+  const copyTopic = { copies: false, heading: false };
   const readings = sentences(transcript).map((s) => {
     const toks = tokenize(s.text);
     const lexical = coverage(claim.words, toks);
@@ -403,7 +418,7 @@ export function checkClaim(point: string, transcript: string): ClaimCheck {
     const numberMatch = claim.quantities.some((q) => sq.some((x) => sameQuantity(q, x)));
     const meal = schedulesMeal(claim.words, toks);
     const day = statedStartDay(claim.words, toks);
-    const retention = retentionPoint ? retentionEvidence(s.text, toks) : undefined;
+    const retention = retentionPoint ? retentionEvidence(s.text, copyTopic) : undefined;
     return { s, lexical, meal, day, retention, relevance: meal || day !== undefined || retention ? 1 : Math.min(1, lexical + (numberMatch ? 0.5 : 0)) };
   });
   const scored = readings.some(r => r.retention !== undefined) ? readings.filter(r => r.retention) : readings;

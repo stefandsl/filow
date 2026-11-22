@@ -355,6 +355,17 @@ it.each([
 describe.each(Object.entries(frozen.journeys))("%s affirmative and corrected claims", (lang, journey) => {
   const date = lang === "en" ? "Launch date Monday" : "Data avvio lunedì";
   const restore = lang === "en" ? "Backup restore test" : "Backup: test di ripristino";
+  it("follows the copies across a topic label and a pronoun without crediting a different object", () => {
+    const [label, reference, disposal, other] = lang === "en" ? [
+      "Backups: retention policy", "We do backups. We keep them for ninety days.",
+      "Each snapshot is deleted after thirty days.", "We keep the invoices and test our backups.",
+    ] : [
+      "Backup: politica di conservazione", "Facciamo dei backup. Li conserviamo per novanta giorni.",
+      "Ogni copia viene eliminata dopo trenta giorni.", "Conserviamo le fatture e proviamo i backup.",
+    ];
+    for (const line of [label, reference, disposal]) expect(checkClaim(label, line).ok, line).toBe(true);
+    expect(checkClaim(label, other).ok).toBe(false);
+  });
   it("checks the stated event date even when the speaker omits the expected day", () => {
     const [different, uncertain, proposed, confirmed, neighbor] = lang === "en" ? [
       "The launch date is Thursday.", "The launch date is still undecided.", "We might launch on Monday.",
