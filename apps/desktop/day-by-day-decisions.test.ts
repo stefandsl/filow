@@ -73,3 +73,13 @@ it("keeps every plausible contact when a determiner introduces an unfamiliar rol
   assert.equal(review?.which, true);
   assert.deepEqual(review.targets.map((r: any) => r.id), [0, 1]);
 });
+
+it("requires a reported recipient for a directed delivery, including possessive reports", () => {
+  assert.equal(interpret("I sent the tickets", deliveries), null);
+  const task = { text: "Inviare il modulo a Teo", done: false, id: "1", rev: 1 };
+  assert.equal(interpret("Il modulo è dal Nino", [task]), null);
+});
+it("asks about a pronoun for lower-case names on an unfamiliar contact action", () => {
+  const tasks = ["Interview mina", "Interview lena"].map((text, id) => ({ text, id, rev: 1, done: false }));
+  assert.deepEqual(interpret("I interviewed her", tasks)?.targets.map((r: any) => r.id), [0, 1]);
+});
