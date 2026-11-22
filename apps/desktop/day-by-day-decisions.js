@@ -16,7 +16,8 @@ function lexicon() {
   return dictionary;
 }
 
-const normalize = s => s.normalize("NFKC").toLowerCase().replaceAll("’", "'").trim();
+const normalize = s => s.normalize("NFKC").toLowerCase().replaceAll("’", "'")
+  .replace(/\b(mr|mrs|ms|dr|dott|prof)\.(?=\s+\p{L})/gu, "$1").trim();
 const objectKey = s => s.split(/\s+/).filter(w => !/^(?:the|a|an|my|our|il|lo|la|i|le|gli|un|una)$/.test(w)).join(" ");
 const entries = (table, word) => Object.hasOwn(table, word) ? table[word] : [];
 function lemmas(form, morphology) {
@@ -46,8 +47,12 @@ function related(left, right) {
 
 // Transfer events can be described from either participant's perspective.
 const transfer = ["give", "send", "deliver", "forward", "hand", "mail", "email", "dare", "inviare", "consegnare", "mandare", "inoltrare", "spedire"];
+const italianTo = String.raw`(?:(?:a|ad|al|alla|allo|ai|agli|alle)\s+|all['’]\s*)`;
+const trailingRecipient = new RegExp(`^(.+?) (?:to\\s+|${italianTo})(.+)$`, "iu");
+const arrived = new RegExp(`^(.+?) (?:è|sono) arrivat[oaie] ${italianTo}(.+)$`, "u");
+const elidedWithRecipient = new RegExp(`^(non )?l'ho (\\p{L}+) ${italianTo}(.+)$`, "u");
 function splitArguments(rest, allowIndirect) {
-  const trailing = /^(.+?) (?:to|a|ad) (.+)$/i.exec(rest);
+  const trailing = trailingRecipient.exec(rest);
   if (trailing) return { person: trailing[2], object: trailing[1] };
   const leading = allowIndirect && /^(.+?) ((?:the|a|an|my|our|their|his|her|your) .+)$/i.exec(rest);
   return leading ? { person: leading[1], object: leading[2] } : { object: rest };
@@ -55,7 +60,7 @@ function splitArguments(rest, allowIndirect) {
 
 const pronoun = /^(?:he|she|they|them|him|her|lei|lui|loro|gli|le|lo|la|li)$/u;
 const determiner = /^(?:a|an|the|my|your|his|her|their|our|this|that|one|il|lo|la|i|le|gli|un|una|uno|al|alla|mio|mia|nostr[oa]|l['’])(?:\s|')/u;
-const title = /^(?:(?:il|la) )?(?:mr|mrs|ms|dr|dott|dottore|dottoressa|signor|signore|signora)\.?\s+/u;
+const title = /^(?:(?:il|lo|la|i|gli|le) |l')?(?:mr|mrs|ms|dr|dott|dottore|dottoressa|signor|signore|signora|prof|professore|professoressa)\.?\s+/u;
 const plainName = value => normalize(value).replace(title, "");
 function containsName(person, reference) {
   return (" " + plainName(person) + " ").includes(" " + plainName(reference) + " ");
@@ -84,7 +89,7 @@ function parseReport(input, repair) {
     return { delivery: true, person, object, implicit: repair && !object && /non l[ei] ha/.test(verb) };
   }
   if (!repair) {
-    const recipient = /^(.+?) (?:is with|are with|reached|(?:è|sono) (?:arrivat[oaie] (?:a|ad)|da)) (.+)$/.exec(phrase);
+    const recipient = arrived.exec(phrase) || /^(.+?) (?:is with|are with|reached|(?:è|sono) da) (.+)$/.exec(phrase);
     if (recipient) return { delivery: true, object: recipient[1], person: recipient[2] };
     const contracted = /^(.+?) (?:è|sono) d(?:allo|alla|agli|alle|ai|al|all')\s*(.+)$/.exec(phrase);
     if (contracted) return { delivery: true, object: contracted[1], person: contracted[2], article: true };
@@ -96,6 +101,15 @@ function parseReport(input, repair) {
       const verbs = /ing$/.test(verb) ? lemmas(verb, "gerund") : /(?:are|ere|ire)$/.test(verb) ? [verb] : [];
       return rest.length && verbs.length ? { verbs, object: rest.join(" ") } : { verbs: null, object: finish[1] };
     }
+  }
+  // Combined clitics carry the recipient as well as an implicit object.
+  const elided = elidedWithRecipient.exec(phrase);
+  if (elided && Boolean(elided[1]) === repair) {
+    return { person: elided[3], object: "", implicit: true, verbs: lemmas(elided[2], "participle") };
+  }
+  const combined = /^(?:(.+?) )?(non )?(?:gliel'ho|gliel[oaie] ho) (\p{L}+)$/u.exec(phrase);
+  if (combined && Boolean(combined[2]) === repair) {
+    return { person: "gli", object: combined[1] || "", implicit: !combined[1], verbs: lemmas(combined[3], "participle") };
   }
   const dislocated = /^(?:(.+?) )?(non )?(?:l'ho|l[aeio] ho) (\p{L}+)$/u.exec(phrase);
   if (dislocated && Boolean(dislocated[2]) === repair) {
@@ -130,7 +144,7 @@ function taskArguments(report, row) {
 }
 
 function recipientConflict(report, { src, dest, directName }) {
-  if (dest.person && !src.person) return true;
+  if (dest.person && !src.person) return !report.implicitPerson;
   if (src.person && !personMatches(src.person, dest.person)) {
     return !report.article || !dest.person || !lexicon().roles.has(src.person);
   }
@@ -142,7 +156,7 @@ function matchesTask(report, row) {
   const args = taskArguments(report, row);
   if (!args || recipientConflict(report, args)) return false;
   const { src, dest, directName } = args;
-  if (report.implicitPerson) return directName;
+  if (report.implicitPerson) return directName || Boolean(dest.person);
   if (directName && !src.person && report.verbs && personMatches(src.object, dest.object)) return true;
   return report.implicit || objectKey(src.object) === objectKey(normalize(dest.object));
 }

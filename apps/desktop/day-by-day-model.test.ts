@@ -9,6 +9,40 @@ function matcher(answer: (body: any) => unknown) {
     Response.json({ message: { content: JSON.stringify(answer(JSON.parse(init.body))) } }));
 }
 
+const italianRecipients = ["Consegnare il plico alla dottoressa Ada Riva", "Inviare il plico ad Ada Neri"]
+  .map((text, i) => ({ ...tasks[i], text }));
+const recipientReports: [string, string[]][] = [
+  ["Ho consegnato il plico ad Ada", ["0", "1"]],
+  ["Le ho spedito il plico", ["0", "1"]],
+  ["La dottoressa Riva ha il plico", ["0"]],
+  ["Gli ho mandato il plico", ["0", "1"]],
+  ["L'ho consegnato ad Ada", ["0", "1"]],
+  ["Il plico è arrivato alla prof. Riva", ["0"]],
+  ...["Glielo ho dato", "Gliela ho data", "Glieli ho dati", "Gliele ho date", "Gliel’ho dato", "L'ho consegnato"]
+    .map((report): [string, string[]] => [report, ["0", "1"]]),
+];
+for (const [report, ids] of recipientReports) it("grounds Italian recipients for " + report, async () => {
+  // A model choosing only Riva must still present both plausible recipients.
+  const match = matcher(body => ({ ...aligned, reason: "delivered", verdict: body.messages[0].content.includes("Ada Riva") ? "yes" : "no" }));
+  for (const review of [load("./day-by-day-decisions").interpret(report, italianRecipients),
+    await match(report, italianRecipients, { speech: true })]) {
+    assert.deepEqual(review?.targets.map((row: { id: string }) => row.id).sort(), ids);
+    assert.equal(review.which, ids.length > 1);
+  }
+});
+
+for (const recipient of ["a dottore Riva", "ad Ada Riva", "al signor Riva", "alla signora Riva",
+  "allo studente Riva", "all'Ada Riva", "all’illustrissima Riva", "ai Rossi", "agli Orsi", "alle sorelle Riva",
+  "alla prof. Riva", "alla professoressa Riva"]) it("recognizes the Italian recipient " + recipient, async () => {
+  const rows = [{ ...tasks[0], text: "Inviare il plico " + recipient }, { ...tasks[1], text: "Inviare il plico a Nora" }];
+  const report = "Ho spedito il plico a " + recipient.split(" ").at(-1);
+  const match = matcher(() => ({ ...aligned, reason: "delivered", verdict: "yes" }));
+  for (const result of [load("./day-by-day-decisions").interpret(report, rows), await match(report, rows, { speech: true }),
+    load("./day-by-day-decisions").interpret("Ho spedito il plico " + recipient, rows)]) {
+    assert.deepEqual(result?.targets.map((row: { id: string }) => row.id), ["0"]);
+  }
+});
+
 it("maps constrained semantic choices to original task revisions", async () => {
   const match = matcher(body => {
     assert.deepEqual(body.format.properties.verdict.enum, ["yes", "no"]);
