@@ -2598,7 +2598,7 @@ async function main() {
     okFilow.practice(mark);
     return true;
   });
-  let lesson, lessonOwner, lessonKeyBound = false;
+  let lesson, lessonDriver, lessonOwner, lessonKeyBound = false;
   const lessonStopKey = "Control+Shift+F12";
   const interruptLesson = () => {
     okFilow?.clearLessonDraft?.();
@@ -2619,15 +2619,15 @@ async function main() {
     if (mainFrame && !inPage) interruptLesson();
   });
   appHandle("lesson:control", async (event, action, turn, payload) => {
-    if (event.sender !== win.webContents || new URL(event.senderFrame.url).pathname !== "/") throw new Error("Denied");
+    if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame || new URL(event.senderFrame.url).pathname !== "/") throw new Error("Denied");
     const owner = String(event.sender.id) + "/" + String(event.senderFrame.routingId);
     if (action === "prepare") {
       if (!win.isFocused() || lessonKeyBound || process.platform !== "win32") return { phase: "held" };
       lessonKeyBound = globalShortcut.register(lessonStopKey, stopLesson);
       if (!lessonKeyBound) return { phase: "held" };
-      const { createLesson, lessonJournal, edgeDriver } = require("./okfilow-lesson");
+      const { createLesson, lessonJournal, electronDriver } = require("./okfilow-lesson");
       lessonOwner = owner;
-      lesson = createLesson({ driver: edgeDriver(userData), focused: () => !win.isDestroyed() && win.isFocused(), journal: lessonJournal(userData) });
+      lesson = createLesson({ driver: lessonDriver ??= electronDriver(), speakerAvailable: () => Boolean(okFilow?.lessonWakeAvailable()), focused: () => !win.isDestroyed() && win.isFocused(), journal: lessonJournal(userData) });
       okFilow?.bindLessonSpeaker(lesson);
       return lesson.prepare(owner);
     }
@@ -2650,6 +2650,7 @@ async function main() {
     }
     if (action === "reconcile") return lesson.reconcile(owner, turn);
     if (action === "stop" && (!turn || lesson.view().turn === turn)) { stopLesson(); return { phase: "idle" }; }
+    if (action === "confirmPresenter") return lesson.confirmPresenter(owner, turn);
     if (action === "request") return lesson.request(owner, turn, payload);
     if (action === "approve" && turn === payload?.turn) return lesson.approve(owner, payload);
     return { phase: "held" };

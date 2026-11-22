@@ -6,12 +6,12 @@
  */
 export type LessonDecision = { presenter: string; teacher: string; turn: string; window: number; tab: string; action: "open"; url: string };
 export type LessonView = {
-  phase: "idle" | "preparing" | "ready" | "speaker" | "approval" | "checking" | "dispatched" | "guiding" | "explained" | "interrupted" | "held";
-  turn?: string; decision?: LessonDecision; reading?: { temperature: number; dew: number }; micUnavailable?: boolean; unmatched?: boolean;
+  phase: "idle" | "preparing" | "ready" | "presenter" | "speaker" | "approval" | "checking" | "dispatched" | "guiding" | "explained" | "interrupted" | "held";
+  turn?: string; decision?: LessonDecision; reading?: { temperature: number; dew: number }; micUnavailable?: boolean; expired?: boolean; unmatched?: boolean;
 };
 export type DesktopBridge = {
   lesson?: {
-    control(action: "prepare" | "talk" | "request" | "approve" | "reconcile" | "observe" | "state" | "stop", turn?: string, payload?: string | LessonDecision): Promise<LessonView>;
+    control(action: "prepare" | "confirmPresenter" | "talk" | "request" | "approve" | "reconcile" | "observe" | "state" | "stop", turn?: string, payload?: string | LessonDecision): Promise<LessonView>;
     onStop(fn: () => void): () => void;
     onDraft(fn: (turn: string, words: string) => void): () => void;
     onBoard(fn: () => void): () => void;

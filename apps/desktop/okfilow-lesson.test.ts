@@ -1,115 +1,6 @@
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { runInNewContext } from "node:vm";
 import { it, vi } from "vitest";
 import { createLesson, createLessonDraft, LESSON_URL, arrived, cooled } from "./okfilow-lesson";
-
-// Exercise edgeDriver.prepare with Edge ignoring its startup URL. Only the OS
-// launch and the private browser's protocol replies are replaced.
-function edgeStartup(fault?: "frame" | "history" | "lost reply" | "stop before create" | "stop during create") {
-  const turn = "b735532d-68a1-4a46-bf93-b433240e269e";
-  const start = "about:blank#filow-" + turn;
-  const prior = "about:blank#filow-9252d7cf-2cba-4520-8e3b-a7d8ccc22fc2";
-  const tabs = new Map([["startup", "edge://newtab/"], ["prior", prior]]);
-  const abort = new AbortController();
-  const creates: string[] = [], attaches: string[] = [], calls: string[] = [];
-  let currentTab = "", reads = 0, endpointReads = 0;
-  class Socket extends EventTarget {
-    constructor() {
-      super();
-      queueMicrotask(() => {
-        if (fault === "stop before create") abort.abort();
-        this.dispatchEvent(new Event("open"));
-      });
-    }
-    close() { this.dispatchEvent(new Event("close")); }
-    send(data: string) {
-      const { id, method, params, sessionId } = JSON.parse(data);
-      calls.push(method);
-      let result = {};
-      if (method === "Target.createTarget") {
-        creates.push(params.url);
-        assert.equal(params.newWindow, true);
-        tabs.set("created", params.url);
-        result = { targetId: "created" };
-        if (fault === "lost reply") { this.close(); return; }
-        if (fault === "stop during create") abort.abort();
-      } else if (method === "Target.getTargets") {
-        result = { targetInfos: [...tabs].map(([targetId, url]) => ({ type: "page", targetId, url })) };
-      } else if (method === "Target.attachToTarget") {
-        currentTab = params.targetId;
-        attaches.push(currentTab);
-        assert.ok(tabs.has(currentTab));
-        result = { sessionId: "attached" };
-      } else if (method === "Browser.getWindowForTarget") {
-        result = { windowId: params.targetId === "created" ? 2 : 1, bounds: { windowState: "normal" } };
-      } else if (method === "Page.getFrameTree" || method === "Page.getNavigationHistory") {
-        assert.equal(sessionId, "attached");
-        const url = tabs.get(currentTab)!;
-        // The created tab initially reports plain about:blank while its fragment commits.
-        if (method === "Page.getFrameTree") {
-          reads++;
-          const location = fault === "frame" ? prior : reads === 1 ? "about:blank" : url;
-          const [base, fragment] = location.split("#");
-          result = { frameTree: { frame: { id: "frame", loaderId: "loader", url: base, urlFragment: fragment && "#" + fragment } } };
-        } else {
-          result = { currentIndex: 0, entries: [{ id: 1, url: fault === "history" ? prior : url }] };
-        }
-      }
-      this.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({ id, result }) }));
-    }
-  }
-  const launch = { spawn: () => {
-    const child = Object.assign(new EventEmitter(), { unref() {}, kill() {} });
-    queueMicrotask(() => child.emit("spawn"));
-    return child;
-  } };
-  const builtins: Record<string, unknown> = {
-    "./cloud-lab": { LESSON_URL, serveCloudLab: async () => ({ instance:"instance", close() {} }) },
-    "node:child_process": launch,
-    "node:fs": { existsSync: () => true, readFileSync: () => {
-      if (++endpointReads === 1) throw Error("endpoint starting");
-      return "45100\n/devtools/browser/7cd4ed15-01d4-4cce-ad53-f661b3bebd45";
-    } },
-    "node:timers/promises": { setTimeout: async (_ms: number, _value: unknown, { signal }: { signal: AbortSignal }) => signal.throwIfAborted() },
-  };
-  const module = { exports: {} as typeof import("./okfilow-lesson") };
-  runInNewContext(readFileSync(path.join(__dirname, "okfilow-lesson.js"), "utf8"), {
-    module, require: (name: string) => builtins[name] ?? process.getBuiltinModule(name),
-    process: { platform: "win32", env: { ProgramFiles: "programs" } }, WebSocket: Socket, setTimeout, clearTimeout,
-  });
-  const driver = module.exports.edgeDriver("lesson-profile");
-  return { prepare: () => driver.prepare(turn, abort.signal), close: driver.close, calls, attaches, creates, start, tabs };
-}
-
-it("prepares the newly created target when Edge opens its new-tab page and a prior turn survives", async () => {
-  const edge = edgeStartup();
-  try {
-    const origin = await edge.prepare();
-    assert.deepEqual(edge.creates, [edge.start]);
-    assert.deepEqual(edge.attaches, ["created"]);
-    assert.equal(origin.tab, "created");
-    assert.equal(origin.url, edge.start);
-    assert.equal(origin.frameUrl, edge.start);
-    assert.equal(origin.selected, true);
-    assert.ok(!edge.calls.includes("Page.navigate") && !edge.calls.includes("Page.bringToFront"));
-  } finally { edge.close(); }
-});
-
-it("withholds readiness on mismatched or uncertain creation and stops pending preparation", async () => {
-  for (const fault of ["frame", "history", "lost reply", "stop before create", "stop during create"] as const) {
-    const edge = edgeStartup(fault);
-    edge.tabs.set("pre-existing copy", edge.start);
-    try {
-      await assert.rejects(edge.prepare(), fault);
-      assert.deepEqual(edge.creates, fault === "stop before create" ? [] : [edge.start], fault);
-      assert.deepEqual(edge.attaches, fault === "frame" || fault === "history" ? ["created"] : [], fault);
-      assert.ok(!edge.calls.includes("Page.navigate") && !edge.calls.includes("Page.bringToFront"), fault);
-    } finally { edge.close(); }
-  }
-});
 
 function trial(speakerAvailable = () => true) {
   const origin = { browser: "edge-1", window: 38, tab: "tab-1", frame: "f", loader: "before", url: "about:blank#class", entry: 1, selected: true };
@@ -237,23 +128,17 @@ it("drops a target check that finishes after keyboard or on-screen Stop", async 
   assert.equal(lesson.view().phase, "idle");
 });
 
-it("refuses a foreign listener before launching Edge", async () => {
+it("refuses a foreign listener before creating a window", async () => {
   const { createServer } = await import("node:http");
-  const { edgeDriver } = await import("./okfilow-lesson");
+  const { electronDriver } = await import("./okfilow-lesson");
   let requests = 0;
   const foreign = createServer((_req, res) => { requests++; res.end("Cloud Lab"); });
   await new Promise<void>(resolve => foreign.listen(48764, "127.0.0.1", resolve));
   try {
-    const driver = edgeDriver("unused");
+    const driver = electronDriver();
     await assert.rejects(driver.prepare("test", new AbortController().signal), { code: "EADDRINUSE" });
     assert.equal(requests, 0);
   } finally { foreign.close(); }
-});
-it("closes the dedicated browser on return", async () => {
-  const edge = edgeStartup();
-  await edge.prepare();
-  edge.close();
-  assert.ok(edge.calls.includes("Browser.close"));
 });
 it("waits for a temperature below the dew point", () => {
   assert.equal(cooled({temperature:22, dew:12, input:0},

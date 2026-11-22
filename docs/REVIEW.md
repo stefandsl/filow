@@ -222,3 +222,7 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R205 (N-04): Include the numeric loopback lesson host in the Edge resolver exceptions. Measure the private Edge process tree through a successful authenticated navigation and record public and loopback traffic separately.
 - R206 (N-04): Disclose Edge background traffic before Prepare starts the browser. Render an idle desktop board and check that the disclosure precedes the launch button.
 - R207 (N-04): Grade frozen-topic generations individually and record delivery and audit replay separately. Preserve the prompt hash, model, per-arm trial counts and critical errors for each rendered lesson.
+- R207 (N-04): Exercise both presenter confirmation paths and expire stale decisions after 120 seconds. Retry review and count opens.
+- R208 (N-04): Run a packaged approve and observe cycle in a private Electron session. Attribute non-loopback traffic to the application process tree.
+- R209 (N-04): Remove the response instance and turn referrer checks separately and verify that their negative tests fail.
+- R210 (N-04): Record critical errors with graded denominators for both arms and keep live generation HELD until the N-06 factual gate passes.

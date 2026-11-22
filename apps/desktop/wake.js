@@ -227,6 +227,6 @@ function createWake({ userData, utilityProcess, state, changed, detected, lesson
     return snapshot();
   }
   function remove() { stop(); fs.rmSync(root, { recursive: true, force: true }); profile = null; error = ""; publish(); return snapshot(); }
-  return { status: snapshot, setup, enable, setBare, stop, fail, feed, reconcile, sample, negative, train, remove, test(on) { testing = on === true; count = 0; publish(); return snapshot(); } };
+  return { lessonAvailable: () => enabled && listening && !!profile && !testing, status: snapshot, setup, enable, setBare, stop, fail, feed, reconcile, sample, negative, train, remove, test(on) { testing = on === true; count = 0; publish(); return snapshot(); } };
 }
 module.exports = { createWake, createDetectors, wav, readSample };

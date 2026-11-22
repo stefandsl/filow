@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld("filow", {
   desktop: true,
   lesson: {
     control: (action, turn, payload) => {
-      if (["prepare", "approve", "reconcile"].includes(action) && !navigator.userActivation.isActive) return Promise.resolve({ phase: "held" });
+      if (["prepare", "confirmPresenter", "approve", "reconcile"].includes(action) && !navigator.userActivation.isActive) return Promise.resolve({ phase: "held" });
       return ipcRenderer.invoke("lesson:control", action, turn, payload);
     },
     onStop: fn => {

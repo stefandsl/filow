@@ -1,10 +1,8 @@
-// A prepared lesson owns one tab in a separate profile of the installed Windows browser.
+// Each prepared lesson owns one sandboxed Electron window.
 // Neither the renderer nor the lesson document can supply a browser command or destination.
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
-const { setTimeout: delay } = require("node:timers/promises");
 
 const { serveCloudLab, LESSON_URL } = require("./cloud-lab");
 const SAME_PAGE = ["browser", "window", "tab", "frame", "loader", "url", "frameUrl", "entry"];
@@ -42,9 +40,17 @@ function createLessonDraft() {
   };
 }
 
-function createLesson({ driver, focused, journal }) {
+function createLesson({ driver, focused, journal, speakerAvailable = () => true }) {
   let active = null;
-  const view = () => active ? { phase: active.phase, turn: active.turn, decision: active.decision && { ...active.decision }, reading: active.reading } : { phase: "idle" };
+  function expire() {
+    if (active && ["presenter", "speaker", "approval"].includes(active.phase) && Date.now() >= active.expires) {
+      active.phase = "ready";
+      delete active.decision;
+      delete active.challenge;
+      active.expired = true;
+    }
+  }
+  const view = () => { expire(); return active ? { phase: active.phase, turn: active.turn, expired: active.expired, decision: active.decision && { ...active.decision }, reading: active.reading } : { phase: "idle" }; };
   const owns = (owner, turn) => active && active.owner === owner && active.turn === turn;
   function stop(owner, turn) {
     if (!owns(owner, turn)) return;
@@ -80,16 +86,26 @@ function createLesson({ driver, focused, journal }) {
     if (typeof words !== "string" || !/^(?:(?:(?:please )?open|apri|deschide|открой) cloud lab|cloud lab を開いて)[.!?。]?$/iu.test(words.trim())) return { ...view(), unmatched: true };
     active.challenge = randomUUID();
     active.expires = Date.now() + 120_000;
-    active.phase = "speaker";
+    active.expired = false;
+    active.phase = speakerAvailable() ? "speaker" : "presenter";
     return view();
   }
   function challenge() {
+    expire();
     return active?.phase === "speaker" && focused() && Date.now() < active.expires ? active.challenge : null;
   }
   function confirmSpeaker(id) {
     if (!id || id !== challenge()) return held;
+    return decisionFor("enrolled-wake/" + id);
+  }
+  function confirmPresenter(owner, turn) {
+    expire();
+    if (!owns(owner, turn) || active.phase !== "presenter" || !focused()) return held;
+    return decisionFor("presenter-click");
+  }
+  function decisionFor(teacher) {
     const { owner, origin, turn } = active;
-    active.decision = { presenter: owner, teacher: "enrolled-wake/" + id, turn, window: origin.window,
+    active.decision = { presenter: owner, teacher, turn, window: origin.window,
       tab: origin.tab, action: "open", url: LESSON_URL };
     active.phase = "approval";
     return view();
@@ -164,15 +180,15 @@ function createLesson({ driver, focused, journal }) {
     return view();
   }
   function blur() {
-    if (active && ["speaker", "approval", "checking"].includes(active.phase)) active.phase = "held";
+    if (active && ["speaker", "presenter", "approval", "checking"].includes(active.phase)) active.phase = "held";
   }
   function interrupt() {
     const last = active;
     active = null;
-    driver.detach?.();
+    if (last && !["dispatched", "guiding"].includes(last.phase)) driver.close();
     last?.abort.abort();
   }
-  return { prepare, request, approve, observe, reconcile, stop, blur, interrupt, challenge, confirmSpeaker, view };
+  return { prepare, request, approve, observe, reconcile, stop, blur, interrupt, challenge, confirmSpeaker, confirmPresenter, view };
 }
 
 function lessonJournal(dir) {
@@ -189,54 +205,6 @@ function lessonJournal(dir) {
       fs.renameSync(temp, file);
     },
   };
-}
-
-// Connect only to the browser endpoint published in the dedicated lesson profile.
-async function connectBrowser(dir, signal) {
-  const [port, route] = fs.readFileSync(path.join(dir, "DevToolsActivePort"), "utf8").trim().split(/\r?\n/);
-  if (!/^\d{1,5}$/.test(port) || !/^\/devtools\/browser\/[a-f0-9-]{36}$/.test(route)) throw Error("browser unavailable");
-  const socket = new WebSocket("ws://127.0.0.1:" + port + route);
-  const pending = new Map();
-  let onEvent = null;
-  let seq = 0;
-  const close = () => {
-    socket.close();
-    for (const fail of pending.values()) fail(null);
-    pending.clear();
-  };
-  signal.addEventListener("abort", close, { once: true });
-  socket.addEventListener("close", () => {
-    signal.removeEventListener("abort", close);
-    for (const fail of pending.values()) fail(null);
-    pending.clear();
-  });
-  socket.addEventListener("message", event => {
-    let response;
-    try { response = JSON.parse(event.data); } catch { return; }
-    if (response.method) { onEvent?.(response); return; }
-    pending.get(response.id)?.(response);
-  });
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { close(); reject(Error("browser timeout")); }, 2500);
-    socket.addEventListener("open", () => { clearTimeout(timer); resolve(); }, { once: true });
-    socket.addEventListener("error", () => { clearTimeout(timer); reject(Error("browser unavailable")); }, { once: true });
-  });
-  function send(method, params = {}, sessionId) {
-    signal.throwIfAborted();
-    return new Promise((resolve, reject) => {
-      const id = ++seq;
-      const done = response => {
-        clearTimeout(timer);
-        pending.delete(id);
-        if (!response || response.error) reject(Error("browser observation unavailable"));
-        else resolve(response.result);
-      };
-      const timer = setTimeout(() => done(null), 3000);
-      pending.set(id, done);
-      try { socket.send(JSON.stringify({ id, method, params, sessionId })); } catch { done(null); }
-    });
-  }
-  return { id: route.slice(route.lastIndexOf("/") + 1), send, close, listen(fn) { onEvent = fn; } };
 }
 
 // Executed in a named isolated world of the exact top-level lesson document. Read DOM state
@@ -276,44 +244,29 @@ function readDocument() {
     rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } } };
 }
 
-function edgeDriver(userData) {
-  const dir = path.join(userData, "lesson-browser");
-  let connection, session, tab, service, child;
-  const page = (method, params) => connection.send(method, params, session);
+function checkLessonResponse(params, frame, instance, send) {
+  const { requestId, frameId, request, responseStatusCode, responseHeaders } = params;
+  const approved = frameId === frame && request.url === LESSON_URL && responseStatusCode === 200
+    && responseHeaders?.some(h => h.name.toLowerCase() === "x-filow-instance" && h.value === instance);
+  return approved ? send("Fetch.continueRequest", { requestId }) : send("Fetch.failRequest", { requestId, errorReason: "Aborted" });
+}
+
+function electronDriver() {
+  let win, service;
+  const browser = randomUUID();
+  const page = (method, params) => win.webContents.debugger.sendCommand(method, params);
   async function current() {
-    const [{ windowId, bounds }, { frameTree }, history] = await Promise.all([
-      connection.send("Browser.getWindowForTarget", { targetId: tab }),
-      page("Page.getFrameTree"), page("Page.getNavigationHistory"),
-    ]);
+    const [{ frameTree }, history] = await Promise.all([page("Page.getFrameTree"), page("Page.getNavigationHistory")]);
     const frame = frameTree.frame;
     const entry = history.entries[history.currentIndex];
-    let selected = false;
-    if (entry.url.startsWith("about:blank#filow-") && bounds.windowState !== "minimized") {
-      // The prepared Edge window has exactly one page. An added tab makes it ambiguous,
-      // even if Chromium still answers queries addressed to the original background target.
-      const { targetInfos } = await connection.send("Target.getTargets");
-      const otherPages = targetInfos.filter(t => t.type === "page" && t.targetId !== tab);
-      const windows = await Promise.all(otherPages.map(t => connection.send("Browser.getWindowForTarget", { targetId: t.targetId })));
-      selected = windows.every(other => other.windowId !== windowId);
-    }
-    return { browser: connection.id, tab, window: windowId, frame: frame.id, loader: frame.loaderId, url: entry.url, entry: entry.id,
-      selected, previous: history.entries[history.currentIndex - 1]?.id, frameUrl: frame.url + (frame.urlFragment || "") };
+    return { browser, tab: String(win.webContents.id), window: win.id, frame: frame.id, loader: frame.loaderId,
+      url: entry.url, entry: entry.id, selected: !win.isMinimized(), previous: history.entries[history.currentIndex - 1]?.id,
+      frameUrl: frame.url + (frame.urlFragment || "") };
   }
-  async function bind(client, targetId, signal) {
-    const attached = await client.send("Target.attachToTarget", { targetId, flatten: true });
+  function attach(origin, signal) {
     signal.throwIfAborted();
-    connection = client;
-    tab = targetId;
-    session = attached.sessionId;
-    await page("DOM.enable");
-    await page("Overlay.enable");
-  }
-  async function attach(origin, signal) {
-    const client = await connectBrowser(dir, signal);
-    try {
-      if (client.id !== origin.browser) throw Error("different browser");
-      await bind(client, origin.tab, signal);
-    } catch (err) { client.close(); throw err; }
+    if (!win || win.isDestroyed() || origin.browser !== browser || origin.window !== win.id ||
+        origin.tab !== String(win.webContents.id)) throw Error("Lesson window unavailable");
   }
   async function observe() {
     const target = await current();
@@ -329,81 +282,38 @@ function edgeDriver(userData) {
     return page("Overlay.highlightQuad", { quad: [x, y, x + 9, y - 22, x + 18, y - 15, x, y],
       color: { r: 255, g: 184, b: 0, a: 1 }, outlineColor: { r: 32, g: 32, b: 32, a: 1 } });
   }
-  function detach() {
-    service?.close();
-    service = null;
-    connection?.close();
-    connection = session = tab = null;
-  }
   function close() {
-    const client = connection;
-    if (!client) { child?.kill(); detach(); return; }
-    // Send before Stop aborts the CDP session. Edge shuts down its private profile.
-    void client.send("Browser.close").catch(() => {}).finally(() => client.close());
+    if (win && !win.isDestroyed()) win.destroy();
     service?.close();
-    service = connection = session = tab = child = null;
-  }
-  async function waitForStart(start, signal) {
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const target = await current();
-      signal.throwIfAborted();
-      if (target.url === start && target.frameUrl === start && target.selected) return target;
-      // Chromium may expose the initial blank document before committing the fragment.
-      if (![target.url, target.frameUrl].every(url => url === "about:blank" || url === start)) break;
-      if (target.url === start && !target.selected) break;
-      await delay(200, undefined, { signal });
-    }
-    throw Error("lesson start page unavailable");
+    win = service = null;
   }
   async function prepare(turn, signal) {
     signal.throwIfAborted();
-    service = await serveCloudLab(turn, signal);
-    const exe = [process.env["ProgramFiles(x86)"], process.env.ProgramFiles].filter(Boolean)
-      .map(root => path.join(root, "Microsoft", "Edge", "Application", "msedge.exe")).find(file => fs.existsSync(file));
-    if (process.platform !== "win32" || !exe) throw Error("Edge unavailable");
+    const server = await serveCloudLab(turn, signal);
+    signal.throwIfAborted();
+    service = server;
+    const { BrowserWindow, session } = require("electron");
+    const isolated = session.fromPartition("lesson-" + turn, { cache: false });
+    isolated.webRequest.onBeforeRequest((request, done) => done({ cancel: request.url !== LESSON_URL && !request.url.startsWith("about:blank") }));
+    isolated.setPermissionRequestHandler((_contents, _permission, done) => done(false));
+    const window = win = new BrowserWindow({ show: false, autoHideMenuBar: true,
+      webPreferences: { session: isolated, sandbox: true, contextIsolation: true, nodeIntegration: false } });
+    window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    window.on("closed", () => server.close());
+    window.webContents.debugger.attach();
+    await page("DOM.enable");
+    await page("Overlay.enable");
     const start = "about:blank#filow-" + turn;
-    child = spawn(exe, ["--user-data-dir=" + dir, "--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1",
-      "--no-first-run", "--no-default-browser-check", "--disable-sync", "--no-proxy-server", "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1", "--disable-quic", "--disable-background-networking", "about:blank"],
-      { stdio: "ignore", detached: true, windowsHide: false,
-        env: Object.fromEntries(Object.entries(process.env).filter(([name]) =>
-          /^(SystemRoot|SystemDrive|WINDIR|TEMP|TMP|USERPROFILE|LOCALAPPDATA|APPDATA|ProgramFiles(?:\(x86\))?|PATH|ComSpec)$/i.test(name))) });
-    await new Promise((resolve, reject) => { child.once("spawn", resolve); child.once("error", reject); });
-    child.unref();
-    let client;
-    for (let attempt = 0; !client && attempt < 40; attempt++) {
-      await delay(200, undefined, { signal });
-      try { client = await connectBrowser(dir, signal); }
-      catch { signal.throwIfAborted(); }
-    }
-    if (!client) throw Error("lesson browser unavailable");
-    try {
-      signal.throwIfAborted();
-      // A lost create reply may already have opened the window. Never retry creation.
-      const { targetId } = await client.send("Target.createTarget", { url: start, newWindow: true, background: true });
-      signal.throwIfAborted();
-      if (typeof targetId !== "string" || !targetId) throw Error("missing lesson target");
-      await bind(client, targetId, signal);
-      await page("Network.enable");
-      await page("Network.setCacheDisabled", { cacheDisabled: true });
-      await page("Network.setBypassServiceWorker", { bypass: true });
-      const prepared = await waitForStart(start, signal);
-      client.listen(event => {
-        if (event.sessionId !== session || event.method !== "Fetch.requestPaused") return;
-        const { requestId, frameId, request, responseStatusCode } = event.params;
-        const approved = frameId === prepared.frame && request.url === LESSON_URL && responseStatusCode === 200
-          && event.params.responseHeaders?.some(h => h.name.toLowerCase() === "x-filow-instance" && h.value === service?.instance);
-        // A redirect response is stopped before Chromium follows its Location.
-        void client.send(approved ? "Fetch.continueRequest" : "Fetch.failRequest",
-          approved ? { requestId } : { requestId, errorReason: "Aborted" }, session).catch(() => {});
-      });
-      await page("Fetch.enable", { patterns: [{ urlPattern: LESSON_URL, resourceType: "Document", requestStage: "Response" }] });
-      signal.throwIfAborted();
-      return { ...prepared, instance: service.instance };
-    } catch (err) {
-      if (connection === client) close();
-      else client.close();
-      throw err;
-    }
+    await window.loadURL(start);
+    signal.throwIfAborted();
+    const prepared = await current();
+    if (prepared.url !== start || prepared.frameUrl !== start) throw Error("Unexpected lesson window");
+    const send = (method, params) => window.webContents.debugger.sendCommand(method, params);
+    window.webContents.debugger.on("message", (_event, method, params) => {
+      if (method === "Fetch.requestPaused") void checkLessonResponse(params, prepared.frame, server.instance, send).catch(() => {});
+    });
+    await page("Fetch.enable", { patterns: [{ urlPattern: LESSON_URL, resourceType: "Document", requestStage: "Response" }] });
+    return { ...prepared, instance: server.instance };
   }
   async function open(url, turn, signal) {
     if (url !== LESSON_URL) throw Error("unexpected destination");
@@ -412,8 +322,9 @@ function edgeDriver(userData) {
     const { errorText, loaderId } = await page("Page.navigate", { url, referrer: lessonReferrer(turn), referrerPolicy: "sameOrigin" });
     signal.throwIfAborted();
     if (errorText || !loaderId) throw Error("navigation unresolved");
-    await page("Page.bringToFront");
+    win.show();
+    win.focus();
   }
-  return { prepare, current, open, observe, attach, point, close, detach, show: () => page("Page.bringToFront") };
+  return { prepare, current, open, observe, attach, point, close, show: () => { win.show(); win.focus(); } };
 }
-module.exports = { LESSON_URL, createLesson, createLessonDraft, lessonJournal, edgeDriver, arrived, cooled };
+module.exports = { LESSON_URL, createLesson, createLessonDraft, lessonJournal, electronDriver, checkLessonResponse, arrived, cooled };

@@ -1082,12 +1082,12 @@ export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; o
     };
   }, [bridge, nextRequest]);
   useEffect(() => {
-    if (!bridge || (view.phase !== "speaker" && view.phase !== "dispatched" && view.phase !== "guiding")) return;
+    if (!bridge || (view.phase !== "speaker" && view.phase !== "approval" && view.phase !== "presenter" && view.phase !== "dispatched" && view.phase !== "guiding")) return;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     const id = generation.current;
     const poll = async () => {
-      const next = await bridge.control(view.phase === "speaker" ? "state" : "observe", view.turn).catch((): LessonView => ({ phase: "held" }));
+      const next = await bridge.control(["speaker", "presenter", "approval"].includes(view.phase) ? "state" : "observe", view.turn).catch((): LessonView => ({ phase: "held" }));
       if (disposed || generation.current !== id) return;
       setView(next);
       if (next.phase === view.phase) timer = setTimeout(() => void poll(), 350);
@@ -1115,7 +1115,7 @@ export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; o
     speech.speak(utterance);
     return () => { live = false; speech.cancel(); };
   }, [lang, narration, onComplete, view.phase]);
-  const control = async (action: "prepare" | "talk" | "request" | "approve" | "reconcile" | "stop") => {
+  const control = async (action: "prepare" | "confirmPresenter" | "talk" | "request" | "approve" | "reconcile" | "stop") => {
     if (!bridge) return;
     const id = nextRequest();
     usingBrowser.current = true;
@@ -1145,7 +1145,7 @@ export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; o
       </tr>)}
     </tbody></table>
     {bridge && <section aria-live="polite">
-      {view.phase === "idle" && <><p>{t("lesson.edgeNetwork")}</p>
+      {view.phase === "idle" && <>
         <button className="btn" onClick={() => void control("prepare")}>{t("lesson.browser")}</button></>}
       {view.phase === "ready" && <form onSubmit={e => { e.preventDefault(); void control("request"); }}>
         <button type="button" className="btn" onClick={() => void control("talk")}>{t("ctl.okfilow")}</button>
@@ -1154,6 +1154,8 @@ export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; o
         {view.unmatched && <p role="status">{t("lesson.tryCommand", { command: t("lesson.command") })}</p>}
         <button className="btn" disabled={!words.trim()}>{t("lesson.review")}</button>
       </form>}
+      {view.expired && <p>{t("lesson.expired")}</p>}
+      {view.phase === "presenter" && <button className="btn" onClick={() => void control("confirmPresenter")}>{t("lesson.presenter")}</button>}
       {view.phase === "speaker" && <p>{t("lesson.speaker")}</p>}
       {view.phase === "approval" && view.decision && <>
         <p>{t("lesson.destination", { window: view.decision.window, turn: view.decision.turn })}<br /><code>{view.decision.url}</code></p>
