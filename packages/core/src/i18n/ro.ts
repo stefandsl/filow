@@ -15,7 +15,7 @@ export const ro: Dictionary = {
   "lesson.speaker": "Rostește expresia de activare înregistrată pentru a permite deschiderea. Ascultarea personală trebuie activată.",
   "lesson.allow": "Deschide o dată",
   "lesson.destination": "Deschizi Cloud Lab în fereastra {window} din Filow pentru această intervenție ({turn})?",
-  "lesson.waiting": "Se așteaptă pagina lecției în Edge.",
+  "lesson.waiting": "Se așteaptă pagina lecției în Filow.",
   "lesson.held": "Acțiunea din browser este suspendată. Verifică fereastra lecției.",
   "lesson.stop": "Oprește lecția (Ctrl+Shift+F12)",
   "lesson.prepared": "Schema pregătită a circuitului apei",

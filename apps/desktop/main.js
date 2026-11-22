@@ -2650,7 +2650,7 @@ async function main() {
     }
     if (action === "reconcile") return lesson.reconcile(owner, turn);
     if (action === "stop" && (!turn || lesson.view().turn === turn)) { stopLesson(); return { phase: "idle" }; }
-    if (action === "confirmPresenter") return lesson.confirmPresenter(owner, turn);
+    if (action === "confirmPresenter") return lesson.confirmPresenter(owner, turn, payload);
     if (action === "request") return lesson.request(owner, turn, payload);
     if (action === "approve" && turn === payload?.turn) return lesson.approve(owner, payload);
     return { phase: "held" };

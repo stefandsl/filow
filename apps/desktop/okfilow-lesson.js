@@ -6,7 +6,7 @@ const { randomUUID } = require("node:crypto");
 
 const { serveCloudLab, LESSON_URL } = require("./cloud-lab");
 const SAME_PAGE = ["browser", "window", "tab", "frame", "loader", "url", "frameUrl", "entry"];
-const SCOPE = ["teacher", "presenter", "window", "tab", "turn", "action", "url"];
+const SCOPE = ["teacher", "presenter", "confirmation", "window", "tab", "turn", "action", "url"];
 const matches = (a, b, keys) => a && b && keys.every(key => a[key] === b[key]);
 const held = { phase: "held" };
 const lessonReferrer = turn => new URL("/filow-turn/" + turn, LESSON_URL).href;
@@ -50,7 +50,10 @@ function createLesson({ driver, focused, journal, speakerAvailable = () => true 
       active.expired = true;
     }
   }
-  const view = () => { expire(); return active ? { phase: active.phase, turn: active.turn, expired: active.expired, decision: active.decision && { ...active.decision }, reading: active.reading } : { phase: "idle" }; };
+  function view() {
+    expire();
+    return active ? { phase: active.phase, turn: active.turn, expired: active.expired, confirmation: active.phase === "presenter" ? active.challenge : undefined, decision: active.decision && { ...active.decision }, reading: active.reading } : { phase: "idle" };
+  }
   const owns = (owner, turn) => active && active.owner === owner && active.turn === turn;
   function stop(owner, turn) {
     if (!owns(owner, turn)) return;
@@ -98,14 +101,14 @@ function createLesson({ driver, focused, journal, speakerAvailable = () => true 
     if (!id || id !== challenge()) return held;
     return decisionFor("enrolled-wake/" + id);
   }
-  function confirmPresenter(owner, turn) {
+  function confirmPresenter(owner, turn, confirmation) {
     expire();
-    if (!owns(owner, turn) || active.phase !== "presenter" || !focused()) return held;
+    if (!owns(owner, turn) || active.phase !== "presenter" || confirmation !== active.challenge || !focused()) return held;
     return decisionFor("presenter-click");
   }
   function decisionFor(teacher) {
     const { owner, origin, turn } = active;
-    active.decision = { presenter: owner, teacher, turn, window: origin.window,
+    active.decision = { presenter: owner, teacher, confirmation: active.challenge, turn, window: origin.window,
       tab: origin.tab, action: "open", url: LESSON_URL };
     active.phase = "approval";
     return view();
@@ -300,12 +303,12 @@ function electronDriver() {
       webPreferences: { session: isolated, sandbox: true, contextIsolation: true, nodeIntegration: false } });
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     window.on("closed", () => server.close());
-    window.webContents.debugger.attach();
-    await page("DOM.enable");
-    await page("Overlay.enable");
     const start = "about:blank#filow-" + turn;
     await window.loadURL(start);
     signal.throwIfAborted();
+    window.webContents.debugger.attach();
+    await page("DOM.enable");
+    await page("Overlay.enable");
     const prepared = await current();
     if (prepared.url !== start || prepared.frameUrl !== start) throw Error("Unexpected lesson window");
     const send = (method, params) => window.webContents.debugger.sendCommand(method, params);

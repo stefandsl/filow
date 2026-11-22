@@ -15,7 +15,7 @@ export const en = {
   "lesson.speaker": "Say your enrolled wake phrase to unlock Open once. Personal wake must be enabled and listening.",
   "lesson.allow": "Open once",
   "lesson.destination": "Open Cloud Lab in Filow window {window} for this turn ({turn})?",
-  "lesson.waiting": "Waiting for the lesson page in Edge.",
+  "lesson.waiting": "Waiting for the lesson page in Filow.",
   "lesson.held": "The browser action is paused. Check the lesson window.",
   "lesson.stop": "Stop lesson (Ctrl+Shift+F12)",
   "lesson.prepared": "Prepared water-cycle board",

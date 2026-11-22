@@ -15,7 +15,7 @@ export const ja: Dictionary = {
   "lesson.speaker": "登録したウェイクワードを発話して開く操作を許可してください。個人用ウェイクワードの待ち受けを有効にしてください。",
   "lesson.allow": "一度だけ開く",
   "lesson.destination": "今回の依頼（{turn}）で Filow のウィンドウ {window} に Cloud Lab を開きますか？",
-  "lesson.waiting": "Edge で授業ページを待っています。",
+  "lesson.waiting": "Filow で授業ページを待っています。",
   "lesson.held": "ブラウザー操作を一時停止しました。授業ウィンドウを確認してください。",
   "lesson.stop": "授業を停止（Ctrl+Shift+F12）",
   "lesson.prepared": "準備済みの水循環図",

@@ -15,7 +15,7 @@ export const it: Dictionary = {
   "lesson.speaker": "Pronuncia la frase di attivazione registrata per sbloccare Apri una volta. Attiva l’ascolto personale.",
   "lesson.allow": "Apri una volta",
   "lesson.destination": "Aprire Cloud Lab nella finestra {window} di Filow per questo turno ({turn})?",
-  "lesson.waiting": "In attesa della pagina della lezione in Edge.",
+  "lesson.waiting": "In attesa della pagina della lezione in Filow.",
   "lesson.held": "L’azione nel browser è sospesa. Controlla la finestra della lezione.",
   "lesson.stop": "Ferma la lezione (Ctrl+Shift+F12)",
   "lesson.prepared": "Lavagna preparata sul ciclo dell’acqua",

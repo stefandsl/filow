@@ -15,7 +15,7 @@ export const ru: Dictionary = {
   "lesson.speaker": "Произнесите записанную фразу активации для подтверждения. Включите распознавание личной фразы.",
   "lesson.allow": "Открыть один раз",
   "lesson.destination": "Открыть Cloud Lab в окне {window} Filow для этого запроса ({turn})?",
-  "lesson.waiting": "Ожидание страницы урока в Edge.",
+  "lesson.waiting": "Ожидание страницы урока в Filow.",
   "lesson.held": "Действие в браузере приостановлено. Проверьте окно урока.",
   "lesson.stop": "Остановить урок (Ctrl+Shift+F12)",
   "lesson.prepared": "Подготовленная схема круговорота воды",

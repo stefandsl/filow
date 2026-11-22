@@ -1119,7 +1119,7 @@ export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; o
     if (!bridge) return;
     const id = nextRequest();
     usingBrowser.current = true;
-    const result = bridge.control(action, view.turn, action === "approve" ? view.decision : action === "request" ? words : undefined);
+    const result = bridge.control(action, view.turn, action === "confirmPresenter" ? view.confirmation : action === "approve" ? view.decision : action === "request" ? words : undefined);
     if (action === "prepare" || action === "approve" || action === "reconcile") setView({ phase: action === "prepare" ? "preparing" : "checking" });
     try {
       const next = await result;

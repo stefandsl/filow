@@ -68,7 +68,7 @@ it("requires a fresh top-level document and a trusted change to this slider", ()
 });
 
 it("refuses each changed field, a changed target, loss of focus, decline and a stopped turn", async () => {
-  for (const key of ["teacher", "presenter", "window", "tab", "turn", "action", "url"]) {
+  for (const key of ["teacher", "presenter", "confirmation", "window", "tab", "turn", "action", "url"]) {
     const x = trial();
     const decision = await x.proposal();
     await x.lesson.approve(x.owner, { ...decision, [key]: "other" });
@@ -156,10 +156,12 @@ it("unrelated words create no decision and the exact command requires a fresh sp
 it.each(["never enrolled", "wake off"])("uses a focused presenter confirmation when %s", async () => {
   const x = trial(() => false);
   const { turn } = await x.lesson.prepare(x.owner);
-  assert.equal(x.lesson.request(x.owner, turn, "Open Cloud Lab").phase, "presenter");
+  const prompt = x.lesson.request(x.owner, turn, "Open Cloud Lab");
+  assert.equal(prompt.phase, "presenter");
   assert.equal(x.lesson.challenge(), null);
-  assert.equal(x.lesson.confirmPresenter("other", turn).phase, "held");
-  const { decision } = x.lesson.confirmPresenter(x.owner, turn);
+  assert.equal(x.lesson.confirmPresenter("other", turn, prompt.confirmation).phase, "held");
+  assert.equal(x.lesson.confirmPresenter(x.owner, turn, "expired").phase, "held");
+  const { decision } = x.lesson.confirmPresenter(x.owner, turn, prompt.confirmation);
   assert.equal(decision.teacher, "presenter-click");
   await x.lesson.approve(x.owner, decision);
   assert.deepEqual(x.effects, [LESSON_URL]);
