@@ -274,3 +274,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R257 (N-06): Retire a previous speech review only after matching its replacement. Check a time correction preserves the pending recipient review.
 - R258 (N-06): Retry invalid model layout fields through the plan parser. Check two invalid answers yield a plan error.
 - R259 (N-06): Build and launch the dispatched branch installer when smoke is requested without a tag. Check the branch smoke job runs against the dispatched SHA.
+- R260 (N-06): Interpret intent as a selector only in an explicit directive. Check a lesson about the role of intent alongside a request selecting an unknown intent.

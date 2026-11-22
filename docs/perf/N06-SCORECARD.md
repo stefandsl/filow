@@ -85,6 +85,19 @@ Each condition has three fresh QA launches for each target position. The warm at
 
 Peak sampled process-tree working set 2.73 GiB and dedicated GPU memory 71.4 MiB on the reference tier. Missing tiers, physical Bluetooth, physical phone and the v17 capture-to-correct trace remain open. Owner freeze HOLD. No gain claim.
 
+### Round 2 paced replay
+
+Packaged candidate `81f4e20f` completed all 12 attempts within the 60 s observation window. The original candidate stopped after one decision on an unchanged transcript. The engine now tracks which open rows it has asked about for that final. On cold fifth-position trials, the first call covered rows one through four and the second covered rows five and six during silence. Warm trials first completed a separate warm-up point in the same deck.
+
+| Target position / condition | Completed on both displays | Desktop active or done p50/p95 ms | Both displays done p50/p95 ms | Timeouts |
+|---|---:|---:|---:|---:|
+| 3 / cold | 3/3 | 703/787 | 2705/2789 | 0 |
+| 3 / warm | 3/3 | 244/266 | 2246/2268 | 0 |
+| 5 / cold | 3/3 | 790/791 | 2792/2793 | 0 |
+| 5 / warm | 3/3 | 721/856 | 2723/2859 | 0 |
+
+Times are measured from the last audible word in paced PCM to matching states on the desktop and paired same-host phone viewport. Owner freeze HOLD.
+
 ## Frozen lesson trial
 
 | Arm | Attempts | Delivered and graded | Critical errors in delivered lessons | Delivered lessons with a critical error | Full rubric passes | Rejected drafts graded / critical errors |

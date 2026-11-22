@@ -89,6 +89,7 @@ describe("bounded teaching choices", () => {
   it.each([
     "Explain gravity as simply as possible",
     "Explain light as a wave",
+    "Explain the role of intent in contract law",
     "Describe the French Revolution as a story",
     "Spiega la fotosintesi come un bambino",
     "Explain inflation, treat me as a beginner",

@@ -14,7 +14,7 @@ export function teachingChoice(request: string): TeachingChoice | "clarify" | nu
   const scene = name && Object.hasOwn(aliases, name) ? aliases[name] : undefined;
   if (explicitLayout && !scene) return "clarify";
   if (/^(?:(?:please )?(?:explain|compare|draw|show)|spiega|confronta)(?: (?:it|that|this|those|questo))?[.!?]?$/.test(words)) return "clarify";
-  const explicit = /\b(?:intent|intento)[: ]+([\p{L}-]+)/u.exec(words);
+  const explicit = /\b(?:(?:intent|intento)\s*:\s*|(?:use intent|usa intento)\s+)([\p{L}-]+)/u.exec(words);
   if (explicit && !offeredChoice(explicit[1], KINDS)) return "clarify";
   let kind: ExplanationKind | undefined = explicit?.[1] as ExplanationKind | undefined;
   if (!kind) {
