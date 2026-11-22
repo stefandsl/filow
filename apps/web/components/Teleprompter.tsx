@@ -1145,7 +1145,8 @@ export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; o
       </tr>)}
     </tbody></table>
     {bridge && <section aria-live="polite">
-      {view.phase === "idle" && <button className="btn" onClick={() => void control("prepare")}>{t("lesson.browser")}</button>}
+      {view.phase === "idle" && <><p>{t("lesson.edgeNetwork")}</p>
+        <button className="btn" onClick={() => void control("prepare")}>{t("lesson.browser")}</button></>}
       {view.phase === "ready" && <form onSubmit={e => { e.preventDefault(); void control("request"); }}>
         <button type="button" className="btn" onClick={() => void control("talk")}>{t("ctl.okfilow")}</button>
         {view.micUnavailable && <p>{t("ctl.okfilowDown")}</p>}

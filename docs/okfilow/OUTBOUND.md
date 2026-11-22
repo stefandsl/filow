@@ -2,6 +2,8 @@
 
 The prepared Cloud Lab board displays a teacher-selected local photo. On Windows, the teacher can start a separate Microsoft Edge lesson profile and approve one navigation to the displayed loopback URL. Filow serves the packaged HTML on its own loopback listener and checks a fresh instance identifier before reading the page. The local page server receives a random turn ID in the navigation referrer. The desktop observes the top-level navigation, selected temperature control and dew point in that lesson tab. A dispatch record in the Filow profile supports an explicit check after interruption. Stop or return clears the record. The board uses an installed local voice when one is available for its language.
 
+Preparing the window starts Edge. Filow warns the presenter that Edge can contact Microsoft before the lesson opens. In one Windows run with Edge 157 and a fresh lesson profile, a packet capture across prepare, open, observation and Stop measured 3,246 public IPv4 TCP payload bytes sent and 39,855 received on port 443. Windows socket-owner tables attributed these connections to the Edge browser PID. Loopback sockets attributed to the Edge process tree accounted for 11,385 bytes sent and 8,918 received, including debugging traffic from the measurement. The capture identified endpoints and byte counts. The contents of TLS sessions were encrypted.
+
 Owner's requirement (2026-11-09): if information goes outside, the user gets a visible confirmation
 at the moment it happens, and is told that the screenshot and the recorded voice go to other
 servers such as Google.

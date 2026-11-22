@@ -7,6 +7,7 @@ export const en = {
   "lesson.transfer": "Where do the droplets on the outside of a cold, sealed bottle come from?",
   "lesson.reconcile": "Check the interrupted browser action",
   "lesson.command": "Open Cloud Lab",
+  "lesson.edgeNetwork": "Edge can contact Microsoft when you prepare the window, before you open the local lesson.",
   "lesson.browser": "Prepare an Edge lesson window",
   "lesson.request": "Return to Filow and ask to open Cloud Lab",
   "lesson.review": "Review my request",

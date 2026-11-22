@@ -7,6 +7,7 @@ export const it: Dictionary = {
   "lesson.transfer": "Da dove vengono le goccioline all’esterno di una bottiglia fredda e chiusa?",
   "lesson.reconcile": "Controlla l’azione interrotta nel browser",
   "lesson.command": "Apri Cloud Lab",
+  "lesson.edgeNetwork": "Edge può contattare Microsoft quando prepari la finestra, prima di aprire la lezione locale.",
   "lesson.browser": "Prepara una finestra di Edge per la lezione",
   "lesson.request": "Torna a Filow e chiedi di aprire Cloud Lab",
   "lesson.review": "Controlla la richiesta",

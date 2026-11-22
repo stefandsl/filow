@@ -7,6 +7,7 @@ export const ja: Dictionary = {
   "lesson.transfer": "冷えた密閉ボトルの外側につく水滴はどこから来ますか？",
   "lesson.reconcile": "中断したブラウザー操作を確認",
   "lesson.command": "Cloud Lab を開いて",
+  "lesson.edgeNetwork": "ローカルのレッスンを開く前に、ウィンドウの準備時に Edge が Microsoft に接続することがあります。",
   "lesson.browser": "授業用の Edge ウィンドウを準備",
   "lesson.request": "Filow に戻り、Cloud Lab を開くように依頼してください",
   "lesson.review": "依頼を確認",

@@ -7,6 +7,7 @@ export const ru: Dictionary = {
   "lesson.transfer": "Откуда берутся капли на внешней поверхности холодной закрытой бутылки?",
   "lesson.reconcile": "Проверить прерванное действие в браузере",
   "lesson.command": "Открой Cloud Lab",
+  "lesson.edgeNetwork": "При подготовке окна Edge может подключаться к Microsoft ещё до открытия локального урока.",
   "lesson.browser": "Подготовить окно Edge для урока",
   "lesson.request": "Вернитесь в Filow и попросите открыть Cloud Lab",
   "lesson.review": "Проверить запрос",

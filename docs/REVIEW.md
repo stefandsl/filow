@@ -220,3 +220,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R203 (N-04): Keep unrelated command text out of the approval flow. Check the unmatched reply and absent decision, then submit the exact phrase.
 - R204 (N-04): Disable Open once during its click handler. Deliver two clicks before a render and count one approval request.
 - R205 (N-04): Include the numeric loopback lesson host in the Edge resolver exceptions. Measure the private Edge process tree through a successful authenticated navigation and record public and loopback traffic separately.
+- R206 (N-04): Disclose Edge background traffic before Prepare starts the browser. Render an idle desktop board and check that the disclosure precedes the launch button.
+- R207 (N-04): Grade frozen-topic generations individually and record delivery and audit replay separately. Preserve the prompt hash, model, per-arm trial counts and critical errors for each rendered lesson.

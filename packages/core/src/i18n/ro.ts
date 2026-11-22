@@ -7,6 +7,7 @@ export const ro: Dictionary = {
   "lesson.transfer": "De unde provin picăturile de pe exteriorul unei sticle reci și închise?",
   "lesson.reconcile": "Verifică acțiunea întreruptă din browser",
   "lesson.command": "Deschide Cloud Lab",
+  "lesson.edgeNetwork": "Edge poate contacta Microsoft când pregătești fereastra, înainte de a deschide lecția locală.",
   "lesson.browser": "Pregătește o fereastră Edge pentru lecție",
   "lesson.request": "Revino în Filow și cere deschiderea Cloud Lab",
   "lesson.review": "Verifică cererea",

@@ -72,3 +72,14 @@ it("disables Open once synchronously across two clicks before render", async () 
   assert.equal(currentTarget.disabled, true);
   assert.equal(requests, 1);
 });
+
+it("discloses Edge background connections before the presenter starts it", () => {
+  const g = globalThis as { filow?: unknown };
+  const before = g.filow;
+  try {
+    g.filow = {lesson:{}};
+    const html = renderToStaticMarkup(<LangProvider lang="en"><PreparedWaterCycle onClose={() => {}} /></LangProvider>);
+    assert.ok(html.indexOf("Edge can contact Microsoft") >= 0);
+    assert.ok(html.indexOf("Edge can contact Microsoft") < html.indexOf("Prepare an Edge lesson window"));
+  } finally { g.filow = before; }
+});
