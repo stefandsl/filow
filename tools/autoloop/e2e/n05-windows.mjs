@@ -137,7 +137,7 @@ async function audioSetup(page, launch, activate) {
       return dest.stream.clone();
     };
     const words = [];
-    window.filow.daily.onSpeech(m => { if (m.partial || m.final) words.push({ at: performance.now(), partial:m.partial, final:m.final }); });
+    window.filow.daily.onSpeech(m => { if (m.partial || m.final) words.push({ at: performance.now(), partial:m.partial, final:m.final, status:m.status }); });
     window.dailyReplay = {ctx, dest, words};
     return true;
   })()`);
@@ -195,7 +195,8 @@ function isolatedEnvironment(root, ports, spec, day) {
 
 async function journey(spec, record, root, replayPath) {
   assert.equal(process.platform, "win32");
-  assert.ok(["typed","audio"].includes(spec.mode) && ["crash","correction"].includes(spec.trial));
+  assert.ok(["typed","audio"].includes(spec.mode) && ["crash","correction","voice-off"].includes(spec.trial));
+  if (spec.trial === "voice-off") assert.equal(spec.mode, "audio");
   assert.ok(["en-US","it-IT"].includes(spec.locale) && ["light","dark"].includes(spec.theme));
   assert.ok(spec.tasks?.length === 2 && spec.tasks.every(t => typeof t === "string" && t));
   assert.ok(spec.report && spec.correction && spec.edited && Number.isFinite(Date.parse(spec.dayOne)) && Number.isFinite(Date.parse(spec.dayTwo)));
@@ -219,7 +220,8 @@ async function journey(spec, record, root, replayPath) {
   const profile = path.join(root, "profile");
   const env = isolatedEnvironment(root, ports, spec, spec.dayOne);
   const { PAST_ONBOARDING } = await import("./profile.mjs");
-  fs.writeFileSync(path.join(profile, "settings.json"), JSON.stringify({ ...PAST_ONBOARDING, remoteShare:false, lang:spec.locale.slice(0,2), theme:spec.theme }), { flag:"wx" });
+  fs.writeFileSync(path.join(profile, "settings.json"), JSON.stringify({ ...PAST_ONBOARDING, remoteShare:false,
+    okFilow: { enabled:false, wakeWord:false, onboarded:true }, lang:spec.locale.slice(0,2), theme:spec.theme }), { flag:"wx" });
   if (spec.mode === "audio") {
     const { default: stt } = await import("../../../apps/desktop/stt.js");
     const source = replayPath(spec.modelDir), dest = stt.modelDir(profile);
@@ -237,6 +239,8 @@ async function journey(spec, record, root, replayPath) {
     assert.equal(env.OLLAMA_URL, "http://127.0.0.1:" + ports[3]);
     assert.equal(env.OLLAMA_HOST, "127.0.0.1:" + ports[3]);
     await verifyFree(ports);
+    const startup = path.join(profile, "startup.log");
+    const previousLog = fs.existsSync(startup) ? fs.statSync(startup).size : 0;
     child = spawnTestApp(exe, ["--remote-debugging-port="+ports[2], "--remote-debugging-address=127.0.0.1", "--force-renderer-accessibility", "--lang="+spec.locale,
       "--log-net-log="+path.join(root,"chromium-"+record.launches.length+".json")], { env:{ ...env, FILOW_QA_DAILY_TIME:day }, stdio:"ignore" });
     await new Promise((resolve,reject) => { child.once("spawn",resolve); child.once("error",reject); });
@@ -244,6 +248,7 @@ async function journey(spec, record, root, replayPath) {
     page = await attach(ports[2],ports[0],ports[1],child.pid);
     assert.equal(await page.evaluate("document.documentElement.dataset.theme"), spec.theme);
     assert.equal(await page.evaluate("document.querySelector('main.daily').lang"), spec.locale.slice(0,2));
+    await until(() => fs.existsSync(startup) && fs.readFileSync(startup).subarray(previousLog).includes("main window shown"), "main window shown");
     const hwnd = execFileSync("powershell.exe", ["-NoProfile","-NonInteractive","-Command", "(Get-Process -Id "+child.pid+").MainWindowHandle.ToInt64()"], { encoding:"utf8", windowsHide:true }).trim();
     assert.ok(Number(hwnd)>0);
     const scale = await page.evaluate("window.devicePixelRatio");
@@ -260,9 +265,17 @@ async function journey(spec, record, root, replayPath) {
     record.launches.at(-1).end = new Date().toISOString();
     page?.close(); page = undefined; child = undefined;
   }
+  async function startAudio() {
+    const launchRecord = record.launches.at(-1);
+    await audioSetup(page, launchRecord, () => JSON.parse(execFileSync("powershell.exe", [
+      "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", path.join(import.meta.dirname, "n05-uia.ps1"),
+      "-ProcessId", String(launchRecord.pid), "-ExpectedExe", exe, "-ExpectedHwnd", launchRecord.hwnd
+    ], { encoding: "utf8", windowsHide: true, env, timeout: 15000 })));
+  }
   async function report(type, text) {
     if (spec.mode === "audio") {
       await playClip(page,replayPath(spec.clips[type]),record.clips);
+      assert.equal(record.clips.at(-1).recognized.find(result => result.final)?.status, "noMatch");
       assert.equal(await page.evaluate('!!document.querySelector(".daily-review")'), false);
     }
     await writeForm(page,typedReport,text);
@@ -277,21 +290,17 @@ async function journey(spec, record, root, replayPath) {
     assert.deepEqual(await rows(page),[]);
     assert.equal(await page.evaluate("document.querySelector('time').dateTime"),civil(day1));
     await press(page,".daily nav button:nth-child(2)");
-    if (spec.mode === "audio") {
-      const launchRecord = record.launches.at(-1);
-      await audioSetup(page, launchRecord, () => JSON.parse(execFileSync("powershell.exe", [
-        "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", path.join(import.meta.dirname, "n05-uia.ps1"),
-        "-ProcessId", String(launchRecord.pid), "-ExpectedExe", exe, "-ExpectedHwnd", launchRecord.hwnd
-      ], { encoding: "utf8", windowsHide: true, env, timeout: 15000 })));
-    }
+    const dictateTasks = spec.mode === "audio" && spec.trial !== "voice-off";
+    if (dictateTasks) await startAudio();
     for (const [i, text] of spec.tasks.entries()) {
-      if (spec.mode === "audio") {
+      if (dictateTasks) {
         await playClip(page,replayPath(spec.clips.tasks[i]),record.clips);
         await writeForm(page,".daily-review form",text);
       } else await writeForm(page,typedTask,text);
       const after = await observeRows(page,list => list.length === i+1 && list[i].text === text);
-      if (spec.mode === "audio") Object.assign(record.clips.at(-1), { target:after[i].id, delta:after[i].rev });
+      if (dictateTasks) Object.assign(record.clips.at(-1), { target:after[i].id, delta:after[i].rev });
     }
+    if (spec.trial === "voice-off") await startAudio();
     const delivered = await report("report",spec.report);
     const remaining = await observeRows(page,list => list.length === 1 && list[0].id === delivered.before[1].id);
     const archive = async () => {
@@ -320,12 +329,13 @@ async function journey(spec, record, root, replayPath) {
     const [recovered] = await archive();
     assert.equal(recovered.id, tick.id);
     assert.equal(recovered.evidence, tick.evidence);
-    if (spec.trial === "crash") {
+    if (spec.trial !== "correction") {
       assert.deepEqual(recovered,tick);
-      await press(page,'.daily-list input[type="checkbox"]');
+      await focus(page,'.daily-list input[type="checkbox"]');
+      await key(page,"Space");
     }
     await press(page,".daily nav button:first-child");
-    if (spec.trial === "crash") {
+    if (spec.trial !== "correction") {
       await observeRows(page,list => list.length === 2 && !list[0].done);
       await writeForm(page,".daily-list li:nth-child(2) form",spec.edited);
       await observeRows(page,list => list[1]?.text === spec.edited);
