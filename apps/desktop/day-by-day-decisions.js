@@ -1,97 +1,124 @@
+const fs = require("node:fs");
+const path = require("node:path");
+const { gunzipSync } = require("node:zlib");
 const { cleanText } = require("./day-by-day-store");
+
+let dictionary;
+function lexicon() {
+  if (!dictionary) {
+    dictionary = JSON.parse(gunzipSync(fs.readFileSync(path.join(__dirname, "daily-lexicon", "verbs.json.gz"))));
+    dictionary.humanTarget = new Set(dictionary.humanTarget);
+    dictionary.roles = new Set(dictionary.roles);
+  }
+  return dictionary;
+}
 
 const normalize = s => s.normalize("NFKC").toLowerCase().replaceAll("’", "'").trim();
 const objectKey = s => s.split(/\s+/).filter(w => !/^(?:the|a|an|my|our|il|lo|la|i|le|gli|un|una)$/.test(w)).join(" ");
-
-// Each entry links task verbs with observed completed forms, including paraphrases.
-const actions = [
-  ["send give deliver forward email mail hand inviare invia mandare manda dare consegnare consegna spedire spedisci inoltrare inoltra",
-    "sent gave given delivered forwarded emailed mailed handed inviato mandato dato consegnato spedito inoltrato"],
-  ["write scrivere scrivi", "wrote written scritto"],
-  ["make fare fai", "made fatto"], ["buy purchase comprare compra acquistare acquista", "bought purchased comprato acquistato"],
-  ["take prendere prendi", "took taken preso"], ["read leggere leggi", "read letto"],
-  ["bring portare porta", "brought portato"], ["choose scegliere scegli", "chose chosen scelto"],
-  ["print stampare stampa", "printed stampato"], ["prepare preparare prepara", "prepared preparato"],
-  ["file archive archiviare archivia", "filed archived archiviato"], ["book reserve prenotare prenota", "booked reserved prenotato"],
-  ["call phone chiamare chiama", "called phoned chiamato"], ["review rivedere rivedi", "reviewed rivisto"],
-  ["pay pagare paga", "paid pagato"], ["meet incontrare incontra", "met incontrato"],
-  ["sign firmare firma", "signed firmato"], ["finish complete finire finisci completare completa", "finished completed finito completato"],
-  ["wash lavare lava", "washed lavato"], ["check controllare controlla", "checked controllato"],
-  ["plan pianificare pianifica", "planned pianificato"], ["update aggiornare aggiorna", "updated aggiornato"],
-];
-const taskVerbs = new Map();
-const completed = new Map();
-for (const [group, [verbs, forms]] of actions.entries()) {
-  for (const v of verbs.split(" ")) taskVerbs.set(v, group);
-  for (const v of forms.split(" ")) {
-    completed.set(v, group);
-    if (v.endsWith("o")) for (const ending of ["a","i","e"]) completed.set(v.slice(0,-1) + ending, group);
+const entries = (table, word) => Object.hasOwn(table, word) ? table[word] : [];
+function lemmas(form, morphology) {
+  const found = entries(lexicon()[morphology], form);
+  if (found.length) return found;
+  // A preceding auxiliary disambiguates the agreement suffix on an Italian participle.
+  if (morphology === "participle" && /[aie]$/.test(form)) {
+    const masculine = entries(lexicon().participle, form.slice(0, -1) + "o");
+    if (masculine.length) return masculine;
   }
+  if (morphology === "imperative") return [form];
+  if (morphology === "participle" || morphology === "past") {
+    if (form.endsWith("ed")) {
+      const stem = form.slice(0,-2);
+      return [stem, stem + "e", stem.replace(/(.)\1$/, "$1"), stem.replace(/i$/, "y")];
+    }
+    const ending = /(at|it|ut)[oaie]$/.exec(form);
+    if (ending) return [form.slice(0,-3) + ({ at: "are", it: "ire", ut: "ere" })[ending[1]]];
+  }
+  return [];
 }
 
-const contactGroups = new Set(["call", "meet"].map(verb => taskVerbs.get(verb)));
-
-// Resolve a regular form back to the verb on the row when it has no dictionary entry.
-function regularLemmas(verb, italian, infinitive) {
-  if (infinitive) return [verb];
-  if (italian) {
-    const suffix = /(at|ut|it)[oaie]$/.exec(verb);
-    return suffix ? [verb.slice(0, -3) + ({ at: "are", ut: "ere", it: "ire" })[suffix[1]]] : [];
-  }
-  if (!verb.endsWith("ed")) return [];
-  const base = verb.slice(0, -2);
-  const lemmas = [base, base + "e"];
-  if (verb.endsWith("ied")) lemmas.push(verb.slice(0, -3) + "y");
-  if (/(.)\1$/.test(base)) lemmas.push(base.slice(0, -1));
-  return lemmas;
+function related(left, right) {
+  const senses = lexicon().senses;
+  return left.some(a => right.some(b => a === b || entries(senses, a).some(id => entries(senses, b).includes(id))));
 }
 
-function splitDelivery(rest) {
-  const trailing = /^(.+?) (?:to|a|ad) (.+)$/.exec(rest);
+// Transfer events can be described from either participant's perspective.
+const transfer = ["give", "send", "deliver", "forward", "hand", "mail", "email", "dare", "inviare", "consegnare", "mandare", "inoltrare", "spedire"];
+function splitArguments(rest, allowIndirect) {
+  const trailing = /^(.+?) (?:to|a|ad) (.+)$/i.exec(rest);
   if (trailing) return { person: trailing[2], object: trailing[1] };
-  const leading = /^(.+?) ((?:the|a|an|my|our|their|his|her|your) .+)$/.exec(rest);
+  const leading = allowIndirect && /^(.+?) ((?:the|a|an|my|our|their|his|her|your) .+)$/i.exec(rest);
   return leading ? { person: leading[1], object: leading[2] } : { object: rest };
 }
 
+const pronoun = /^(?:he|she|they|them|him|her|lei|lui|loro|gli|le|lo|la|li)$/u;
+const determiner = /^(?:a|an|the|my|your|his|her|their|our|this|that|one|il|lo|la|i|le|gli|un|una|uno|al|alla|mio|mia|nostr[oa]|l['’])(?:\s|')/u;
 function personMatches(reference, person) {
   if (!person) return false;
-  if (!reference || /^(?:he|she|they|them|him|her|lei|lui|loro|gli|le|one of (?:them|the two)|un[oa] (?:dei|delle) due|(?:my|the) (?:colleague|coworker|person(?: we mentioned)?)|(?:(?:il|la|al|alla|mio|mia) )*(?:collega|persona))$/.test(reference)) return true;
-  return person === reference || person.split(/\s+/).some(part => part.startsWith(reference));
+  const name = normalize(person);
+  if (pronoun.test(reference) || determiner.test(reference)) return true;
+  return name === reference || name.split(/\s+/).some(part => part.startsWith(reference));
 }
 
-function parseReport(phrase, repair) {
-  const recipient = /^(.+?) (has(?:n't| not)? received|have received|hasn't got|has not got|received|got|has|didn't receive|did not receive|non (?:l[ei] )?ha ricevut[oaie]|ha(?:nno)? ricevut[oaie])(?: (.+))?$/.exec(phrase);
-  if (recipient) {
-    const [, person, verb, object = ""] = recipient;
-    if (/n't| not |^non /.test(verb + " ") !== repair) return;
-    return { group: 0, person, object, implicit: repair && !object && /non l[ei] ha/.test(verb) };
+function parseReport(input, repair) {
+  const phrase = input.replace(/(?:^|\s)(?:already|just|now|finally|recently|appena|già|gia|ora|finalmente)(?=\s|$)/gu, " ").trim().replace(/\s+/g, " ");
+  if (/\b(?:but|unless|if|maybe|perhaps|will|would|might|never|ma|se|forse|mai|però)\b/u.test(phrase)) return;
+  const possession = /^(.+?) (has(?:n't| not)? (?:received|got)|have (?:received|got)|received|got|has|didn't receive|did not receive|non (?:l[ei] )?ha ricevut[oaie]|ha(?:nno)? ricevut[oaie]|ha)(?: (.+))?$/.exec(phrase);
+  if (possession) {
+    const [, person, verb, object = ""] = possession;
+    if (/(?:n't| not |^non )/.test(verb) !== repair || /\b(?:said|detto|never|not|non|che|that)\b/u.test(person)) return;
+    return { delivery: true, person, object, implicit: repair && !object && /non l[ei] ha/.test(verb) };
   }
   if (!repair) {
-    const possession = /^(.+?) (?:è|sono) (dal|dallo|dalla|dai|dagli|dalle|dall')\s*(.+)$/.exec(phrase);
-    if (possession) return { group: 0, object: possession[1], person: possession[3] };
-    const reached = /^(.+?) (?:reached|is with|are with|è (?:arrivat[oa] (?:a|ad)|da)|sono (?:arrivat[ie] (?:a|ad)|da)) (.+)$/.exec(phrase);
-    if (reached) return { group: 0, object: reached[1], person: reached[2] };
-    const passive = /^(.+?) (?:is|are|è|sono) (\p{L}+)$/u.exec(phrase);
-    if (passive) return { object: passive[1], group: passive[2] === "done" ? null : completed.get(passive[2]) };
+    const recipient = /^(.+?) (?:is with|are with|reached|(?:è|sono) (?:arrivat[oaie] (?:a|ad)|da)) (.+)$/.exec(phrase);
+    if (recipient) return { delivery: true, object: recipient[1], person: recipient[2] };
+    const contracted = /^(.+?) (?:è|sono) d(?:allo|alla|agli|alle|ai|al|all')\s*(.+)$/.exec(phrase);
+    if (contracted) return { delivery: true, object: contracted[1], person: contracted[2], article: true };
+    const passive = /^(.+?) (?:is|are|was|were|has been|have been|(?:è|sono)(?: stat[oaie])?) (\p{L}+)$/u.exec(phrase);
+    if (passive) return { object: passive[1], verbs: passive[2] === "done" ? null : lemmas(passive[2], "participle") };
     const finish = /^(?:done with|i(?:'ve| have)? (?:finished|completed)|(?:io )?ho (?:finito|completato)(?: di)?|fatto(?: con)?|finished) (.+)$/.exec(phrase);
     if (finish) {
-      const [, verb, rest] = /^(\S+)(?: (.+))?$/.exec(finish[1]);
-      const base = /ing$/.test(verb) ? verb.slice(0,-3) : verb;
-      const group = taskVerbs.get(base) ?? taskVerbs.get(base + "e");
-      return group !== undefined && rest ? { group, object: rest } : { group: null, object: finish[1] };
+      const [verb, ...rest] = finish[1].split(" ");
+      const verbs = /ing$/.test(verb) ? lemmas(verb, "gerund") : /(?:are|ere|ire)$/.test(verb) ? [verb] : [];
+      return rest.length && verbs.length ? { verbs, object: rest.join(" ") } : { verbs: null, object: finish[1] };
     }
   }
-  const clitic = /^(?:(non) )?(?:l'ho|li ho|le ho) (\p{L}+)$/u.exec(phrase);
-  if (clitic && Boolean(clitic[1]) === repair && contactGroups.has(completed.get(clitic[2]))) {
-    return { group: completed.get(clitic[2]), person: "loro", object: "" };
+  const dislocated = /^(?:(.+?) )?(non )?(?:l'ho|l[aeio] ho) (\p{L}+)$/u.exec(phrase);
+  if (dislocated && Boolean(dislocated[2]) === repair) {
+    return { object: dislocated[1] || "", verbs: lemmas(dislocated[3], "participle"), implicitPerson: !dislocated[1] };
   }
-  const statement = /^(i did not|i didn't|i have not|i haven't|(?:io )?non ho|i(?: have|'ve)?|(?:(?:gli|le) )?(?:io )?ho) (\p{L}+) (.+)$/u.exec(phrase);
-  if (!statement) return;
-  const [, subject, verb, object] = statement;
-  if (/non|not|n't/.test(subject) !== repair) return;
-  const group = /did/.test(subject) ? taskVerbs.get(verb) : completed.get(verb);
-  if (group === undefined) return { object, lemmas: regularLemmas(verb, subject.endsWith("ho"), /did/.test(subject)) };
-  return group === 0 ? { group, ...splitDelivery(object) } : { group, object };
+  const active = /^(i did not|i didn't|i have not|i haven't|(?:io )?non ho|i have|i've|i|we have|we|(?:(?:gli|le) )?(?:io )?ho|abbiamo) (\p{L}+) (.+)$/u.exec(phrase);
+  if (active) {
+    const [, subject, verb, rest] = active;
+    if (/non|not|n't/.test(subject) !== repair) return;
+    const form = subject.includes("did") ? "imperative" : /^(?:i|we)$/.test(subject) ? "past" : "participle";
+    return { verbs: lemmas(verb, form), object: rest, person: /^(?:gli|le) /.test(subject) ? subject.split(" ")[0] : undefined };
+  }
+  const italianPast = /^(\p{L}+) (.+)$/u.exec(phrase);
+  if (!repair && italianPast && /[aiò]$/.test(italianPast[1]) && entries(lexicon().past, italianPast[1]).length) {
+    return { verbs: entries(lexicon().past, italianPast[1]), object: italianPast[2] };
+  }
+}
+
+function matchesTask(report, row) {
+  const task = /^(\S+) (.+)$/.exec(row.text.trim().replace(/[.!]+$/, ""));
+  if (!task) return false;
+  const verbs = lemmas(normalize(task[1]), "imperative");
+  const delivery = related(verbs, transfer);
+  if (report.delivery && !delivery) return false;
+  if (report.verbs && !related(verbs, report.verbs) && !(delivery && related(report.verbs, transfer))) return false;
+  const dest = splitArguments(task[2], delivery);
+  const src = report.person || report.delivery ? report : splitArguments(report.object, delivery);
+  const nameLike = /^\p{Lu}[\p{L}'-]*(?: \p{Lu}[\p{L}'-]*)*$/u.test(dest.object);
+  const humanArgument = verbs.some(v => lexicon().humanTarget.has(v)) && /^[\p{L}'-]+$/u.test(dest.object);
+  const directName = !dest.person && (nameLike || humanArgument);
+  if (dest.person && !src.person) return false;
+  if (report.implicitPerson) return directName;
+  if (directName && !src.person && report.verbs && personMatches(src.object, dest.object)) return true;
+  if (src.person && !personMatches(src.person, dest.person)) {
+    // A contracted article marks an unresolved role unless the complement is a name.
+    if (!report.article || !dest.person || !lexicon().roles.has(src.person)) return false;
+  }
+  return report.implicit || objectKey(src.object) === objectKey(normalize(dest.object));
 }
 
 function interpret(input, tasks, { speech = false } = {}) {
@@ -104,21 +131,7 @@ function interpret(input, tasks, { speech = false } = {}) {
   if (/[;:.!]/.test(phrase)) return null;
   const report = parseReport(phrase, repair);
   if (report) {
-    const targets = tasks.filter(row => {
-      if (row.done !== repair) return false;
-      const task = /^(\S+) (.+)$/.exec(normalize(row.text).replace(/[.!]+$/, ""));
-      if (!task) return false;
-      const group = taskVerbs.get(task[1]);
-      if (report.lemmas) {
-        if (group !== undefined || !report.lemmas.includes(task[1])) return false;
-      } else if (report.group !== null && (report.group === undefined || report.group !== group)) return false;
-      if (contactGroups.has(group) && report.group === group) {
-        return personMatches(report.person || report.object, task[2]);
-      }
-      const dest = group === 0 ? splitDelivery(task[2]) : { object: task[2] };
-      if (report.person && !personMatches(report.person, dest.person)) return false;
-      return report.implicit || objectKey(report.object) === objectKey(dest.object);
-    }).map(({ id, rev, text }) => ({ id, rev, text }));
+    const targets = tasks.filter(row => row.done === repair && matchesTask(report, row)).map(({ id, rev, text }) => ({ id, rev, text }));
     return targets.length ? { type: repair ? "reopen" : "complete", words, which: targets.length > 1, targets } : null;
   }
   if (!speech || repair) return null;
@@ -126,8 +139,12 @@ function interpret(input, tasks, { speech = false } = {}) {
   const prefix = /^(?:i need to|i have to|remind me to|add(?: a task to)?|devo|ricordami di|aggiungi)\s+/iu;
   const request = words.replace(tomorrow, "").replace(/[.!]+$/, "").trim();
   const text = request.replace(prefix, "").trim();
-  const verb = normalize(text).split(/\s+/)[0];
-  if (!text || (!prefix.test(request) && (!taskVerbs.has(verb) || !text.includes(" ")))) return null;
+  const [verb, ...rest] = normalize(text).split(/\s+/);
+  // Bare imperatives need an identifiable object. This keeps homographs at the
+  // beginning of declarative speech from turning a lecture into a task.
+  const imperative = entries(lexicon().imperative, verb).length && rest.length &&
+    (tomorrow.test(words) || /^(?:the|an?|my|our|il|lo|la|le|i|gli|un|una)$/u.test(rest[0]) || /^\S+ \p{Lu}/u.test(text));
+  if (!text || (!prefix.test(request) && !imperative)) return null;
   return { type: "create", words, text, dueTomorrow: tomorrow.test(words), targets: [] };
 }
 
