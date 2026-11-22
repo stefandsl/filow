@@ -141,6 +141,40 @@ export async function loadAssets(dir, v) {
   verifyAssets(v, assets, documents);
   return assets;
 }
+// Input directories are fresh downloads of one source release and its feed draft.
+// The smoke receipt is downloaded separately from the source release after the clean runner finishes.
+export async function verifyDraftAssets({ version: v, commit, source, dir, smoke }) {
+  version(v);
+  check(typeof commit === 'string' && /^[a-f0-9]{40}$/.test(commit), 'Expected a full source commit SHA');
+  check(fs.realpathSync(source) !== fs.realpathSync(dir), 'Use separate source and draft downloads');
+  const names = expectedAssets(v);
+  for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+    check(item.isFile() && names.includes(item.name), `unexpected draft entry: ${item.name}`);
+  }
+  const original = await loadAssets(source, v);
+  const draft = await loadAssets(dir, v);
+  for (const name of names) {
+    check(original[name].sha512 === draft[name].sha512 && original[name].size === draft[name].size,
+      `draft asset differs from source: ${name}`);
+  }
+  // Every advertised updater route needs the file selected by that platform's updater.
+  const routes = {
+    'latest.yml': { required: ['win-x64.exe'], optional: [] },
+    'latest-mac.yml': { required: ['mac-arm64.zip', 'mac-x64.zip'], optional: ['mac-arm64.dmg', 'mac-x64.dmg'] },
+    'latest-linux.yml': { required: ['linux-x86_64.AppImage'], optional: ['linux-amd64.deb'] },
+  };
+  for (const [name, route] of Object.entries(routes)) {
+    const manifest = yaml.load(fs.readFileSync(path.join(dir, name), 'utf8'));
+    const required = route.required.map(suffix => `Filow-${v}-${suffix}`);
+    const allowed = [...required, ...route.optional.map(suffix => `Filow-${v}-${suffix}`)];
+    check(manifest.files.every(entry => allowed.includes(entry.url)), `${name}: wrong platform asset`);
+    check(required.includes(manifest.path) && required.every(file => manifest.files.some(entry => entry.url === file)),
+      `${name}: missing platform installer route`);
+  }
+  const installer = draft[`Filow-${v}-win-x64.exe`];
+  verifySmoke(JSON.parse(fs.readFileSync(smoke, 'utf8')), commit, installer.sha512);
+  return { version: v, commit, assets: names.length, manifests, installerSha512: installer.sha512 };
+}
 export function extractInstaller(installer, work) {
   check(!fs.existsSync(work), `extraction directory already exists: ${work}`);
   fs.mkdirSync(work, { recursive: true });
@@ -196,9 +230,10 @@ async function cli(args) {
   const opts = Object.fromEntries(rest.reduce((out, value, i) => i % 2 ? out : [...out, [value.replace(/^--/, ''), rest[i + 1]]], []));
   const policy = accountOriginPolicy(opts['require-account-origin']);
   if (mode === 'fixture') verifyFixture(JSON.parse(fs.readFileSync(opts.input, 'utf8')), policy);
+  else if (mode === 'assets') console.log(JSON.stringify(await verifyDraftAssets(opts)));
   else if (mode === 'preflight') fs.writeFileSync(opts.state, JSON.stringify(collectPreflight(opts.version, opts.commit), null, 2), { flag: 'wx' });
   else if (mode === 'verify' || mode === 'audit') await verifyPublished({ ...opts, ...policy, audit: mode === 'audit', state: mode === 'verify' ? JSON.parse(fs.readFileSync(opts.state, 'utf8')) : undefined });
-  else throw new Error('Usage: release-verify.mjs preflight --version V --state FILE | verify --version V --state FILE --dir ASSETS --work NEWDIR | audit --version V --dir ASSETS --work NEWDIR | fixture --input FILE [--require-account-origin https://production.example,https://other.example]');
+  else throw new Error('Usage: release-verify.mjs assets --version V --commit SHA --source SOURCE --dir DRAFT --smoke FILE | preflight --version V --state FILE | verify --version V --state FILE --dir ASSETS --work NEWDIR | audit --version V --dir ASSETS --work NEWDIR | fixture --input FILE [--require-account-origin https://production.example,https://other.example]');
   console.log(mode === 'audit' ? 'PASS: historical audit (prebuild absence, newer version and smoke not asserted)' : 'PASS: release verification');
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

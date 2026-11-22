@@ -3,7 +3,8 @@
 param([Parameter(Mandatory)][string]$Version,
       [Parameter(Mandatory)][ValidateSet('verify-main','preflight','tag','draft','publish')][string]$Stage,
       [Parameter(Mandatory)][string]$Work,
-      [string]$Notes)
+      [string]$Notes,
+      [ValidatePattern('\A[0-9a-f]{40}\z')][string]$ExpectedSha)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
@@ -44,7 +45,12 @@ function Read-Evidence([string]$Path) {
   $evidence = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
   if ($evidence.version -isnot [string] -or $evidence.version -cne $Version) { throw 'Release evidence version mismatch' }
   if ($evidence.tagSha -isnot [string] -or $evidence.tagSha -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Invalid release evidence SHA' }
+  if ($ExpectedSha -and $ExpectedSha -cne $evidence.tagSha) { throw 'Release evidence differs from the approved SHA' }
   return $evidence
+}
+function Assert-RemoteMain([string]$Sha) {
+  $ref = git ls-remote --exit-code --refs origin refs/heads/main
+  if ($LASTEXITCODE -ne 0 -or $ref -cne "$Sha`trefs/heads/main") { throw 'Remote main differs from the verified SHA' }
 }
 function Get-CleanMainCommit {
   $branch = git symbolic-ref --quiet HEAD
@@ -61,6 +67,7 @@ function Get-CleanMainCommit {
 }
 if ($Stage -eq 'verify-main') {
   $sha = Get-CleanMainCommit
+  if ($ExpectedSha -and $sha -cne $ExpectedSha) { throw 'Local main differs from the approved SHA' }
   $pkg = Get-Content -LiteralPath 'apps/desktop/package.json' -Raw | ConvertFrom-Json
   if ($pkg.version -cne $Version) { throw 'Commit the requested version bump before verification' }
 
@@ -71,6 +78,8 @@ if ($Stage -eq 'verify-main') {
   if (Test-Path -LiteralPath $dictionary) { Remove-Item -LiteralPath $dictionary }
   npx vitest run
   if ($LASTEXITCODE -ne 0) { throw 'Vitest failed' }
+  npm run build:welcome -w apps/desktop
+  if ($LASTEXITCODE -ne 0) { throw 'Welcome build failed' }
   npm run typecheck
   if ($LASTEXITCODE -ne 0) { throw 'Typecheck failed' }
   npm run lint
@@ -87,6 +96,15 @@ if ($Stage -eq 'tag') {
   $saved = Read-Evidence $state
   $local = Read-Evidence $verified
   if ($saved.tagSha -cne $local.tagSha) { throw 'Preflight differs from the locally verified commit' }
+  $tag = "v$Version"
+  $existing = git tag --list $tag
+  if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect local tags' }
+  if ($existing) {
+    $target = git rev-parse --verify "refs/tags/${tag}^{commit}"
+    if ($LASTEXITCODE -ne 0 -or $target -cne $saved.tagSha) { throw 'Moved local version tag' }
+  }
+  Assert-RemoteMain $saved.tagSha
+  if ((Get-CleanMainCommit) -cne $saved.tagSha) { throw 'Local main differs from the verified SHA' }
   git push --no-follow-tags origin "$($saved.tagSha):refs/tags/v$Version"
   if ($LASTEXITCODE -ne 0) { throw 'Tag push failed' }
   exit 0
@@ -98,6 +116,8 @@ $login = (Invoke-Bounded 'gh' @('api','user','--jq','.login')).Trim()
 if ($login -ne 'stefandsl') { throw "Expected owner gh login stefandsl, got $login" }
 if ($Stage -eq 'preflight') {
   $local = Read-Evidence $verified
+  if ((Get-CleanMainCommit) -cne $local.tagSha) { throw 'Local main differs from the verified SHA' }
+  Assert-RemoteMain $local.tagSha
   Invoke-Bounded 'node' @($verify,'preflight','--version',$Version,'--commit',$local.tagSha,'--state',$state)
   exit 0
 }
@@ -120,7 +140,12 @@ $publish = Join-Path $Work ('publish-' + [guid]::NewGuid())
 New-Item -ItemType Directory $publish | Out-Null
 Invoke-Bounded 'gh' @('release','download',"v$Version",'-R','stefandsl/filow-releases','-D',$publish) 1200
 # Download smoke evidence from the source repo, produced by the default-token clean runner job.
-Invoke-Bounded 'gh' @('release','download',"v$Version",'-R','stefandsl/filow','--pattern','smoke-result.json','-D',$publish) 300
+$smokeDir = "$publish-smoke"
+New-Item -ItemType Directory $smokeDir | Out-Null
+Invoke-Bounded 'gh' @('release','download',"v$Version",'-R','stefandsl/filow','--pattern','smoke-result.json','-D',$smokeDir) 300
+$smoke = Join-Path $smokeDir 'smoke-result.json'
+Invoke-Bounded 'node' @($verify,'assets','--version',$Version,'--commit',$saved.tagSha,'--source',$assets,'--dir',$publish,'--smoke',$smoke) 600
+Copy-Item -LiteralPath $smoke -Destination $publish
 Invoke-Bounded 'node' @($verify,'verify','--version',$Version,'--state',$state,'--dir',$publish,'--work',(Join-Path $publish 'extracted')) 600
 # Last remote tag read immediately before changing feed visibility.
 $now = (Invoke-Bounded 'gh' @('api',"repos/stefandsl/filow/commits/v$Version",'--jq','.sha')).Trim()

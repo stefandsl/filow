@@ -19,9 +19,11 @@ do not use its publish/finish stages for the new release path.
    ~~~powershell
    $ErrorActionPreference = 'Stop'
    $version = 'X.Y.Z'
+   $sha = Read-Host 'Approved full main commit SHA'
+   if ($sha -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Invalid approved release SHA' }
    $work = "G:\release-$version"
    foreach ($stage in 'verify-main', 'preflight', 'tag') {
-     pwsh tools/release/release.ps1 -Version $version -Stage $stage -Work $work
+     pwsh tools/release/release.ps1 -Version $version -ExpectedSha $sha -Stage $stage -Work $work
      if ($LASTEXITCODE -ne 0) { throw "Release stage $stage failed" }
    }
    ~~~
@@ -44,6 +46,7 @@ do not use its publish/finish stages for the new release path.
    SHA512 to equal the installer downloaded from the feed draft. No smoke evidence means no
    publication. The test proves startup, not onboarding completion or model inference.
 6. Run `-Stage publish` with the same version/work directory. It downloads the draft afresh,
+   compares all 17 files with the verified source download, checks each platform route,
    repeats verification, checks the smoke digest and tag again, publishes with Latest false,
    sets Latest LAST, then reads the feed URL's `latest.yml` and compares bytes by SHA512.
    On any failure stop; do not substitute a count check or hand-edit manifests.

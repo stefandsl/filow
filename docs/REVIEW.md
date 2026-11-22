@@ -291,3 +291,10 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R274 (N-07): Load the granted model before starting the report judgment deadline after each idle unload. Exercise two simulated cold loads, visible progress and a packaged speech proposal with no launcher preload.
 - R275 (N-07): Match pairing guidance to the firewall result and the controls available in the running copy. Check blocked and missing results in private and public modes.
 - R276 (N-07): Use the localized ellipsis character in model loading messages. Check the five core dictionaries with the typography suite.
+- R277 (2026-11-22, N-09): Recheck clean local main against the recorded SHA at tag time. Switch branches, dirty the tree or advance HEAD after preflight and compare all bare remote refs before and after rejection.
+- R278 (2026-11-22, N-09): Stop if an existing version tag points elsewhere. Move the local and remote tags in separate offline cases and verify neither remote changes.
+- R279 (2026-11-22, N-09): Require the recorded SHA at the tip of remote main before tagging. Change remote main after preflight and check that the tag stays absent.
+- R280 (2026-11-22, N-09): Compare the complete draft download with the 17 source files before publication. Alter an unreferenced ZIP and add an unexpected file in separate cases. Both must fail.
+- R281 (2026-11-22, N-09): Verify the native update route in each platform manifest. Supply valid hashes for a Windows installer in the Linux manifest and require rejection.
+- R282 (2026-11-22, N-09): Bind owner commands to the independently approved full SHA. Pass a different commit from the local evidence and verify all remote refs stay unchanged.
+- R283 (2026-11-22, N-09): Build the welcome bundle before the release typecheck as CI does. Fail that build and verify the runner stops before recording or pushing main.
