@@ -7,7 +7,7 @@ const { randomUUID } = require("node:crypto");
 const { setTimeout: delay } = require("node:timers/promises");
 
 const LESSON_URL = "http://127.0.0.1:48764/lesson/cloud-lab";
-const SAME_PAGE = ["browser", "window", "tab", "frame", "loader", "url", "entry"];
+const SAME_PAGE = ["browser", "window", "tab", "frame", "loader", "url", "frameUrl", "entry"];
 const SCOPE = ["teacher", "window", "tab", "turn", "action", "url"];
 const matches = (a, b, keys) => a && b && keys.every(key => a[key] === b[key]);
 const held = { phase: "held" };
@@ -278,7 +278,7 @@ function edgeDriver(userData) {
     const entry = history.entries[history.currentIndex];
     let selected = false;
     if (entry.url.startsWith("about:blank#filow-") && bounds.windowState !== "minimized") {
-      // The prepared Edge app window has exactly one page. An added tab makes it ambiguous,
+      // The prepared Edge window has exactly one page. An added tab makes it ambiguous,
       // even if Chromium still answers queries addressed to the original background target.
       const { targetInfos } = await connection.send("Target.getTargets");
       const otherPages = targetInfos.filter(t => t.type === "page" && t.targetId !== tab);
@@ -322,44 +322,65 @@ function edgeDriver(userData) {
     connection?.close();
     connection = session = tab = null;
   }
+  async function waitForStart(start, signal) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const target = await current();
+      signal.throwIfAborted();
+      if (target.url === start && target.frameUrl === start && target.selected) return target;
+      // Chromium may expose the initial blank document before committing the fragment.
+      if (![target.url, target.frameUrl].every(url => url === "about:blank" || url === start)) break;
+      if (target.url === start && !target.selected) break;
+      await delay(200, undefined, { signal });
+    }
+    throw Error("lesson start page unavailable");
+  }
   async function prepare(turn, signal) {
+    signal.throwIfAborted();
     const exe = [process.env["ProgramFiles(x86)"], process.env.ProgramFiles].filter(Boolean)
       .map(root => path.join(root, "Microsoft", "Edge", "Application", "msedge.exe")).find(file => fs.existsSync(file));
     if (process.platform !== "win32" || !exe) throw Error("Edge unavailable");
     const start = "about:blank#filow-" + turn;
     const child = spawn(exe, ["--user-data-dir=" + dir, "--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1",
-      "--no-first-run", "--no-default-browser-check", "--disable-sync", "--disable-background-networking", "--app=" + start],
+      "--no-first-run", "--no-default-browser-check", "--disable-sync", "--disable-background-networking", "about:blank"],
       { stdio: "ignore", detached: true, windowsHide: false,
         env: Object.fromEntries(Object.entries(process.env).filter(([name]) =>
           /^(SystemRoot|SystemDrive|WINDIR|TEMP|TMP|USERPROFILE|LOCALAPPDATA|APPDATA|ProgramFiles(?:\(x86\))?|PATH|ComSpec)$/i.test(name))) });
     await new Promise((resolve, reject) => { child.once("spawn", resolve); child.once("error", reject); });
     child.unref();
-    for (let attempt = 0; attempt < 40; attempt++) {
+    let client;
+    for (let attempt = 0; !client && attempt < 40; attempt++) {
       await delay(200, undefined, { signal });
-      let client;
-      try {
-        client = await connectBrowser(dir, signal);
-        const { targetInfos } = await client.send("Target.getTargets");
-        const target = targetInfos.find(t => t.type === "page" && t.url === start);
-        if (!target) throw Error("waiting for page");
-        await bind(client, target.targetId, signal);
-        await page("Network.enable");
-        await page("Network.setCacheDisabled", { cacheDisabled: true });
-        await page("Network.setBypassServiceWorker", { bypass: true });
-        const prepared = await current();
-        client.listen(event => {
-          if (event.sessionId !== session || event.method !== "Fetch.requestPaused") return;
-          const { requestId, frameId, request, responseStatusCode } = event.params;
-          const approved = frameId === prepared.frame && request.url === LESSON_URL && responseStatusCode === 200;
-          // A redirect response is stopped before Chromium follows its Location.
-          void client.send(approved ? "Fetch.continueRequest" : "Fetch.failRequest",
-            approved ? { requestId } : { requestId, errorReason: "Aborted" }, session).catch(() => {});
-        });
-        await page("Fetch.enable", { patterns: [{ urlPattern: LESSON_URL, resourceType: "Document", requestStage: "Response" }] });
-        return prepared;
-      } catch { client?.close(); }
+      try { client = await connectBrowser(dir, signal); }
+      catch { signal.throwIfAborted(); }
     }
-    throw Error("lesson browser unavailable");
+    if (!client) throw Error("lesson browser unavailable");
+    try {
+      signal.throwIfAborted();
+      // A lost create reply may already have opened the window. Never retry creation.
+      const { targetId } = await client.send("Target.createTarget", { url: start, newWindow: true, background: true });
+      signal.throwIfAborted();
+      if (typeof targetId !== "string" || !targetId) throw Error("missing lesson target");
+      await bind(client, targetId, signal);
+      await page("Network.enable");
+      await page("Network.setCacheDisabled", { cacheDisabled: true });
+      await page("Network.setBypassServiceWorker", { bypass: true });
+      const prepared = await waitForStart(start, signal);
+      client.listen(event => {
+        if (event.sessionId !== session || event.method !== "Fetch.requestPaused") return;
+        const { requestId, frameId, request, responseStatusCode } = event.params;
+        const approved = frameId === prepared.frame && request.url === LESSON_URL && responseStatusCode === 200;
+        // A redirect response is stopped before Chromium follows its Location.
+        void client.send(approved ? "Fetch.continueRequest" : "Fetch.failRequest",
+          approved ? { requestId } : { requestId, errorReason: "Aborted" }, session).catch(() => {});
+      });
+      await page("Fetch.enable", { patterns: [{ urlPattern: LESSON_URL, resourceType: "Document", requestStage: "Response" }] });
+      signal.throwIfAborted();
+      return prepared;
+    } catch (err) {
+      if (connection === client) close();
+      else client.close();
+      throw err;
+    }
   }
   async function open(url, turn, signal) {
     if (url !== LESSON_URL) throw Error("unexpected destination");
