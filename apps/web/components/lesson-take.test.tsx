@@ -5,15 +5,28 @@ import { LangProvider, StageView } from "@filow/ui";
 import { Engine, currentPoint, parseScript, pointDisplayState } from "@filow/core";
 import { PointsList } from "./prompter/PointsList";
 import { PreparedWaterCycle } from "./Teleprompter";
+import { Icon } from "./icons";
 
-for (const [lang, title, surface, vapour, droplets, collection] of [
-  ["en", "Prepared water-cycle board", "Surface water", "Water vapour", "Cloud droplets", "Collection"],
-  ["it", "Lavagna preparata sul ciclo dell’acqua", "Acqua in superficie", "Vapore acqueo", "Goccioline nella nube", "Raccolta"],
+for (const [lang, title, rows] of [
+  ["en", "Prepared water-cycle board", [
+    ["Evaporation", "Surface water", "Water vapour"],
+    ["Condensation", "Water vapour", "Cloud droplets"],
+    ["Precipitation", "Cloud droplets", "Surface water"],
+    ["Runoff", "Surface water", "Collection"],
+  ]],
+  ["it", "Lavagna preparata sul ciclo dell’acqua", [
+    ["Evaporazione", "Acqua in superficie", "Vapore acqueo"],
+    ["Condensazione", "Vapore acqueo", "Goccioline nella nube"],
+    ["Precipitazioni", "Goccioline nella nube", "Acqua in superficie"],
+    ["Ruscellamento", "Acqua in superficie", "Raccolta"],
+  ]],
 ] as const) it(`renders the prepared board and local photograph input in ${lang}`, () => {
   const html = renderToStaticMarkup(<LangProvider lang={lang}><PreparedWaterCycle onClose={() => {}} /></LangProvider>);
+  const arrow = renderToStaticMarkup(<Icon name="right" />);
   assert.ok(html.includes(title));
-  for (const [from, to] of [[surface, vapour], [vapour, droplets], [droplets, surface], [surface, collection]]) {
-    assert.ok(html.includes(`<td>${from}</td><td aria-hidden="true">→</td><td>${to}</td>`));
+  for (const [process, from, to] of rows) {
+    const cells = `<th scope="row">${process}</th><td>${from}</td><td aria-hidden="true">${arrow}</td><td>${to}</td>`;
+    assert.ok(html.includes(`<tr>${cells}</tr>`), process);
   }
   assert.ok(html.includes('type="file"'));
   assert.ok(html.includes("image/png"));

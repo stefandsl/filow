@@ -1130,7 +1130,10 @@ export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; o
     {photo && <figure><img src={photo.url} alt={photo.name} style={{ maxWidth: "100%", maxHeight: "32vh", objectFit: "contain" }} /><figcaption>{photo.name}</figcaption></figure>}
     <table aria-label={t("lesson.prepared")}><tbody>
       {waterCycle.map(([process, from, to]) => <tr key={process}>
-        <th scope="row">{t(process)}</th><td>{t(from)}</td><td aria-hidden="true">→</td><td>{t(to)}</td>
+        <th scope="row">{t(process)}</th>
+        <td>{t(from)}</td>
+        <td aria-hidden="true"><Icon name="right" /></td>
+        <td>{t(to)}</td>
       </tr>)}
     </tbody></table>
     {bridge && <section aria-live="polite">
