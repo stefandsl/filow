@@ -66,12 +66,14 @@ it("recognizes the next report after a task was added during a listening pause",
   worker.onResult({ sequence: 3, context: worker.context, committed: "Noah received the maps" });
   const review = daily.control("state", v).review;
   assert.ok(review, "fresh report after an idle microphone block");
+  worker.onResult({ sequence: 4, context: worker.context, committed: "I mean tomorrow" });
+  assert.equal(daily.control("state", v).review?.token, review.token);
   assert.equal(review.targets[0].id, v.ack.id);
   const confirmed = daily.control("confirm", { ...v, token: review.token, id: v.ack.id });
   assert.equal(confirmed.ack.rev, 2);
   pcm();
   worker.onResult({ sequence: 3, context: worker.context, committed: "Noah received the maps" });
-  assert.equal(messages.filter(m => m.final).length, 1);
+  assert.deepEqual(messages.filter(m => m.final).map(m => m.final), ["Noah received the maps", "I mean tomorrow"]);
   assert.equal(daily.control("confirm", { ...confirmed, token: review.token, id: v.ack.id }).ack, undefined);
 });
 

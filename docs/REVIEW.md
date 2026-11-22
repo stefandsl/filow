@@ -267,3 +267,10 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R250 (N-06): Retry an unreadable outline before asking for a different teaching layout. Check: feed two unreadable replies and verify the existing plan error.
 - R251 (N-06): Preserve the configured arithmetic checking and rounding behavior when adding unit and relation checks. Check: replay the compound-interest lesson, default sum audit and explicit sum guard.
 - R252 (N-06): Allow a recognized explanation follow-up when the board has no editable scene. Check: exercise the explicit send paths and reject an unknown layout before generation.
+- R253 (N-06): Reserve layout clarification for explicit choices. Check ordinary analogies, audience and style requests reach a normal lesson.
+- R254 (N-06): Continue the current lesson when the edit helper is unavailable or the board has no scene. Check an example request reaches lesson generation.
+- R255 (N-06): Bound question coverage by point ID for each committed window. Check six rows, one final about row five, both displays done and no idle inference loop.
+- R256 (N-06): Share offered-choice validation from core. Check the web build and the packaged desktop vendor module.
+- R257 (N-06): Retire a previous speech review only after matching its replacement. Check a time correction preserves the pending recipient review.
+- R258 (N-06): Retry invalid model layout fields through the plan parser. Check two invalid answers yield a plan error.
+- R259 (N-06): Build and launch the dispatched branch installer when smoke is requested without a tag. Check the branch smoke job runs against the dispatched SHA.

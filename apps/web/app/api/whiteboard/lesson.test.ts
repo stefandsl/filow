@@ -34,6 +34,7 @@ beforeEach(() => {
     if (call.url.includes("/api/chat")) {
       // the second round over the plan (refused relations written again, lone things linked) answers from its own list: none by default
       const text = String(call.body.messages?.[0]?.content ?? "").includes("A fact checker went through") ? (repairAnswers.shift() ?? "{}") : (localAnswers.shift() ?? "");
+      if ((call.body as { stream?: boolean }).stream === false) return Response.json({ message: { content: text } });
       // streamed in two pieces, as Ollama does
       const half = Math.ceil(text.length / 2);
       return new Response(`${JSON.stringify({ message: { content: text.slice(0, half) } })}\n${JSON.stringify({ message: { content: text.slice(half) }, done: true })}\n`);
@@ -73,7 +74,7 @@ describe("bounded teaching choices", () => {
       expect(result.find(e => e.type === "outline")).toMatchObject({ kind, scene });
     });
   }
-  for (const question of ["Explain this", "Explain the process as a torus", "Use intent hologram"]) {
+  for (const question of ["Explain this", "Explain the process as a torus diagram", "Use intent hologram"]) {
     it("asks for clarification before inference: " + question, async () => {
       expect((await post({ question })).status).toBe(422);
       expect(calls).toHaveLength(0);
@@ -85,10 +86,32 @@ describe("bounded teaching choices", () => {
       request: "Remove the old boxes", scene: [{ id: "visible", type: "rectangle" }], steps: ["First"] }) }));
     expect(await result.json()).toMatchObject({ kind: "clarify", changes: [] });
   });
+  it.each([
+    "Explain gravity as simply as possible",
+    "Explain light as a wave",
+    "Describe the French Revolution as a story",
+    "Spiega la fotosintesi come un bambino",
+    "Explain inflation, treat me as a beginner",
+  ])("teaches an ordinary request: %s", async question => {
+    localAnswers = [...FULL];
+    const result = await events(await post({ question }));
+    expect(result.at(-1)).toMatchObject({ type: "done" });
+  });
+
+  it("continues the lesson when the edit helper is unavailable", async () => {
+    vi.stubEnv("BUDDY_LOCAL_MODEL", "");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("No local helper")));
+    const result = await editPost(new Request("http://unit.invalid/edit", {
+      method: "POST", body: JSON.stringify({ request: "add an example", steps: ["Light enters the leaf"] }),
+    }));
+    expect(await result.json()).toMatchObject({ kind: "explain", changes: [] });
+  });
+
   it("rejects an invented model layout", async () => {
     localAnswers = [OUTLINE.replace('"flow"', '"invented"')];
     const result = await events(await post({ question: "Explain the process" }));
-    expect(result.at(-1)).toMatchObject({ type: "error" });
+    expect(result.at(-1)).toMatchObject({ type: "error", code: "plan" });
+    expect(chats()).toHaveLength(2);
     expect(stepsOf(result)).toEqual([]);
   });
 });

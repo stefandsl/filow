@@ -47,15 +47,14 @@ export async function POST(req: Request) {
     helper = await resolveLocalHelper(body.setup, request, false, "whiteboard");
     if (!serverAllowed(helper, req.headers.get(CONSENT_HEADER) ?? undefined)) helper = await resolveLocalHelper(body.setup, request, false, "whiteboard", false);
   } catch {
-    // An unresolved edit needs a new choice from the presenter.
-    return NextResponse.json({ kind: "clarify", said: "", changes: [] });
+    return NextResponse.json({ kind: "explain", said: "", changes: [] });
   }
   try {
     const { system, user } = editPrompt(request, scene, steps);
     const raw = await localJson(helper.model, system, user, EDIT_SCHEMA, { timeoutMs: 60_000, maxTokens: 500, at: helper.at });
     const plan = readEditPlan(raw, new Set(scene.map((s) => s.id)), steps.length, true);
-    return NextResponse.json(plan ?? { kind: "clarify", said: "", changes: [] });
+    return NextResponse.json(plan ?? { kind: raw && typeof raw === "object" && "kind" in raw && raw.kind === "edit" ? "clarify" : "explain", said: "", changes: [] });
   } catch {
-    return NextResponse.json({ kind: "clarify", said: "", changes: [] });
+    return NextResponse.json({ kind: "explain", said: "", changes: [] });
   }
 }

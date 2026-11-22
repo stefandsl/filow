@@ -117,7 +117,9 @@ export class Engine {
   private warmWait: Promise<unknown> | null = null;
   private lastCallAt = -Infinity;
   private qCursor = 0;
-  private reasked = false;
+  private askedThisWindow = new Set<string>();
+  private reaskedThisWindow = new Set<string>();
+  private sentEnd = -1;
   private timer: unknown = null;
   private streak: Record<string, number> = {};
   /** points ready to tick that wait for their verification, asked with the next call */
@@ -707,24 +709,28 @@ export class Engine {
     if (!windowText) return;
     const allOpen = section.bullets.filter((b) => canAutoMark(s.points[b.id]));
     if (!allOpen.length) return;
-    if (windowText === this.lastSent) {
-      // Same text as last time: only worth a call when a point is one confirmation or its verification away, and only once.
-      const pending = allOpen.some((b) => ((this.streak[b.id] ?? 0) > 0 && (this.streak[b.id] ?? 0) < this.o.confirmCalls) || this.held.has(b.id));
-      if (!verifyNow && (!this.o.reaskOnPending || !pending || this.reasked)) return;
-      this.reasked = true;
-    } else {
-      this.reasked = false;
+    const sameWindow = windowText === this.lastSent && this.sentEnd === this.committedTotal;
+    if (!sameWindow) {
+      this.askedThisWindow.clear();
+      this.reaskedThisWindow.clear();
     }
-    // Question cap: the next few open points in script order, rotating so every point gets its turn.
-    let open = allOpen;
-    if (allOpen.length > this.o.maxQuestions) {
-      const start = this.qCursor % allOpen.length;
-      open = [...allOpen.slice(start), ...allOpen.slice(0, start)].slice(0, this.o.maxQuestions);
-      this.qCursor = start + this.o.maxQuestions;
-      // A point waiting for its verification is asked now, whatever the rotation says.
-      const waiting = allOpen.filter((b) => this.held.has(b.id) && !open.includes(b));
-      if (waiting.length) open = [...waiting, ...open].slice(0, this.o.maxQuestions);
+    const start = allOpen.length > this.o.maxQuestions ? this.qCursor % allOpen.length : 0;
+    const rotated = [...allOpen.slice(start), ...allOpen.slice(0, start)];
+    // After silence, drain unseen points first. A held verification takes priority and each
+    // pending point can use one additional confirmation against the same evidence.
+    const unseen = rotated.filter(b => !this.askedThisWindow.has(b.id));
+    const pending = rotated.filter(b => this.askedThisWindow.has(b.id) && !this.reaskedThisWindow.has(b.id) &&
+      this.o.reaskOnPending && (this.streak[b.id] ?? 0) > 0 && (this.streak[b.id] ?? 0) < this.o.confirmCalls);
+    const held = rotated.filter(b => this.held.has(b.id) && (verifyNow || this.o.reaskOnPending) &&
+      !this.reaskedThisWindow.has(b.id));
+    const open = [...new Set([...held, ...unseen, ...pending])].slice(0, this.o.maxQuestions);
+    if (!open.length) return;
+    for (const b of open) {
+      if (this.askedThisWindow.has(b.id)) this.reaskedThisWindow.add(b.id);
+      this.askedThisWindow.add(b.id);
     }
+    if (allOpen.length > this.o.maxQuestions) this.qCursor = start + open.length;
+    this.sentEnd = this.committedTotal;
     // Verify in this same call the points that one more answer could tick.
     const verify = this.o.verify ? open.filter((b) => (this.streak[b.id] ?? 0) > 0 || this.held.has(b.id)).map((b) => b.id) : [];
 

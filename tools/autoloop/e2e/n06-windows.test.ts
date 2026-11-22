@@ -3,11 +3,12 @@ import { aggregate, observation } from "./n06-windows.mjs";
 const { it } = process.env.VITEST ? await import("vitest") : await import("node:test");
 const id="attempt-1", target="fifth";
 const trace={id,target,source:"pcm",phoneType:"surrogate",tier:"reference",temperature:"cold",sha:"candidate",
-  initialRows:["one","two","three","four",target],clocks:{desktop:{offset:0,rtt:1},phone:{offset:-8,rtt:4}},
+  initialRows:["one","two","three","four",target,"six"],clocks:{desktop:{offset:0,rtt:1},phone:{offset:-8,rtt:4}},
   events:[
     {stage:"lastWord",at:100},{stage:"partial",at:90},{stage:"endpoint",at:110},{stage:"final",at:115},
     {stage:"queueEntry",at:116},{stage:"queueExit",at:117,ids:["one","two","three","four"]},
-    {stage:"queueExit",at:125,ids:[target]},{stage:"inferenceStart",at:126,ids:[target]},{stage:"inferenceEnd",at:130},
+    {stage:"inferenceStart",at:118,ids:["one","two","three","four"]},{stage:"inferenceEnd",at:120},
+    {stage:"queueExit",at:125,ids:[target,"six"]},{stage:"inferenceStart",at:126,ids:[target,"six"]},{stage:"inferenceEnd",at:130},
     {stage:"desktop",at:133,row:target,state:"active"},{stage:"phone",at:140,row:target,state:"active"},
     {stage:"desktop",at:165,row:target,state:"done"},{stage:"phone",at:170,row:target,state:"done"}
   ].map(e=>({...e,id}))};

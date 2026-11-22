@@ -23,3 +23,4 @@ export * from "./hardware";
 export * from "./anchor";
 export * from "./display";
 export * from "./download-progress";
+export { offeredChoice } from "./offered-choice";

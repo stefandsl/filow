@@ -116,16 +116,16 @@ function createDaily({ store, match = manualOrDraft, isQualified = qualified, no
         take.segment = segment;
         const replacement = /^(?:I mean|intendevo)\s+([\p{L}][\p{L}'’ -]{0,70})[.!]?$/iu.exec(words);
         if (replacement && previous && previous.context === take.context) {
-          previous.retired = true;
-          pending = pending.filter(r => r.op !== previous.op);
           // Reassess the report with the corrected recipient and retain both spoken finals.
           const recipient = replacement[1].trim();
           const prior = /^([\p{Lu}][\p{L}'’-]*(?:\s+[\p{Lu}][\p{L}'’-]*)*)\s+(received|has|ha)\b(.*)$/u.exec(previous.words);
           if (prior && from.tasks.some(row => row.text.toLowerCase().endsWith(" " + recipient.toLowerCase()))) {
+            previous.retired = true;
+            pending = pending.filter(r => r.op !== previous.op);
             words = recipient + " " + prior[2] + prior[3];
+            segment.repair = true;
+            segment.evidence = previous.words + " / " + result.committed;
           }
-          segment.repair = true;
-          segment.evidence = previous.words + " / " + result.committed;
         }
         const next = review(words, from, op, true, segment);
         const publish = state => {

@@ -554,7 +554,7 @@ describe("Engine regression audit (Step 2)", () => {
     const h = harness();
     h.e.loadScript(BIG);
     const asked = new Set<string>();
-    // Fresh text is required: rotation alone must not bypass the transcript gate.
+    // Successive finals also rotate through the whole section.
     for (let i = 0; i < Math.ceil(BIG.sections[0].bullets.length / 4); i++) {
       h.e.feed({ committed: `segment ${i} ` });
       await h.pulse();
@@ -592,6 +592,18 @@ describe("Engine regression audit (Step 2)", () => {
 });
 
 describe("Engine pacing (Step 1 hygiene)", () => {
+  it("finishes the fifth point after a single final and silence", async () => {
+    const { e, calls } = makeEngine([{ s0b4: 0.98 }]);
+    e.loadScript(BIG);
+    e.feed({ partial: "p5" });
+    e.feed({ committed: "p5" });
+    for (let tick = 0; tick < 8; tick++) await e.tick();
+    expect(e.getState().points.s0b4?.status).toBe("started");
+    expect(calls.map(call => call.bullets.map(b => b.text))).toEqual([
+      ["p1", "p2", "p3", "p4"], ["p5", "p6"],
+    ]);
+  });
+
   it("caps the questions per call and rotates through the open points", async () => {
     const { e, calls } = makeEngine([], 0, { maxQuestions: 4 });
     e.loadScript(BIG);

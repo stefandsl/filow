@@ -81,6 +81,14 @@ describe("GitHub workflows pin every action to a commit", () => {
     expect(launch).toContain("(Join-Path $install 'Filow.exe')");
     expect(launch).toContain("-WindowStyle Normal");
   });
+  it("builds and smokes the branch SHA for an untagged smoke dispatch", () => {
+    const job = loadWorkflow("desktop.yml").jobs.branch_smoke;
+    expect(job?.if).toContain("inputs.smoke_only && inputs.release_tag == ''");
+    expect(job.permissions).toEqual({ contents: "read" });
+    const steps = job.steps.map((s: { run?: string }) => s.run ?? "").join("\n");
+    expect(steps).toContain("npm run desktop:build:win");
+    expect(steps).toContain("-SourceSha $env:GITHUB_SHA");
+  });
   it("finds the workflows", () => {
     expect(workflowFiles()).toContain("desktop.yml");
   });

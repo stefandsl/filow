@@ -1,7 +1,4 @@
-// Predictions refer to the exact choices offered for one decision.
-function offeredChoice(value, choices) {
-  return typeof value === "string" && choices.includes(value) ? value : null;
-}
+const { offeredChoice } = require("./vendor/offered-choice");
 
 function dailyChoice(proposal, rows) {
   if (!proposal || !["complete", "reopen"].includes(proposal.type)) return { action: "abstain" };

@@ -1,10 +1,10 @@
 # N-06 decision and teaching pilot
 
-Reference base `a21db5ad`, packaged candidate `36643d534660e5f88d2bff59a75951bc3039cf2f`. Presenter confirmation stays enabled. The independent labels and topic were hashed before implementation. [Frozen sets and pilot limits](N06-FREEZE.md)
+Reference base `a21db5ad`, packaged candidate `36643d534660e5f88d2bff59a75951bc3039cf2f`. Presenter confirmation stays enabled. The independent labels and topic were hashed before implementation in freeze commit `fc59133a`. [Frozen sets and pilot limits](N06-FREEZE.md)
 
 ## Run 1 measurements
 
-Neon authored 100 reports. Each language contributes 5 development reports and 15 held-out reports from three other speaker and album groups. All 75 held-out reports were retained per available route. Unit counts are small and speakers contribute repeated reports. The two-sided Wilson intervals below describe report-level binomial uncertainty.
+Neon authored 100 reports. Each language contributes 5 development reports and 15 held-out reports from three other speaker and album groups. All 75 held-out reports were retained per available route. For clear reports, MiniLM counts an abstention as both a miss and a clarification. The lexical scorer counts abstention only as a miss. Unit counts are small and speakers contribute repeated reports. The two-sided Wilson intervals below describe report-level binomial uncertainty.
 
 | Language | Route | Correct / clear (95%) | False / negative (95%) | Clarify / clear (95%) |
 |---|---|---:|---:|---:|
@@ -51,7 +51,7 @@ Among available decision probes, only the Japanese granted Gemma proposal met al
 
 The reference machine ran a real-time 16 kHz capture replay with a local deck and paired same-host mobile viewport. First means the expected row first became active or done. Complete means that row became done. Timing begins at the final PCM sample exceeding 320/32768 amplitude. All three warm alias attempts timed out. Cold and warm inputs differ. An earlier three-attempt instrumentation check used a shorter observation window and is recorded separately. Peak sampled process-tree working set was 2.35 GiB and dedicated graphics memory 60.8 MiB.
 
-With six open questions, the engine offered the fifth target on call two at its default four-question cap and on call one at a six-question cap. This scheduling replay uses a deterministic response. In separate real Clef replays, twelve calls per corpus per route completed without timeouts.
+With six open questions, the synthetic replay supplied a second call and offered the fifth target then at its default four-question cap and on call one at a six-question cap. The original packaged engine never made that second call during silence. In separate real Clef replays, twelve calls per corpus per route completed without timeouts.
 
 | Clef call latency | EN p50/p95 ms | IT p50/p95 ms |
 |---|---:|---:|

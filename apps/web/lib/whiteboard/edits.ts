@@ -2,15 +2,17 @@
 // the look at a picture of the board, and the plan of a follow-up that changes it. Pure: the
 // prompts, the schemas and the checks of the answers (the calls are in local.ts).
 import { cleanText, KINDS, SCENES, type ExplanationKind, type Scene } from "./lesson";
-import { offeredChoice } from "../../../desktop/bounded-decision";
+import { offeredChoice } from "@filow/core";
 
 export type TeachingChoice = { kind: ExplanationKind; scene: Scene };
 export function teachingChoice(request: string): TeachingChoice | "clarify" | null {
   const words = request.toLowerCase().trim();
-  const layout = /\b(?:as (?:a |an )?|layout[: ]+|come (?:un |una )?)([\p{L}-]+)(?:\s+(?:layout|diagram))?[.!?]?$/u.exec(words);
   const aliases: Record<string, Scene> = { cycle: "cycle", ciclo: "cycle", flow: "flow", flusso: "flow", stack: "stack", pila: "stack" };
-  const scene = layout && Object.hasOwn(aliases, layout[1]) ? aliases[layout[1]] : undefined;
-  if (layout && !scene) return "clarify";
+  const explicitLayout = /\blayout\s*:\s*([\p{L}-]+)|\b(?:as (?:an? )?|come (?:una? )?)([\p{L}-]+)\s+(?:layout|diagram)\b/u.exec(words);
+  const shorthand = /\b(?:as (?:an? )?|come (?:una? )?)([\p{L}-]+)[.!?]?$/u.exec(words);
+  const name = explicitLayout?.[1] ?? explicitLayout?.[2] ?? shorthand?.[1];
+  const scene = name && Object.hasOwn(aliases, name) ? aliases[name] : undefined;
+  if (explicitLayout && !scene) return "clarify";
   if (/^(?:(?:please )?(?:explain|compare|draw|show)|spiega|confronta)(?: (?:it|that|this|those|questo))?[.!?]?$/.test(words)) return "clarify";
   const explicit = /\b(?:intent|intento)[: ]+([\p{L}-]+)/u.exec(words);
   if (explicit && !offeredChoice(explicit[1], KINDS)) return "clarify";

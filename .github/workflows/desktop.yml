@@ -12,7 +12,7 @@ on:
         required: false
         default: ""
       smoke_only:
-        description: "Smoke the existing source installer only (no rebuild). Required before feed publication."
+        description: "Smoke an existing tagged installer, or build and smoke the dispatched branch on Windows."
         type: boolean
         default: false
       os:
@@ -168,6 +168,31 @@ jobs:
             !release/builder-debug.yml
           if-no-files-found: error
           retention-days: 1
+
+  branch_smoke:
+    needs: checks
+    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/heads/') && inputs.smoke_only && inputs.release_tag == ''
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm pkg set "sourceSha=$env:GITHUB_SHA" -w apps/desktop
+      - run: npm run desktop:build:win
+      - name: Smoke the branch installer
+        shell: pwsh
+        run: |
+          $installer = Get-Item release/Filow-*-win-x64.exe
+          ./tools/release/smoke-windows.ps1 -Installer $installer.FullName -SourceSha $env:GITHUB_SHA -Result "$env:RUNNER_TEMP/branch-smoke.json"
+          Get-Content "$env:RUNNER_TEMP/branch-smoke.json"
 
   # Manual only until validated on a clean runner. Uses the default token, never the feed token.
   # The publisher compares this installer's digest with the actual draft before making it public.
