@@ -479,6 +479,7 @@ function recognizerConfig(spec, dir, threads) {
 class SttSession {
   constructor(userData, log, opts = {}) {
     this.userData = userData;
+    this.traceId = opts.traceId;
     this.log = log || (() => {});
     this.use = opts.use === "questions" ? "questions" : "tracking";
     this.getLanguage = opts.getLanguage || (() => "auto");
@@ -561,6 +562,7 @@ class SttSession {
       });
       worker.postMessage({
         type: "init",
+        ...(this.traceId && { traceId: this.traceId }),
         kind: spec.kind,
         config: recognizerConfig(spec, modelDir(this.userData, spec), threads),
         vad: spec.kind === "offline" ? path.join(modelDir(this.userData, VAD), VAD.files[0]) : null,

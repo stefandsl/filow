@@ -94,7 +94,20 @@ export function useEngine() {
       if (getGateMode() !== "on" || !gateAvailable()) return decideViaApi(r, signal);
       return (gateThresholdsFor(provider).narrow === false ? skipOnly : narrowed)(r, signal);
     };
-    return new Engine({ decide, reload: () => reloadDecisionModel(getDecisionProvider()), warming: pendingWarmup });
+    const trace = () => typeof window === "undefined" ? undefined : (window as Window & { filowDecisionTrace?: (stage: string, ids?: string[], provider?: string, gate?: string, call?: number) => void }).filowDecisionTrace;
+    let callNumber = 0;
+    const options = {
+      decide: async (req: DecideRequest, signal?: AbortSignal) => {
+        const observe = trace();
+        const call = ++callNumber;
+        observe?.("inferenceStart", req.bullets.map(b => b.id), getDecisionProvider(), getGateMode(), call);
+        try { return await decide(req, signal); }
+        finally { observe?.("inferenceEnd", undefined, undefined, undefined, call); }
+      },
+      decisionTrace: (stage: string, ids?: string[]) => trace()?.(stage, ids),
+      reload: () => reloadDecisionModel(getDecisionProvider()), warming: pendingWarmup,
+    };
+    return new Engine(options);
   }, []);
   const [state, setState] = useState<SessionState>(engine.getState());
   const lang = useLang();

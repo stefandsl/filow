@@ -19,6 +19,8 @@ export type TranscriptEvent = { committed?: string; partial?: string };
 export type EngineOptions = {
   /** The decision call. `signal` aborts it when the engine gives up (timeout), so a slow model does not pile up requests. */
   decide: (r: DecideRequest, signal?: AbortSignal) => Promise<DecideResponse>;
+  /** Optional observer of accepted speech and the batch selected by the decision scheduler. */
+  decisionTrace?: (stage: "queueEntry" | "queueExit", ids?: string[]) => void;
   now?: () => number;
   /** timer period; a model call happens only when the transcript changed */
   tickMs?: number;
@@ -97,7 +99,7 @@ const PARTIAL_ACTIVE = 0.5;
 const ANCHOR_RECENT_MS = 6000;
 
 export class Engine {
-  private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard" | "onVerify" | "reload" | "warming">> & Pick<EngineOptions, "onGuard" | "onVerify" | "reload" | "warming">;
+  private readonly o: Required<Omit<EngineOptions, "sessionId" | "decisionTrace" | "onGuard" | "onVerify" | "reload" | "warming">> & Pick<EngineOptions, "decisionTrace" | "onGuard" | "onVerify" | "reload" | "warming">;
   private state: SessionState;
   private scriptKey: string | null = null;
   private committed = "";
@@ -141,6 +143,7 @@ export class Engine {
   constructor(opts: EngineOptions) {
     this.o = {
       decide: opts.decide,
+      decisionTrace: opts.decisionTrace,
       now: opts.now ?? (() => Date.now()),
       tickMs: opts.tickMs ?? 500,
       threshold: opts.threshold ?? 0.7,
@@ -278,7 +281,10 @@ export class Engine {
     // A final already in progress at Reset belongs to the old section. It advances the
     // transcript fence below, but cannot navigate, trigger a correction or enter rehearsal.
     const accepted = this.fenceNextCommit === null;
-    if (accepted) onAccepted?.();
+    if (accepted) {
+      this.o.decisionTrace?.("queueEntry");
+      onAccepted?.();
+    }
     let withdrawn: string[] = [];
     if (e.committed) {
       let segment = e.committed;
@@ -722,6 +728,7 @@ export class Engine {
     // Verify in this same call the points that one more answer could tick.
     const verify = this.o.verify ? open.filter((b) => (this.streak[b.id] ?? 0) > 0 || this.held.has(b.id)).map((b) => b.id) : [];
 
+    this.o.decisionTrace?.("queueExit", open.map(b => b.id));
     this.inFlight = true;
     this.lastSent = windowText;
     this.lastCallAt = now;

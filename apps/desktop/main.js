@@ -1813,10 +1813,15 @@ function wireStt() {
   });
   appHandle("stt:start", async (e, language) => {
     setSttLanguage(language);
-    if (!sttSession) sttSession = new sttLocal.SttSession(userData, logLine, { use: "tracking", getLanguage: sttLanguage, task: () => "tracking" });
+    if (!sttSession) {
+      const id = process.env.FILOW_QA_TRACE_ID;
+      const traceId = id && /^[a-f0-9-]{36}$/.test(id) && app.isPackaged && INPUT_OFF &&
+        process.env.FILOW_USER_DATA_DIR && require("./qa.js").isQaBuild(app) ? id : undefined;
+      sttSession = new sttLocal.SttSession(userData, logLine, { use: "tracking", getLanguage: sttLanguage, task: () => "tracking", traceId });
+    }
     const wc = e.sender;
     sttSession.owner = wc;
-    sttSession.onResult = (r) => !wc.isDestroyed() && wc.send("stt:result", { partial: r.partial, committed: r.committed });
+    sttSession.onResult = (r) => !wc.isDestroyed() && wc.send("stt:result", { partial: r.partial, committed: r.committed, ...(r.trace && { trace: r.trace }) });
     sttSession.onError = (m) => !wc.isDestroyed() && wc.send("stt:result", { partial: "", committed: "", error: m });
     const out = await sttSession.start(typeof language === "string" ? language : "auto");
     sttBroadcast("stt:status", sttStatus());

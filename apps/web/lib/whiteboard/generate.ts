@@ -23,7 +23,7 @@ export type LessonEvent =
   | { type: "done"; cards: number; stalled: boolean; relations?: number; drawn?: number; unchecked?: number[]; doubts?: string[]; spelled?: string[] }
   /** Only when the request asked for it (the proof bench): the lesson as the model first wrote it, and what each guard changed. */
   | { type: "audit"; raw: unknown; changes: string[] }
-  | { type: "error"; message: string; code: "plan" | "stalled" | "model" | "topic" | "busy" | "redacted" };
+  | { type: "error"; message: string; code: "plan" | "clarify" | "stalled" | "model" | "topic" | "busy" | "redacted" };
 
 /** One question to the model: the answer text, whole. Throws StallError when it ran out of time. */
 export type Ask = (call: { system: string; user: string; format?: unknown; maxTokens: number; timeoutMs: number; temperature?: number }) => Promise<string>;
@@ -430,7 +430,7 @@ export async function tryTemplate(asked: Ask, req: LessonRequest, emit: (e: Less
 export async function generateLocal(asked: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
   const ask = withJsonWord(asked);
   const choice = teachingChoice(req.question);
-  if (choice === "clarify") return emit({ type: "error", code: "plan", message: "Choose an explanation and layout." });
+  if (choice === "clarify") return emit({ type: "error", code: "clarify", message: "Choose an explanation and layout." });
   if (!choice && req.templates && (await tryTemplate(ask, req, emit))) return;
   const more = Boolean(req.lesson);
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;
@@ -479,7 +479,7 @@ export async function generateLocal(asked: Ask, req: LessonRequest, emit: (e: Le
   for (let attempt = 0; attempt < 2; attempt++) {
     const text = await ask({ system: outlineSystem(req.lang, maxSteps, more), user: outlineUser, format: outlineSchema(maxSteps), maxTokens: 140 + maxSteps * 90, timeoutMs: TIMEOUTS.outlineMs, temperature: attempt ? 0.6 : 0.3 });
     const raw = parseJsonLoose(text);
-    if (!validTeachingFields(raw)) return emit({ type: "error", code: "plan", message: "Choose an explanation and layout." });
+    if (!validTeachingFields(raw)) return emit({ type: "error", code: "clarify", message: "Choose an explanation and layout." });
     const next = validateOutline(raw, maxSteps);
     if (next && choice) Object.assign(next, choice);
     if (!next) continue;
@@ -1040,7 +1040,7 @@ export async function generateCloud(asked: Ask, req: LessonRequest, emit: (e: Le
   const ask = withJsonWord(asked);
   const more = Boolean(req.lesson);
   const choice = teachingChoice(req.question);
-  if (choice === "clarify") return emit({ type: "error", code: "plan", message: "Choose an explanation and layout." });
+  if (choice === "clarify") return emit({ type: "error", code: "clarify", message: "Choose an explanation and layout." });
   const guards = { ...GUARDS, ...req.guards };
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;
   const userFor = (question: string) => (more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(question)}` : `Concept: ${quoted(question)}`);
@@ -1056,6 +1056,7 @@ export async function generateCloud(asked: Ask, req: LessonRequest, emit: (e: Le
   /** What each guard changed, in order, and the lesson as the model first wrote it (sent as an "audit" event when asked for). */
   const changes: string[] = [];
   let firstRaw: unknown = null;
+  let invalidChoice = false;
   /** Placeholders a service on the way put in place of a name or a place ("[PERSON_NAME]"). */
   let redacted: string[] = [];
   type Draft = { lesson: Lesson; drifted: string[]; lost: string[] };
@@ -1064,7 +1065,7 @@ export async function generateCloud(asked: Ask, req: LessonRequest, emit: (e: Le
       // a name the model wrote spelled out, as it was sent, is written normally again before anything reads the answer
       const text = unspell(await ask({ system: [cloudSystem(req.lang, maxSteps, more), groundingReference(req.question), choice ? `Use the ${choice.kind} explanation and ${choice.scene} layout.` : ""].filter(Boolean).join("\n"), user: note ? `${user}\n\n${note}` : user, format: { type: "object" }, maxTokens: 3500, timeoutMs: TIMEOUTS.cloudMs, temperature: attempt ? 0.6 : 0.3 }), spelled);
       const raw = parseJsonLoose(text);
-      if (raw && !validTeachingFields(raw)) return null;
+      if (raw && !validTeachingFields(raw)) { invalidChoice = true; return null; }
       const valid = validateLesson(raw, { maxSteps, texOk, sketch: true, continues: more ? req.lesson! : undefined });
       // A placeholder the question did not contain means the model never saw a name of the question.
       redacted = placeholderLeaks(text, req.question + (more ? JSON.stringify(req.lesson) : ""));
@@ -1115,6 +1116,7 @@ export async function generateCloud(asked: Ask, req: LessonRequest, emit: (e: Le
 
   if (req.spell && names.length) spell();
   let draft = await write("");
+  if (invalidChoice) return emit({ type: "error", code: "clarify", message: "Choose an explanation and layout." });
   // The answer is about a placeholder, or never uses a name of the question: the account hides names.
   // Asked once more with the names spelled out; what comes back is checked like any first answer.
   if (!spelled.length && names.length && (redacted.length || draft?.drifted.length)) {

@@ -113,14 +113,15 @@ describe("the default online path, replayed over the raw lessons of the paid rou
     expect(got.asked).toHaveLength(5);
   });
 
-  it("is off for the examiner, the arrow judge and the sum rewrite when nothing is asked for: one call even for a lesson with a wrong sum and a doubtful arrow", async () => {
+  it("checks a verifiable calculation even when the optional model judges are off", async () => {
     expect(GUARDS).toEqual({ legend: true, examiner: false, arrows: false, sums: false, must: false, links: false, removeLoneBoxes: false });
     let calls = 0;
     const wrong = { title: "Sums", scene: "flow", steps: [{ say: "Twice the sum is (3+4)*2 = 12.", items: [{ kind: "node", id: "a", text: "Sum" }, { kind: "node", id: "b", text: "Result" }, { kind: "edge", from: "b", to: "a", text: "receives" }] }, { say: "That is all.", items: [{ kind: "note", text: "done" }] }] };
     const events: LessonEvent[] = [];
     await generateCloud(async () => { calls++; return JSON.stringify(wrong); }, { question: "sums", lang: "en", maxSteps: 7 }, (e) => events.push(e));
-    expect(calls).toBe(1);
-    expect(events[events.length - 1]).toEqual({ type: "done", cards: 0, stalled: false });
+    expect(calls).toBe(2);
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "plan" });
+    expect(events.some(e => e.type === "step")).toBe(false);
   });
   it("what the validator did not keep of those lessons is only what was written twice", () => {
     const lost = RAW.filter((f) => !offTopic(f)).flatMap((f) => validatorLossesOf(f.raw).map((l) => `${f.run}/${f.n} ${l}`));

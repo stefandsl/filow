@@ -12,10 +12,18 @@ export function teachingChoice(request: string): TeachingChoice | "clarify" | nu
   const scene = layout && Object.hasOwn(aliases, layout[1]) ? aliases[layout[1]] : undefined;
   if (layout && !scene) return "clarify";
   if (/^(?:(?:please )?(?:explain|compare|draw|show)|spiega|confronta)(?: (?:it|that|this|those|questo))?[.!?]?$/.test(words)) return "clarify";
-  const kind: ExplanationKind | undefined = /\b(?:compare|comparison|confronta|confronto)\b/.test(words) ? "comparison" :
-    /\b(?:process|processo|repeating|cycle|ciclo)\b/.test(words) ? "process" : undefined;
+  const explicit = /\b(?:intent|intento)[: ]+([\p{L}-]+)/u.exec(words);
+  if (explicit && !offeredChoice(explicit[1], KINDS)) return "clarify";
+  let kind: ExplanationKind | undefined = explicit?.[1] as ExplanationKind | undefined;
+  if (!kind) {
+    if (/\b(?:compare|comparison|confronta|confronto)\b/.test(words)) kind = "comparison";
+    else if (/\b(?:prove|proof|dimostra|dimostrazione)\b/.test(words)) kind = "proof";
+    else if (/\b(?:algorithm|algoritmo)\b/.test(words) && scene) kind = "algorithm";
+    else if (/\b(?:law|legge)\b/.test(words) && scene) kind = "law";
+    else if (/\b(?:repeating process|processo ciclico)\b/.test(words) || scene) kind = "process";
+  }
   if (!scene && !kind) return null;
-  return { kind: kind ?? "process", scene: scene ?? (kind === "comparison" ? "stack" : /\b(?:cycle|ciclo|repeating)\b/.test(words) ? "cycle" : "flow") };
+  return { kind: kind ?? "process", scene: scene ?? (kind && ["comparison", "proof", "algorithm"].includes(kind) ? "stack" : /\b(?:cycle|ciclo|ciclico|repeating)\b/.test(words) ? "cycle" : "flow") };
 }
 
 export function validTeachingFields(raw: unknown) {
@@ -120,12 +128,12 @@ export function readEditPlan(raw: unknown, ids: Set<string>, stepCount: number, 
     const action = EDIT_ACTIONS.includes(q.action as EditAction) ? (q.action as EditAction) : null;
     if (!action) continue;
     const target = typeof q.target === "string" && ids.has(q.target) ? q.target : "";
-    const step = typeof q.step === "number" && Number.isInteger(q.step) && q.step >= 1 && q.step <= Math.max(1, stepCount) ? q.step : undefined;
+    const step = typeof q.step === "number" && Number.isInteger(q.step) && q.step >= 1 && q.step <= (strict ? stepCount : Math.max(1, stepCount)) ? q.step : undefined;
     if (action === "show_all") { changes.push({ action, target: "" }); continue; }
     if (action === "zoom") { if (target || step) changes.push({ action, target, ...(step ? { step } : {}) }); continue; }
     if (!target) continue;
     if (action === "recolor") {
-      const color = typeof q.color === "string" && q.color in EDIT_COLOURS ? (q.color as EditColour) : null;
+      const color = typeof q.color === "string" && Object.hasOwn(EDIT_COLOURS, q.color) ? (q.color as EditColour) : null;
       if (color) changes.push({ action, target, color });
     } else if (action === "rename") {
       const text = cleanText(q.text, 40);

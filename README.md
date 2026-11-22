@@ -58,6 +58,8 @@ Filow is a live speaking companion: it listens as you present, checks off your t
 
 Review the proposed recipient before confirming a spoken delivery. If you correct the name while the review is open, check the revised row. All languages currently require confirmation.
 
+On the whiteboard, you can ask for a repeating process as a cycle or ask to compare two subjects. If the requested layout or board item cannot be identified, name it again.
+
 Voice ticks require your permission and an installed Gemma 4 E2B. Choose the Gemma offer in Day-by-day and download it in Local models if needed. Withdraw permission in Settings. You can always tick manually or confirm a typed report.
 
 From the desktop presenter, open **Day-by-day** and choose **Today** or **Tomorrow**. Type a task and select **Add task**, or tap **Talk** and dictate one task at a time. Wait for **Listening on this device**, review the wording, then add the task. Speech understands English and Italian task requests and progress reports. Use **Delete task** for one row or **Delete entire list** for every date. Typing also works when the microphone or local speech model is unavailable.

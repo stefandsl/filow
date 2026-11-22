@@ -154,7 +154,7 @@ it("reassesses a spoken recipient correction and saves its original evidence onc
   v = daily.control("state", v);
   assert.deepEqual(v.review.targets.map((r: any) => r.id), [target]);
   assert.equal(v.version, 2);
-  v = daily.control("confirm", { ...v, token: v.review.token, id: target });
+  assert.equal(daily.control("confirm", { ...v, token: v.review.token, id: target }).version, 3);
   final(2, "I mean Nora Lake");
   daily.close();
   assert.equal(store.version, 3);
@@ -164,7 +164,7 @@ it("reassesses a spoken recipient correction and saves its original evidence onc
 it("binds automatic ticks to an assessed row, model digest and capture language", async () => {
   const { qualified } = load("./bounded-decision");
   const route = "fixture/version";
-  const receipt = { route, locale: "it", clear: 5, correct: 4, negative: 3, falseTicks: 0, clarification: 1 };
+  const receipt = { route, locale: "it", qualified: true, corpus: load("./bounded-decision").pilotDigest, clear: 5, correct: 4, negative: 3, falseTicks: 0, clarification: 1 };
   for (const [language, automatic] of [["en", false], ["it", true]] as const) {
     const worker: any = { ready: true, start: async () => ({ model: "fixture" }), feed() {}, dispose() {},
       worker: { postMessage(m: any) { worker.context = m.context; } } };
@@ -184,7 +184,7 @@ it("binds automatic ticks to an assessed row, model digest and capture language"
     assert.equal(v.version, automatic ? 3 : 2);
     if (!automatic) {
       assert.deepEqual(v.review.targets.map((r: any) => r.id), [id]);
-      v = daily.control("confirm", { ...v, token: v.review.token, id });
+      assert.equal(daily.control("confirm", { ...v, token: v.review.token, id }).version, 3);
     }
     worker.onResult(final);
     daily.close();
@@ -193,6 +193,8 @@ it("binds automatic ticks to an assessed row, model digest and capture language"
   }
   assert.equal(qualified(route, "it"), false);
   assert.equal(qualified("other", "it", [receipt]), false);
+  assert.equal(qualified(route, "it", [{ ...receipt, qualified: false }]), false);
+  assert.equal(qualified(route, "it", [{ ...receipt, corpus: "other" }]), false);
   assert.equal(qualified(route, "it", [{ ...receipt, falseTicks: 1 }]), false);
 });
 

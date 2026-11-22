@@ -33,8 +33,10 @@ let language = "auto";
 let sequence = 0;
 let context;
 
-function result(partial, committed) {
+let traceId;
+function result(partial, committed, endpointAt) {
   const message = { type: "result", partial, committed };
+  if (traceId && (partial || committed)) message.trace = { id: traceId, backend: kind, at: Date.now(), endpointAt };
   if (context !== undefined) {
     message.context = context;
     if (committed) message.sequence = ++sequence;
@@ -43,6 +45,7 @@ function result(partial, committed) {
 }
 
 function init(msg) {
+  traceId = msg.traceId;
   const t0 = Date.now();
   sherpa = require("sherpa-onnx-node");
   kind = msg.kind === "offline" ? "offline" : "online";
@@ -74,13 +77,14 @@ function drainPhrases() {
   while (!vad.isEmpty()) {
     // false: copy the samples. Electron's V8 sandbox refuses buffers that point into native memory
     // ("External buffers are not allowed"), which is what front() hands out by default.
+    const endpointAt = traceId ? Date.now() : undefined;
     const segment = vad.front(false);
     vad.pop();
     const s = recognizer.createStream();
     s.acceptWaveform({ samples: segment.samples, sampleRate: SAMPLE_RATE });
     recognizer.decode(s);
     const committed = (recognizer.getResult(s).text || "").trim();
-    if (committed) result("", committed);
+    if (committed) result("", committed, endpointAt);
   }
 }
 
@@ -104,7 +108,7 @@ function feed(samples) {
   if (recognizer.isEndpoint(stream)) {
     const committed = (r.text || "").trim();
     recognizer.reset(stream);
-    result("", committed);
+    result("", committed, traceId ? Date.now() : undefined);
   } else {
     result(r.text || "", "");
   }

@@ -2,7 +2,7 @@
 
 ## N-05 | Daily list operator replay
 
-Use the desktop prompter's **Day-by-day** entry. Local recognition offers editable drafts and proposed task changes. Every suggested change requires presenter confirmation. The text decision route remains unqualified under N-06.
+Use the desktop prompter's **Day-by-day** entry. Local recognition offers editable drafts and proposed task changes. Every suggested change requires presenter confirmation. The text decision route remains unqualified under N-06. The [N-06 scorecard](docs/perf/N06-SCORECARD.md) records the per-language status and the private decision, lesson and packaged timing procedures.
 
 Run `node tools/autoloop/e2e/n05-eval.mjs` for the bilingual development set. To grade a sealed copy after freezing the candidate, pass a private JSON path. Supply `language`, the displayed `tasks` array and `cases`, or group suites under `languages`. Each case supplies an utterance, kind, expected mutation count, expected person question and a zero-based target for a tick or correction. Set `completed` to the initially completed indices. The explicit `saveDraft` interaction tests draft acceptance. The scorer records text and acoustic exposure separately.
 

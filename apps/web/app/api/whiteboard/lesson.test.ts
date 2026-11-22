@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./lesson/route";
+import { POST as editPost } from "./edit/route";
 import { WHITEBOARD_MODELS } from "@/lib/whiteboard/models";
 import { CHECKS, RETRY, StallError, TIMEOUTS, boardShows, generateLocal, missingNames, orphanBoxes, placeNotes, readArrowVerdicts, readVerdicts, texOk, validatePlan, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
 import { validateLesson } from "@/lib/whiteboard/lesson";
@@ -72,12 +73,18 @@ describe("bounded teaching choices", () => {
       expect(result.find(e => e.type === "outline")).toMatchObject({ kind, scene });
     });
   }
-  for (const question of ["Explain this", "Explain the process as a torus"]) {
+  for (const question of ["Explain this", "Explain the process as a torus", "Use intent hologram"]) {
     it("asks for clarification before inference: " + question, async () => {
       expect((await post({ question })).status).toBe(422);
       expect(calls).toHaveLength(0);
     });
   }
+  it("clarifies a stale edit target without applying a partial edit or requesting a lesson", async () => {
+    localAnswers = [JSON.stringify({ kind: "edit", changes: [{ action: "delete", target: "visible" }, { action: "delete", target: "gone" }] })];
+    const result = await editPost(new Request("http://unit.invalid/edit", { method: "POST", body: JSON.stringify({
+      request: "Remove the old boxes", scene: [{ id: "visible", type: "rectangle" }], steps: ["First"] }) }));
+    expect(await result.json()).toMatchObject({ kind: "clarify", changes: [] });
+  });
   it("rejects an invented model layout", async () => {
     localAnswers = [OUTLINE.replace('"flow"', '"invented"')];
     const result = await events(await post({ question: "Explain the process" }));
