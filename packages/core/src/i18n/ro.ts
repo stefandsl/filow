@@ -38,7 +38,7 @@ export const ro: Dictionary = {
   "daily.which": "La ce persoană te referi?",
   "daily.dismiss": "Închide",
   "daily.draft": "Verifică textul sarcinii",
-  "daily.loadingModel": "Se încarcă modelul local...",
+  "daily.loadingModel": "Se încarcă modelul local…",
   "daily.modelNotReady": "Modelul local nu este pregătit. Bifează sarcina manual.",
   "daily.noMatch": "Nicio modificare potrivită. Poți edita sarcina direct.",
   "daily.summary": "Deschise: {open} · Finalizate: {done}",

@@ -290,3 +290,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R273 (N-07): Bind packaged QA servers and their port probes to loopback until LAN testing is explicitly selected. Check both hosts and compare read-only Windows firewall snapshots around packaged QA.
 - R274 (N-07): Load the granted model before starting the report judgment deadline after each idle unload. Exercise two simulated cold loads, visible progress and a packaged speech proposal with no launcher preload.
 - R275 (N-07): Match pairing guidance to the firewall result and the controls available in the running copy. Check blocked and missing results in private and public modes.
+- R276 (N-07): Use the localized ellipsis character in model loading messages. Check the five core dictionaries with the typography suite.

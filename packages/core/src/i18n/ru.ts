@@ -38,7 +38,7 @@ export const ru: Dictionary = {
   "daily.which": "Кого вы имеете в виду?",
   "daily.dismiss": "Закрыть",
   "daily.draft": "Проверьте текст задачи",
-  "daily.loadingModel": "Загрузка локальной модели...",
+  "daily.loadingModel": "Загрузка локальной модели…",
   "daily.modelNotReady": "Локальная модель не готова. Отметьте задачу вручную.",
   "daily.noMatch": "Подходящих изменений нет. Задачу можно изменить вручную.",
   "daily.summary": "Открыто: {open} · Выполнено: {done}",

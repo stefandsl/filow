@@ -38,7 +38,7 @@ export const it: Dictionary = {
   "daily.which": "A quale persona ti riferivi?",
   "daily.dismiss": "Ignora",
   "daily.draft": "Verifica il testo dell’attività",
-  "daily.loadingModel": "Caricamento del modello locale...",
+  "daily.loadingModel": "Caricamento del modello locale…",
   "daily.modelNotReady": "Modello locale non pronto. Spunta manualmente l’attività.",
   "daily.noMatch": "Nessuna modifica corrispondente. Puoi modificare direttamente un’attività.",
   "daily.summary": "{open} aperte · {done} completate",

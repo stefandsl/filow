@@ -1,4 +1,4 @@
-Filow: speak freely, stay on point. A live speaking companion.
+﻿Filow: speak freely, stay on point. A live speaking companion.
 Copyright (C) 2026 Stefan Butnaru (VoidExploit)
 
 This program is free software: you can redistribute it and/or modify it under

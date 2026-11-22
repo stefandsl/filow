@@ -38,7 +38,7 @@ export const ja: Dictionary = {
   "daily.which": "どの人を指していますか？",
   "daily.dismiss": "閉じる",
   "daily.draft": "タスクの内容を確認",
-  "daily.loadingModel": "ローカルモデルを読み込み中...",
+  "daily.loadingModel": "ローカルモデルを読み込み中…",
   "daily.modelNotReady": "ローカルモデルの準備ができていません。タスクに手動でチェックを入れてください。",
   "daily.noMatch": "該当する変更はありません。タスクを直接編集できます。",
   "daily.summary": "未完了 {open} 件・完了 {done} 件",

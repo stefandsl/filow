@@ -38,7 +38,7 @@ export const en = {
   "daily.which": "Which person did you mean?",
   "daily.dismiss": "Dismiss",
   "daily.draft": "Review task wording",
-  "daily.loadingModel": "Loading the local model...",
+  "daily.loadingModel": "Loading the local model…",
   "daily.modelNotReady": "Local model not ready. Tick the task by hand.",
   "daily.noMatch": "No matching change. You can edit a task directly.",
   "daily.summary": "{open} open · {done} completed",
