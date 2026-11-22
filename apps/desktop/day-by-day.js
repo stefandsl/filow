@@ -11,9 +11,10 @@ function dailyFrame(event, win, origin) {
   } catch { return false; }
 }
 
-function createDaily({ store, now = () => new Date(), recognizer, notify = () => {} }) {
+function createDaily({ store, match = interpret, now = () => new Date(), recognizer, notify = () => {} }) {
   let session = "";
   let offset = 0;
+  let dayGeneration = 0;
 
   let capture;
   let pending = [];
@@ -39,12 +40,20 @@ function createDaily({ store, now = () => new Date(), recognizer, notify = () =>
   function review(words, from, op, speech) {
     const current = view();
     if (from.day !== current.day || from.version !== current.version) return { ...current, status: "stale" };
-    const proposal = interpret(words, from.tasks, { speech });
-    if (!proposal) return { ...current, status: "noMatch" };
-    if (!pending.some(p => p.op === op) && pending.length < 30) pending.push({ ...proposal, token: randomUUID(), op, speech,
-      day: from.day, due: proposal.dueTomorrow ? localDay(now(), 1) : from.day,
-      version: from.version, expires: Date.now() + 120000 });
-    return view();
+    const generation = dayGeneration;
+    const source = capture;
+    function enqueue(proposal) {
+      const latest = view();
+      if (from.session !== session || from.day !== latest.day || from.version !== latest.version ||
+          generation !== dayGeneration || (speech && source !== capture)) return { ...latest, status: "stale" };
+      if (!proposal) return { ...latest, status: "noMatch" };
+      if (!pending.some(p => p.op === op) && pending.length < 30) pending.push({ ...proposal, token: randomUUID(), op, speech,
+        day: from.day, due: proposal.dueTomorrow ? localDay(now(), 1) : from.day,
+        version: from.version, expires: Date.now() + 120000 });
+      return view();
+    }
+    const result = match(words, from.tasks, { speech });
+    return result instanceof Promise ? result.then(enqueue) : enqueue(result);
   }
   function confirm(p, current) {
     const proposal = current.review;
@@ -87,7 +96,11 @@ function createDaily({ store, now = () => new Date(), recognizer, notify = () =>
       // Keep the displayed list until a new version or civil day reaches capture.
       if (from) {
         const next = review(result.committed, from, take.id + "/" + result.sequence, true);
-        notify({ session, capture: take.id, final: result.committed, status: next.status });
+        const publish = state => {
+          if (capture === take) notify({ session, capture: take.id, final: result.committed, status: state.status });
+        };
+        if (next instanceof Promise) void next.then(publish, () => publish({ status: "error" }));
+        else publish(next);
       }
     };
     try {
@@ -128,7 +141,7 @@ function createDaily({ store, now = () => new Date(), recognizer, notify = () =>
       if (capture && capture.id === p.capture) stop();
       return view();
     }
-    if (action === "day") { stop(); pending = []; offset = p.offset === 1 ? 1 : 0; return view(); }
+    if (action === "day") { dayGeneration++; stop(); pending = []; offset = p.offset === 1 ? 1 : 0; return view(); }
     const current = view();
     if (p.day !== current.day || p.version !== current.version) return { ...current, status: "stale" };
     if (action === "arm") {
@@ -159,13 +172,14 @@ function createDaily({ store, now = () => new Date(), recognizer, notify = () =>
 
 function wireDaily({ win, appHandle, appOn, origin, getStore, qaEpoch, recognizer }) {
   let workspace;
+  const match = require("./day-by-day-model").createMatcher(process.env.OLLAMA_URL);
   const launched = Date.now();
   const now = Number.isFinite(qaEpoch) ? () => new Date(qaEpoch + Date.now() - launched) : () => new Date();
   appHandle("daily:control", (event, action, p) => {
     if (!dailyFrame(event, win, origin) || (action === "arm" && !win.isFocused())) throw Error("Denied");
     if (action === "meter" && Number.isFinite(qaEpoch)) return workspace?.meter();
     const frame = event.senderFrame;
-    workspace ??= createDaily({ store: getStore(), now, recognizer, notify(message) {
+    workspace ??= createDaily({ match, store: getStore(), now, recognizer, notify(message) {
       if (dailyFrame({ sender: win.webContents, senderFrame: frame }, win, origin)) frame.send("daily:speech", message);
     } });
     return workspace.control(action, p);

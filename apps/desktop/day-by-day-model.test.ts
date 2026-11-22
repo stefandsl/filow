@@ -3,17 +3,15 @@ import { createRequire } from "node:module";
 const { it } = process.env.VITEST ? await import("vitest") : await import("node:test");
 const load = createRequire(import.meta.url);
 const tasks = ["Bind the booklet", "Fold the leaflet"].map((text, id) => ({ id: String(id), rev: 2, done: false, text }));
-function matcher(result: unknown, inspect = (_: any) => {}) {
-  return load("./day-by-day-model").createMatcher("http://127.0.0.1:53781", async (_url: string, init: any) => {
-    inspect(JSON.parse(init.body));
-    return Response.json({ message: { content: JSON.stringify(result) } });
-  });
+function matcher(answer: (body: any) => unknown) {
+  return load("./day-by-day-model").createMatcher("http://127.0.0.1:53781", async (_url: string, init: any) =>
+    Response.json({ message: { content: JSON.stringify(answer(JSON.parse(init.body))) } }));
 }
 
 it("maps constrained semantic choices to original task revisions", async () => {
-  const match = matcher({ kind: "complete", targets: [0], person: "" }, body => {
-    assert.equal(body.format.type, "object");
-    assert.deepEqual(body.format.properties.targets.items.enum, [0, 1]);
+  const match = matcher(body => {
+    assert.deepEqual(body.format.properties.verdict.enum, ["yes", "no"]);
+    return { reason: "outcome", verdict: body.messages[0].content.includes("Bind the booklet") ? "yes" : "no" };
   });
   const result = await match("The booklet now has its binding", tasks, {});
   assert.deepEqual(result.targets, [{ id: "0", rev: 2, text: "Bind the booklet" }]);
@@ -21,9 +19,15 @@ it("maps constrained semantic choices to original task revisions", async () => {
 });
 
 it("honours abstention and rejects invalid model choices", async () => {
-  for (const result of [{kind: "none", targets: [], person: ""}, {kind: "complete", targets: [5], person: ""}]) {
-    assert.equal(await matcher(result)("I folded the leaflet", tasks, {}), null);
+  for (const verdict of ["no", "unknown"]) {
+    assert.equal(await matcher(() => ({ reason: "assessment", verdict }))("I folded the leaflet", tasks, {}), null);
   }
+});
+
+it("refuses a different named recipient even when the model accepts", async () => {
+  const rows = [{ id: "1", rev: 3, done: false, text: "Send the sketches to Erin" }];
+  const match = matcher(() => ({ reason: "assessment", verdict: "yes" }));
+  assert.equal(await match("I sent the sketches to Ari", rows, {}), null);
 });
 
 it("discards a delayed semantic decision after the page is reopened", async () => {

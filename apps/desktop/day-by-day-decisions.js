@@ -142,6 +142,16 @@ function matchesTask(report, row) {
 
 const correction = /^(?:correction|i mean|let me correct that|mi correggo|rettifica)\b[, :]*\s*/u;
 
+function objectPair(words, row) {
+  const phrase = normalize(words).replace(/[.!]+$/, "");
+  const report = parseReport(phrase.replace(correction, ""), correction.test(phrase));
+  if (!report || report.implicit || report.implicitPerson) return null;
+  const args = taskArguments(report, row);
+  if (!args || args.directName) return null;
+  const { src, dest } = args;
+  return objectKey(src.object) === objectKey(normalize(dest.object)) ? null : [src.object, dest.object];
+}
+
 function contradictsRecipient(words, row) {
   const phrase = normalize(words).replace(/[.!]+$/, "");
   const report = parseReport(phrase.replace(correction, ""), correction.test(phrase));
@@ -184,4 +194,4 @@ function interpret(input, tasks, { speech = false } = {}) {
   return { type: "create", words, text, dueTomorrow: tomorrow.test(words), targets: [] };
 }
 
-module.exports = { interpret, contradictsRecipient };
+module.exports = { interpret, contradictsRecipient, objectPair };
