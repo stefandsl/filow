@@ -158,7 +158,7 @@ it("reassesses a spoken recipient correction and saves its original evidence onc
   final(2, "I mean Nora Lake");
   daily.close();
   assert.equal(store.version, 3);
-  assert.equal(openDailyStore(dirs.at(-1)).view().tasks.find((r: any) => r.done)?.evidence, "Nora Lane received them — I mean Nora Lake");
+  assert.equal(openDailyStore(dirs.at(-1)).view().tasks.find((r: any) => r.done)?.evidence, "Nora Lane received them / I mean Nora Lake");
 });
 
 it("binds automatic ticks to an assessed row, model digest and capture language", async () => {

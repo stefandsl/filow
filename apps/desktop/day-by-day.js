@@ -125,7 +125,7 @@ function createDaily({ store, match = manualOrDraft, isQualified = qualified, no
             words = recipient + " " + prior[2] + prior[3];
           }
           segment.repair = true;
-          segment.evidence = previous.words + " — " + result.committed;
+          segment.evidence = previous.words + " / " + result.committed;
         }
         const next = review(words, from, op, true, segment);
         const publish = state => {
