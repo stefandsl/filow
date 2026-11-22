@@ -12,7 +12,7 @@ effettua richieste di rete. Dopo il riconoscimento, la domanda ordinaria conserv
 le regole del fornitore e del consenso all'invio già previste.
 Vedi [prove della parola di attivazione](okfilow/WAKE-WORD.md).
 
-Ultimo aggiornamento: 20 novembre 2026. Questo testo descrive quello che l'app Filow fa davvero,
+Ultimo aggiornamento: 22 novembre 2026. Questo testo descrive quello che l'app Filow fa davvero,
 verificato sul suo codice (l'elenco tecnico completo è docs/okfilow/OUTBOUND.md nel codice sorgente di
 Filow). È disponibile anche in inglese: imposta la lingua di Filow sull'inglese.
 
@@ -76,6 +76,7 @@ Filow tiene i suoi file in una cartella, la "cartella di configurazione". Aprila
 | Cosa | File o posizione | Perché |
 |---|---|---|
 | I tuoi punti del discorso | `script.md` | il copione da cui presenti |
+| Lista giornaliera | `daily.json` | Testo, scadenze locali, identificativi delle revisioni, resoconti confermati e una modifica annullabile per attività. Parla elabora l’audio in memoria con un modello locale installato. Per cancellare la lista, chiudi Filow ed elimina questo file e l’eventuale `daily.json.tmp` nella cartella di configurazione. |
 | Le tue impostazioni e le risposte sul consenso | `settings.json` e la memoria del browser dell'app | perché Filow ricordi le tue scelte |
 | Le chiavi API che hai aggiunto | `.env` (le righe delle chiavi sono svuotate) e `secrets.json`, cifrato con l'archivio chiavi del sistema | perché funzionino le funzioni cloud che hai scelto |
 | Un registro tecnico | `startup.log` | quali passi dell'avvio sono andati e quali errori ci sono stati; può contenere nomi di cartelle |

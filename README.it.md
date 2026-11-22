@@ -56,6 +56,14 @@ Filow è un compagno di parola dal vivo: ti ascolta mentre presenti, spunta i tu
 
 > **Rinominato da Intelliprompter nella 0.8.0.** Le installazioni esistenti continuano a funzionare: al primo avvio l'app sposta il proprio profilo (chiavi, script, certificati, file dell'add-in) nella nuova cartella, accetta i vecchi nomi di variabile `INTELLIPROMPTER_*`, si aggiorna sopra la vecchia installazione e registra di nuovo l'add-in per PowerPoint. I vecchi URL GitHub reindirizzano ai nuovi. Su un server Debian rinomina le unità systemd quando preferisci (vedi la sezione sul deploy); i vecchi nomi delle unità continuano a funzionare.
 
+## Giorno per giorno
+
+Dal suggeritore desktop apri **Giorno per giorno** e scegli **Oggi** o **Domani**. Scrivi un’attività e seleziona **Aggiungi attività**, oppure premi **Parla** e detta un’attività alla volta. Attendi **In ascolto su questo dispositivo**, controlla il testo e aggiungi l’attività. Puoi scrivere anche quando il microfono o il modello vocale locale non sono disponibili.
+
+Scrivi un aggiornamento sulla consegna nel **Resoconto dei progressi** o pronuncialo durante l’ascolto. Controlla le parole riportate e seleziona l’attività per confermare. Se ci sono più destinatari possibili, scegli una riga o premi **Ignora**. Apri **Motivo** sulla riga per leggere il resoconto. Una rettifica può riaprire l’attività. **Annulla modifica** ripristina la versione precedente della singola riga. Puoi anche cambiare il testo o selezionare la casella direttamente.
+
+A mezzanotte, secondo l’ora locale, la lista di domani diventa quella di oggi. Le attività precedenti ancora aperte compaiono nella lista di oggi. Quando riapri Giorno per giorno il microfono è spento.
+
 ## Novità della 0.9.40
 
 - **Il modello online migliore per ogni compito.** Misurato su test sintetici fissi (puntamento, lezioni, decisioni): le risposte sullo schermo di OK Filow usano ora `openai/gpt-6-luna` (100% dei punti dentro il bersaglio, contro il 16% del modello precedente), le decisioni durante il discorso `google/gemini-3.1-flash-lite`, le lezioni Claude Sonnet 5.5 (qualità) o Haiku 5.5 (velocità). Un modello scelto da te resta quello. Ogni nuovo fornitore riceve il suo consenso prima di qualsiasi invio.

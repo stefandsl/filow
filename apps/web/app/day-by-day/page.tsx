@@ -17,6 +17,7 @@ export default function DayByDay() {
   const current = useRef<DailyView | undefined>(undefined);
   const busy = useRef(false);
   const [report, setReport] = useState("");
+  const [acknowledgement, setAcknowledgement] = useState<{ rev: number; text: string }>();
   const [partial, setPartial] = useState("");
   const [mic, setMic] = useState<"off" | "opening" | "live">("off");
   const capture = useRef<{ id: string; session: string; release: () => void } | null>(null);
@@ -82,6 +83,16 @@ export default function DayByDay() {
       const next = await bridge.control(action, { session: from.session, day: from.day, version: from.version, op: crypto.randomUUID(), ...extra });
       if (current.current?.session !== from.session) return;
       accept(next);
+      if (next.ack) {
+        const id = next.ack.id;
+        const task = next.tasks.find(item => item.id === id) ?? from.tasks.find(item => item.id === id);
+        setAcknowledgement({ rev: next.version, text: task?.text || "" });
+        if (action === "confirm" || action === "undo") requestAnimationFrame(() => {
+          const control = document.querySelector<HTMLInputElement>(`li[data-id="${CSS.escape(id)}"] input[type="checkbox"]`)
+            ?? document.querySelector<HTMLInputElement>(".daily-entry input");
+          control?.focus();
+        });
+      }
       return next;
     } catch { setMessage("daily.error"); }
     finally { busy.current = false; }
@@ -164,22 +175,23 @@ export default function DayByDay() {
         <button className="btn" onClick={() => void act("dismiss", { token: view.review?.token })}>{tr("daily.dismiss")}</button>
       </section>}
       <p>{view.tasks.length ? t("daily.summary", lang, { open: view.tasks.length - done, done }) : tr("daily.empty")}</p>
-      <ul className="daily-list">{view.tasks.map(row => <TaskRow key={row.id + "/" + row.rev} row={row} tr={tr} act={act} />)}</ul>
+      <ul className="daily-list">{view.tasks.map(row => <TaskRow key={row.id} row={row} tr={tr} act={act} />)}</ul>
     </>}
-    <p role="status" aria-live="polite">{message && tr(message)}</p>
+    <p role="status" aria-live="polite" aria-atomic="true"><span key={acknowledgement?.rev}>{message && tr(message)}{message === "daily.saved" && acknowledgement && " · " + acknowledgement.text}</span></p>
   </main>;
 }
 
 function TaskRow({ row, tr, act }: { row: DailyTask; tr: (key: I18nKey) => string;
   act: (action: string, data: Record<string, unknown>) => Promise<DailyView | undefined> }) {
-  const [text, setText] = useState(row.text);
+  const [edit, setEdit] = useState({ rev: row.rev, text: row.text });
+  const text = edit.rev === row.rev ? edit.text : row.text;
   const target = { id: row.id, rev: row.rev };
   return <li data-id={row.id} data-revision={row.rev}>
     <label className="daily-check"><input type="checkbox" checked={row.done} onChange={() => void act(row.done ? "reopen" : "complete", target)} />
       <span>{row.text}</span></label>
     <form className="daily-entry" onSubmit={e => { e.preventDefault(); void act("edit", { ...target, text }); }}>
       <label><span className="sr-only">{tr("daily.task")} · {row.text}</span>
-        <input value={text} maxLength={2000} onChange={e => setText(e.target.value)} /></label>
+        <input value={text} maxLength={2000} onChange={e => setEdit({ rev: row.rev, text: e.target.value })} /></label>
       <button className="btn" disabled={!text.trim() || text === row.text}>{tr("daily.rename")}</button>
     </form>
     <div className="controls">

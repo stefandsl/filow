@@ -1,5 +1,24 @@
 # Filow hand-off
 
+## N-05 | Daily list operator replay
+
+Use the desktop prompter's **Day-by-day** entry. Local recognition offers editable drafts and proposed task changes. Every suggested change requires presenter confirmation. The text decision route remains unqualified under N-06.
+
+Run `node tools/autoloop/e2e/n05-eval.mjs` for the bilingual development set. To grade a sealed copy after freezing the candidate, pass a private JSON path. Supply `language`, the displayed `tasks` array and `cases`, or group suites under `languages`. Each case supplies an utterance, kind, expected mutation count, expected person question and a zero-based target for a tick or correction. Set `completed` to the initially completed indices. The explicit `saveDraft` interaction tests draft acceptance. The scorer records text and acoustic exposure separately.
+
+For each packaged trial run `node tools/autoloop/e2e/n05-windows.mjs <private-spec.json>`. Resolve private paths against `FILOW_REPLAY_ROOT`. Supply:
+
+- `exe`, `archive`, `sha512`, full `sha`, a new G: output directory `out`, and four free `ports` in web, relay, debugging and local model order.
+- `mode` of `typed` or `audio`, `trial` of `correction` or `crash`, `locale` of `en-US` or `it-IT`, and `theme` of `dark` or `light`. Set `expectedScale` to 2 for the 200% trial.
+- Local ISO timestamps `dayOne` and `dayTwo` on consecutive device dates with an explicit UTC offset. Include a UTC/local date disagreement. Allow enough time on the first day for recognition.
+- Two `tasks`, a `report`, a `correction`, and the second task's `edited` wording. Audio runs also need the verified extracted Nemotron `modelDir` and `clips` with two task WAV paths in `tasks` and individual `report` and `correction` WAV paths. Use mono 16-bit PCM at 16 kHz.
+
+The runner opens a marked QA package on an isolated profile. It navigates by keyboard, plays audio into the page's microphone stream on the browser audio clock, and tests interruption and restart. Private receipts include accepted audio frame counts and recognized words. Run the separate native trial with `n05-uia.ps1 -ProcessId <pid> -ExpectedExe <exe> -Steps <plan.json> -Receipt <new-file>`. Each item in `steps` names a visible control by exact `name` and UIA `role`, then requests `read`, `focus`, `invoke`, `expand`, `toggle` or `set` with a value. Record a human Narrator observation separately.
+
+Capture process creation, exits and network attempts before launch through final shutdown. Run `n05-egress.ps1 -Journey <journey.json> -Receipt <new-file>` to extract Windows audit observations. For a reconciled verdict supply `-Coverage <independent.json>` with `journeySha256`, `sourceSha`, `packageSha512` and ordered `launches`. Each launch contains its root PID, UTC start and end, observed PIDs, completeness flag, lost events and loopback/external attempt counts (`root`, `start`, `end`, `pids`, `complete`, `lostEvents`, `loopbackAttempts`, `externalAttempts`). Missing coverage holds the verdict.
+
+Full CI, packaged replay, independent review and the owner's two actual days remain pending.
+
 ## N-04 | Prepared Cloud Lab lesson
 
 The desktop prompter and Talk or type panel open the prepared water-cycle board. The teacher chooses the local photograph, prepares a private Filow lesson window, then reviews the spoken or typed request in Filow. Filow serves the packaged page from its own loopback listener. The presenter reviews the command, confirms by enrolled phrase or directly in the presenter window when personal wake is unavailable, and selects Open once. Confirmation expires after 120 seconds. An occupied lesson port holds preparation. Live generation is HELD under [N-06](docs/PLAN.md#n-06-measure-a-useful-decision-before-choosing-a-model).

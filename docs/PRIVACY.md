@@ -9,7 +9,7 @@ size and licence notice; listening makes no network requests. After detection,
 the ordinary question retains its existing provider and outbound consent rules.
 See [wake-word evidence](okfilow/WAKE-WORD.md).
 
-Last updated: 20 November 2026. This text describes what the Filow app really does, checked against
+Last updated: 22 November 2026. This text describes what the Filow app really does, checked against
 its code (the full technical list is docs/okfilow/OUTBOUND.md in Filow's source code). It is also
 available in Italian: set Filow's language to Italian.
 
@@ -71,6 +71,7 @@ config folder". The usual places are:
 | What | File or place | Why |
 |---|---|---|
 | Your talking points | `script.md` | the script you present from |
+| Daily list | `daily.json` | Task wording, local due dates, revision IDs, accepted reports and one Undo per task. Talk processes audio in memory with an installed local model. To erase the list, quit Filow and delete this file and any interrupted `daily.json.tmp` in the config folder. |
 | Your settings and consent answers | `settings.json` and the app's browser storage | so Filow remembers your choices |
 | API keys you added | `.env` (the key lines are blanked) and `secrets.json`, encrypted with your system's key store | so cloud features you chose can work |
 | A technical log | `startup.log` | which start-up steps ran and which errors happened; it can contain folder names |

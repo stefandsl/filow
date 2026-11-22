@@ -54,6 +54,14 @@ Filow is a live speaking companion: it listens as you present, checks off your t
 
 > **Renamed from Intelliprompter in 0.8.0.** Existing installations keep working: the app moves its profile (keys, script, certificates, add-in files) to the new folder on first start, accepts the old `INTELLIPROMPTER_*` environment names, upgrades over the old install, and re-registers the PowerPoint add-in. The old GitHub URLs redirect to the new ones. On a Debian server rename the systemd units at your convenience (see the deploy section); the old unit names keep running.
 
+## Day-by-day
+
+From the desktop presenter, open **Day-by-day** and choose **Today** or **Tomorrow**. Type a task and select **Add task**, or tap **Talk** and dictate one task at a time. Wait for **Listening on this device**, review the wording, then add the task. Typing also works when the microphone or local speech model is unavailable.
+
+Type a delivery update under **Progress report** or say it while listening. Check the quoted words and select the task to confirm. If more than one recipient fits, choose a row or select **Dismiss**. Open **Evidence** on the row to see the report. A correction can reopen a task. **Undo** restores that row’s preceding revision. You can also change its wording or tick its checkbox directly.
+
+Tomorrow’s list becomes today’s list at local midnight. Earlier unfinished tasks carry forward. Reopen Day-by-day to continue with the microphone off.
+
 ## What's new in 0.9.40
 
 - **Best online model per task.** Measured on fixed synthetic tests (pointing, lessons, decisions): OK Filow screen answers now default to `openai/gpt-6-luna` (100% of points inside the target, against 16% for the previous default), talk-following decisions to `google/gemini-3.1-flash-lite`, lessons to Claude Sonnet 5.5 (quality) or Haiku 5.5 (speed). A model you chose yourself is kept. A new provider gets its own consent before anything is sent to it.
