@@ -10,6 +10,7 @@ function lexicon() {
     dictionary.humanTarget = new Set(dictionary.humanTarget);
     dictionary.roles = new Set(dictionary.roles);
     dictionary.nouns = new Set(dictionary.nouns);
+    dictionary.primarilyVerb = new Set(dictionary.primarilyVerb);
   }
   return dictionary;
 }
@@ -148,6 +149,15 @@ function contradictsRecipient(words, row) {
   return Boolean(args && recipientConflict(report, args));
 }
 
+function bareObject(verb, words) {
+  if (words.length !== 1) return false;
+  const noun = words[0];
+  const forms = [noun, noun.replace(/s$/, ""), noun.replace(/es$/, ""), noun.replace(/ies$/, "y")];
+  if (!forms.some(form => lexicon().nouns.has(form))) return false;
+  const finite = noun.endsWith("s") && forms.some(form => entries(lexicon().imperative, form).length);
+  return !finite || lexicon().primarilyVerb.has(verb);
+}
+
 function interpret(input, tasks, { speech = false } = {}) {
   const words = cleanText(input);
   if (!words || /["“”«»?\n]/u.test(words)) return null;
@@ -169,7 +179,7 @@ function interpret(input, tasks, { speech = false } = {}) {
   // Bare imperatives need an identifiable object. This keeps homographs at the
   // beginning of declarative speech from turning a lecture into a task.
   const imperative = entries(lexicon().imperative, verb).length && rest.length &&
-    (tomorrow.test(words) || /^(?:the|an?|my|our|il|lo|la|le|i|gli|un|una)$/u.test(rest[0]) || /^\S+ \p{Lu}/u.test(text));
+    (tomorrow.test(words) || bareObject(verb, rest) || /^(?:the|an?|my|our|il|lo|la|le|i|gli|un|una)$/u.test(rest[0]) || /^\S+ \p{Lu}/u.test(text));
   if (!text || (!prefix.test(request) && !imperative)) return null;
   return { type: "create", words, text, dueTomorrow: tomorrow.test(words), targets: [] };
 }

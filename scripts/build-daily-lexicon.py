@@ -3,7 +3,7 @@ import gzip
 import hashlib
 import json
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -28,6 +28,12 @@ nouns = set()
 with ZipFile(inputs / "wordnet.zip") as archive:
     license_text = archive.read("wordnet/LICENSE").decode()
     (output / "wordnet-license.txt").write_text("\n".join(line.rstrip() for line in license_text.splitlines()) + "\n", encoding="utf8")
+    tagged = {"1": Counter(), "2": Counter()}
+    for line in archive.read("wordnet/index.sense").decode().splitlines():
+        key, _, _, frequency = line.split()
+        word, sense = key.split("%", 1)
+        if sense[0] in tagged:
+            tagged[sense[0]][word] += int(frequency)
     for line in archive.read("wordnet/data.noun").decode().splitlines():
         fields = line.split()
         if line.startswith(" "):
@@ -86,6 +92,7 @@ packed = {key: {k: sorted(v) for k, v in entries.items()} for key, entries in in
 packed["humanTarget"] = sorted(word for word, ids in senses.items() if ids & human_target_senses)
 packed["roles"] = sorted(roles)
 packed["nouns"] = sorted(nouns)
+packed["primarilyVerb"] = sorted(word for word, count in tagged["2"].items() if count > tagged["1"][word])
 data = json.dumps(packed, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 with (output / "verbs.json.gz").open("wb") as stream, gzip.GzipFile(filename="", fileobj=stream, mode="wb", mtime=0) as zipped:
     zipped.write(data)

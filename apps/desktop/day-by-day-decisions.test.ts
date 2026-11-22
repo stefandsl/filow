@@ -84,3 +84,10 @@ it("asks about a pronoun for lower-case names on an unfamiliar contact action", 
   const tasks = ["Interview mina", "Interview lena"].map((text, id) => ({ text, id, rev: 1, done: false }));
   assert.deepEqual(interpret("I interviewed her", tasks)?.targets.map((r: any) => r.id), [0, 1]);
 });
+
+it("drafts a bare verb and noun while refusing a noun followed by a finite verb", () => {
+  for (const text of ["Peel potatoes", "Buy bread"]) {
+    assert.equal(interpret(text, [], { speech: true })?.text, text);
+  }
+  assert.equal(interpret("Rain falls", [], { speech: true }), null);
+});
