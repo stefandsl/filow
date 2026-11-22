@@ -153,7 +153,6 @@ const settingsFile = path.join(userData, "settings.json");
 // Installed copies keep working: the profile folder moves once, legacy FILOW_* / INTELLIPROMPTER_*
 // environment names are both accepted, the NSIS appId is unchanged so upgrades replace the old
 // install, and the PowerPoint registration is rewritten to the new manifest path.
-const LEGACY_PROFILE_DIRS = [path.join(app.getPath("appData"), "@intelliprompter", "desktop"), path.join(app.getPath("appData"), "Intelliprompter")];
 const LEGACY_ENV_PREFIX = "INTELLIPROMPTER_";
 
 function aliasLegacyEnv() {
@@ -169,7 +168,9 @@ function aliasLegacyEnv() {
 function migrateLegacyProfile() {
   if (process.env.FILOW_USER_DATA_DIR) return false;
   if (fs.existsSync(settingsFile) || fs.existsSync(envFile)) return false;
-  const src = LEGACY_PROFILE_DIRS.find((d) => fs.existsSync(path.join(d, "settings.json")) || fs.existsSync(path.join(d, ".env")));
+  const appData = app.getPath("appData");
+  const legacyDirs = [path.join(appData, "@intelliprompter", "desktop"), path.join(appData, "Intelliprompter")];
+  const src = legacyDirs.find((d) => fs.existsSync(path.join(d, "settings.json")) || fs.existsSync(path.join(d, ".env")));
   if (!src) return false;
   fs.mkdirSync(userData, { recursive: true });
   for (const entry of ["settings.json", ".env", "script.md", "install-choices.json", "certs", "powerpoint", "bin"]) {

@@ -18,3 +18,8 @@ describe("packaged Windows feedback", () => {
   });
 });
 
+it("skips Windows legacy folder lookup on an isolated profile", () => {
+  const source = asset("./main.js").toString();
+  const lookup = source.indexOf('app.getPath("appData")');
+  expect(lookup).toBeGreaterThan(source.indexOf("if (process.env.FILOW_USER_DATA_DIR) return false;"));
+});

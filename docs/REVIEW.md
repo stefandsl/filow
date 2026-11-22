@@ -277,3 +277,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R260 (N-06): Interpret intent as a selector only in an explicit directive. Check a lesson about the role of intent alongside a request selecting an unknown intent.
 - R261 (N-07): Give the Windows tray the multi-size icon. Check the tray uses the packaged ICO and that it contains both 16 and 32 pixel frames.
 - R262 (N-07): Announce changes to the splash startup message. Check the element updated by the shell has the status role.
+- R263 (N-07): Resolve legacy Windows folders only when profile migration is needed. Check an isolated launch reaches welcome without a registered roaming folder.
