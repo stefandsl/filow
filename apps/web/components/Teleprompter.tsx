@@ -1155,7 +1155,7 @@ export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; o
         <button className="btn" disabled={!words.trim()}>{t("lesson.review")}</button>
       </form>}
       {view.expired && <p>{t("lesson.expired")}</p>}
-      {view.phase === "presenter" && <button className="btn" onClick={() => void control("confirmPresenter")}>{t("lesson.presenter")}</button>}
+      {view.phase === "presenter" && <button className="btn" onClick={event => { if (event.nativeEvent.isTrusted) void control("confirmPresenter"); }}>{t("lesson.presenter")}</button>}
       {view.phase === "speaker" && <p>{t("lesson.speaker")}</p>}
       {view.phase === "approval" && view.decision && <>
         <p>{t("lesson.destination", { window: view.decision.window, turn: view.decision.turn })}<br /><code>{view.decision.url}</code></p>

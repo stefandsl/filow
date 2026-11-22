@@ -268,7 +268,7 @@ it("recognises OK independently of the enrolled name only on automatic fallback"
   expect(combiner.push({ at: 900, score: 9 })).toBe(true);
 });
 
-it("requires enrolled speaker agreement and rejects Filow playback during lesson review", async () => {
+it("rejects a low personal score and Filow playback during enrolled lesson review", async () => {
   const dir = temp();
   fs.mkdirSync(path.join(dir, "wake"));
   fs.writeFileSync(path.join(dir, "wake/profile.json"), JSON.stringify({version:1, phrase:"Filow",
@@ -278,7 +278,9 @@ it("requires enrolled speaker agreement and rejects Filow playback during lesson
   const wake = createWake({userData:dir, state:() => ({...ready, sinceSpeechMs:elapsed}), changed() {}, detected() {},
     lessonChallenge:() => "turn-one", confirmLesson:confirm, verifyModelsFn:async () => {},
     createDetectorsFn:async () => ({reset() {}, stop() {}, feed:async (_pcm:unknown, at:number) => ({at, score, keyword:true, ms:1})})});
+  expect(wake.lessonAvailable()).toBe(false);
   await wake.enable("balanced");
+  expect(wake.lessonAvailable()).toBe(true);
   const feed = async () => { for (let i=0;i<25;i++) await wake.feed(new Float32Array(1600)); };
   await feed();
   expect(confirm).not.toHaveBeenCalled();
@@ -291,4 +293,10 @@ it("requires enrolled speaker agreement and rejects Filow playback during lesson
   await feed();
   expect(confirm).toHaveBeenCalledWith("turn-one");
   wake.stop();
+  expect(wake.lessonAvailable()).toBe(false);
+});
+
+it("offers presenter confirmation when no wake phrase is enrolled", () => {
+  const wake = createWake({ userData: temp(), state: () => ready, changed() {}, detected() {} });
+  expect(wake.lessonAvailable()).toBe(false);
 });

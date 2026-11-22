@@ -2,7 +2,7 @@
 
 The prepared Cloud Lab board displays a teacher-selected local photo. On Windows, the teacher can start a sandboxed Filow lesson window with an in-memory Electron session and approve one navigation to the displayed loopback URL. Filow serves the packaged HTML on its own loopback listener and checks a fresh instance identifier before reading the page. The local page server receives a random turn ID in the navigation referrer. The desktop observes the top-level navigation, selected temperature control and dew point in that lesson tab. A dispatch record in the Filow profile supports an explicit check after interruption. Stop or return clears the record. The board uses an installed local voice when one is available for its language.
 
-The lesson session allows only its prepared blank page and the loopback lesson URL. Filow verifies the response instance and observes the window through Electron’s in-process debugger.
+The lesson session allows only its prepared blank page and the loopback lesson URL. Filow verifies the response instance and observes the window through Electron’s in-process debugger. A Windows packaged run at `d98ae6b1` attributed 0 non-loopback TCP/UDP payload bytes to each of 11 Filow process-tree PIDs from Prepare through Stop. Loopback payload totaled 19,951 bytes across the observed socket owners, including test traffic. Npcap captured IPv4 and IPv6 traffic and sampled Windows socket tables supplied PID attribution. Short-lived sockets between samples can escape attribution.
 
 Owner's requirement (2026-11-09): if information goes outside, the user gets a visible confirmation
 at the moment it happens, and is told that the screenshot and the recorded voice go to other

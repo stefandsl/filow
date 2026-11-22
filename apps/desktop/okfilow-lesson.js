@@ -103,6 +103,7 @@ function createLesson({ driver, focused, journal, speakerAvailable = () => true 
   }
   function confirmPresenter(owner, turn, confirmation) {
     expire();
+    if (owns(owner, turn) && active.expired) return view();
     if (!owns(owner, turn) || active.phase !== "presenter" || confirmation !== active.challenge || !focused()) return held;
     return decisionFor("presenter-click");
   }

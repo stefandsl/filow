@@ -4,7 +4,7 @@
 
 The desktop prompter and Talk or type panel open the prepared water-cycle board. The teacher chooses the local photograph, prepares a private Filow lesson window, then reviews the spoken or typed request in Filow. Filow serves the packaged page from its own loopback listener. The presenter reviews the command, confirms by enrolled phrase or directly in the presenter window when personal wake is unavailable, and selects Open once. Confirmation expires after 120 seconds. An occupied lesson port holds preparation. Live generation is HELD under [N-06](docs/PLAN.md#n-06-measure-a-useful-decision-before-choosing-a-model).
 
-The focused checks cover the scoped decision, interrupted navigation, learner range changes, both board languages and the waiting point on the two row renderers. Packaged Windows observation, actual paired-phone rows, unaided learner transfer, independent review and unseen-topic generation remain on HOLD pending operator evidence.
+The focused checks cover the scoped decision, interrupted navigation, learner range changes, both board languages and the waiting point on the two row renderers. The packaged Windows trial observed one navigation and the learner slider change. Real presenter and classmate voices, a physical phone and unaided human transfer still need owner testing.
 
 ## N-03 | Packaged Windows baseline
 

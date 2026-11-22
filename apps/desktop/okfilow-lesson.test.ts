@@ -133,7 +133,7 @@ it("refuses a foreign listener before creating a window", async () => {
   const { electronDriver } = await import("./okfilow-lesson");
   let requests = 0;
   const foreign = createServer((_req, res) => { requests++; res.end("Cloud Lab"); });
-  await new Promise<void>(resolve => foreign.listen(48764, "127.0.0.1", resolve));
+  await new Promise<void>((resolve, reject) => foreign.once("error", reject).listen(48764, "127.0.0.1", resolve));
   try {
     const driver = electronDriver();
     await assert.rejects(driver.prepare("test", new AbortController().signal), { code: "EADDRINUSE" });
