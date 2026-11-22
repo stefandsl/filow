@@ -358,7 +358,7 @@ export const it: Dictionary = {
   "pair.netIface": "Indirizzo nel QR: {ip} ({iface})",
   "pair.netVirtual": "scheda virtuale: i telefoni non la raggiungono",
   "pair.netPickTitle": "Quale scheda di rete deve usare il telefono",
-  "pair.firewallMissing": "Windows Firewall blocca Filow",
+  "pair.firewallMissing": "Nessuna regola in ingresso per questa copia. Chiedi all’amministratore di rete come accedere dalla LAN.",
   "pair.firewallOk": "consentito in Windows Firewall",
   "pair.firewallAllow": "Consenti in Windows Firewall",
   "pair.stopPublic": "Ferma il link pubblico",

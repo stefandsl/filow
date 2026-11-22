@@ -147,7 +147,7 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false, de
                       ))}
                     </select>
                   )}
-                  {net.firewall === "missing" && (
+                  {net.firewall === "missing" && net.canAllowFirewall !== false && (
                     <button
                       className="btn primary"
                       disabled={netBusy}

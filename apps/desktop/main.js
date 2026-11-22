@@ -95,6 +95,12 @@ const os = require("node:os");
 const http = require("node:http");
 const crypto = require("node:crypto");
 
+const privateAppId = require("./package.json").privateAppId;
+if (privateAppId && !process.env.FILOW_USER_DATA_DIR) {
+  process.env.FILOW_USER_DATA_DIR = path.join(app.getPath("appData"), privateAppId);
+  Object.assign(process.env, { FILOW_PORT: "58110", FILOW_SESSION_PORT: "58111", FILOW_HTTPS_PORT: "58112", FILOW_OFFLINE: "1", OLLAMA_URL: "http://127.0.0.1:0" });
+}
+const privateLaunch = Boolean(process.env.FILOW_USER_DATA_DIR || require("./qa.js").isQaBuild(app));
 const PORT = Number(process.env.FILOW_PORT || 4747);
 const SESSION_PORT = Number(process.env.FILOW_SESSION_PORT || 4748);
 const APP_URL = `http://127.0.0.1:${PORT}`;
@@ -166,7 +172,7 @@ function aliasLegacyEnv() {
 
 /** Copies settings, keys, script, certificates, add-in files and the tunnel tool from the old profile, once. */
 function migrateLegacyProfile() {
-  if (process.env.FILOW_USER_DATA_DIR) return false;
+  if (privateLaunch) return false;
   if (fs.existsSync(settingsFile) || fs.existsSync(envFile)) return false;
   const appData = app.getPath("appData");
   const legacyDirs = [path.join(appData, "@intelliprompter", "desktop"), path.join(appData, "Intelliprompter")];
@@ -188,6 +194,7 @@ function migrateLegacyProfile() {
 
 /** After a profile move the Office registration points at the old manifest path; rewrite it. */
 async function refreshPptRegistrationAfterMigration() {
+  if (privateLaunch) return;
   if (!settings.pptInstalled) return;
   try {
     writeLocalPptManifest();
@@ -612,7 +619,7 @@ function wireScreenSense() {
   appHandle("net:status", () => {
     const ranked = rankedInterfaces();
     const chosen = ranked.find((i) => i.address === (process.env.FILOW_LAN_IP || lanIp())) || ranked[0] || null;
-    return { ip: process.env.FILOW_LAN_IP || lanIp(), iface: chosen ? chosen.name : "", virtual: Boolean(chosen && chosen.score < 0), firewall: firewallStatus(), interfaces: ranked.map((i) => ({ name: i.name, address: i.address, virtual: i.score < 0 })) };
+    return { ip: process.env.FILOW_LAN_IP || lanIp(), iface: chosen ? chosen.name : "", virtual: Boolean(chosen && chosen.score < 0), firewall: firewallStatus(), canAllowFirewall: !privateLaunch, interfaces: ranked.map((i) => ({ name: i.name, address: i.address, virtual: i.score < 0 })) };
   });
   appHandle("net:allowFirewall", () => allowFirewall());
   appHandle("net:useInterface", (_e, address) => {
@@ -794,13 +801,35 @@ const FIREWALL_RULE = "Filow";
 function firewallStatus() {
   if (process.platform !== "win32") return "n/a";
   try {
-    const out = execFileSync("netsh", ["advfirewall", "firewall", "show", "rule", `name=${FIREWALL_RULE}`], { encoding: "utf8", timeout: 5000, windowsHide: true });
-    return /Filow/.test(out) && !/No rules match/i.test(out) ? "ok" : "missing";
+    const query = [
+      "$ErrorActionPreference='Stop'",
+      "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)",
+      "$policy=New-Object -ComObject HNetCfg.FwPolicy2",
+      "$rules=@($policy.Rules | Where-Object { $_.ApplicationName -eq $env:FILOW_RULE_EXE } | Select-Object ApplicationName,Enabled,Direction,Action,Profiles,Protocol,LocalPorts)",
+      "@{profiles=$policy.CurrentProfileTypes;rules=$rules} | ConvertTo-Json -Compress",
+    ].join(";");
+    const out = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", query], {
+      encoding: "utf8", windowsHide: true, timeout: 5000, env: { ...process.env, FILOW_RULE_EXE: process.execPath },
+    });
+    const { profiles, rules } = JSON.parse(out);
+    const exe = path.win32.normalize(process.execPath).toLowerCase();
+    const permits = (rule, port) => {
+      if (rule.Protocol === 256 || (rule.Protocol === 6 && rule.LocalPorts === "*")) return true;
+      return rule.Protocol === 6 && String(rule.LocalPorts).split(",").some(range => {
+        const [start, end = start] = range.trim().split("-").map(Number);
+        return start <= port && port <= end;
+      });
+    };
+    const inbound = rules.filter(r => r.Enabled && r.Direction === 1 && r.Action === 1 &&
+      path.win32.normalize(r.ApplicationName).toLowerCase() === exe);
+    return profiles && [PORT, SESSION_PORT].every(port => [1, 2, 4].every(profile =>
+      !(profiles & profile) || inbound.some(r => (r.Profiles & profile) && permits(r, port)))) ? "ok" : "missing";
   } catch {
     return "missing";
   }
 }
 function allowFirewall() {
+  if (privateLaunch) return Promise.resolve(firewallStatus());
   if (process.platform !== "win32") return Promise.resolve("n/a");
   const exe = process.execPath;
   const args = `advfirewall firewall add rule name="${FIREWALL_RULE}" dir=in action=allow program="${exe}" enable=yes profile=any description="Filow: phone mirror and PowerPoint add-in on the local network"`;
@@ -827,7 +856,7 @@ function rebuildMenu(win) {
 }
 // A LAN phone may need a Windows firewall rule. The same choice is available in the pairing panel.
 async function offerFirewall(win) {
-  if (process.platform !== "win32" || settings.remoteShare !== false) { logLine("firewall offer: left to the pairing panel"); return; }
+  if (privateLaunch || process.platform !== "win32" || settings.remoteShare !== false) { logLine("firewall offer: left to the pairing panel"); return; }
   if (firewallStatus() === "ok") return;
   const tx = (key) => sharedText(`shell.firewall.${key}`, menuLang());
   const { response } = await dialog.showMessageBox(win, { type: "question", title: tx("title"), message: tx("message"), detail: tx("detail"), buttons: [tx("allow"), tx("later")], defaultId: 0, cancelId: 1, noLink: true });
@@ -1276,6 +1305,7 @@ function writeLocalPptManifest() {
 
 /** Registers the manifest with Office for the current user: HKCU key on Windows, the wef folder on macOS. */
 async function registerPptManifest() {
+  if (privateLaunch) return;
   if (process.platform === "darwin") {
     fs.mkdirSync(macWefDir, { recursive: true });
     fs.copyFileSync(pptManifestFile, path.join(macWefDir, "filow.manifest.xml"));
@@ -1286,6 +1316,7 @@ async function registerPptManifest() {
 }
 
 async function installPowerPointAddin(win, { silent = false } = {}) {
+  if (privateLaunch) return false;
   if (process.platform !== "win32" && process.platform !== "darwin") {
     if (!silent) dialog.showMessageBox(win, { type: "info", title: "PowerPoint", message: mt("pptWinOnly") });
     return false;
@@ -1310,6 +1341,7 @@ async function installPowerPointAddin(win, { silent = false } = {}) {
 }
 
 async function uninstallPowerPointAddin(win) {
+  if (privateLaunch) return;
   try {
     if (process.platform === "darwin") fs.rmSync(path.join(macWefDir, "filow.manifest.xml"), { force: true });
     else await runPowerShell(`Remove-ItemProperty -Path 'Registry::HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\Developer' -Name 'Filow' -ErrorAction SilentlyContinue`);
@@ -2381,10 +2413,10 @@ function buildMenu(win) {
             { label: mt("customHost"), enabled: false },
           ],
         },
-        ...(process.platform === "win32" ? [{ label: mt("firewall"), click: () => void allowFirewall().then(() => rebuildMenu(win)) }] : []),
-        settings.pptInstalled
+        ...(!privateLaunch && process.platform === "win32" ? [{ label: mt("firewall"), click: () => void allowFirewall().then(() => rebuildMenu(win)) }] : []),
+        ...(!privateLaunch ? [settings.pptInstalled
           ? { label: mt("pptRemove"), click: () => void uninstallPowerPointAddin(win) }
-          : { label: mt("pptInstall"), click: () => void installPowerPointAddin(win) },
+          : { label: mt("pptInstall"), click: () => void installPowerPointAddin(win) }] : []),
         { label: mt("pptManifest"), click: () => void savePowerPointManifest(win) },
         { type: "separator" },
         {
@@ -2739,7 +2771,7 @@ async function main() {
       if (!win.isDestroyed()) showAtStart(win);
       logLine(`main window shown (${Math.round(performance.now())} ms after process start)`);
     }, wait);
-    if (process.platform === "win32" || process.platform === "darwin") {
+    if (!privateLaunch && (process.platform === "win32" || process.platform === "darwin")) {
       if (settings.pptInstalled) {
         startHttpsProxy();
         if (!fs.existsSync(pptManifestFile)) writeLocalPptManifest();
@@ -2808,7 +2840,7 @@ function failStartup(err) {
   app.quit();
 }
 
-app.setAppUserModelId("com.intelliprompter.app");
+app.setAppUserModelId(privateAppId || "com.intelliprompter.app");
 if (firstInstance) app.whenReady().then(main);
 app.on("window-all-closed", () => { if (!startupTransition) app.quit(); });
 app.on("before-quit", () => { quitting = true; uiPreferences?.dispose(); okFilow?.dispose(); });

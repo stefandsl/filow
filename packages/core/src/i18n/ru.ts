@@ -358,7 +358,7 @@ export const ru: Dictionary = {
   "pair.netIface": "Адрес в QR-коде: {ip} ({iface})",
   "pair.netVirtual": "виртуальный адаптер: недоступен для телефонов",
   "pair.netPickTitle": "Какой сетевой адаптер должен использовать телефон",
-  "pair.firewallMissing": "Брандмауэр Windows блокирует Filow",
+  "pair.firewallMissing": "Нет подходящего входящего правила для этой копии. Обратитесь к администратору сети для доступа по LAN.",
   "pair.firewallOk": "разрешён в брандмауэре Windows",
   "pair.firewallAllow": "Разрешить в брандмауэре Windows",
   "pair.stopPublic": "Отключить публичную ссылку",

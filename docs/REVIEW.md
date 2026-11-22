@@ -278,3 +278,9 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R261 (N-07): Give the Windows tray the multi-size icon. Check the tray uses the packaged ICO and that it contains both 16 and 32 pixel frames.
 - R262 (N-07): Announce changes to the splash startup message. Check the element updated by the shell has the status role.
 - R263 (N-07): Resolve legacy Windows folders only when profile migration is needed. Check an isolated launch reaches welcome without a registered roaming folder.
+- R264 (N-07): Match enabled inbound TCP allowances to the running program, active profiles and both LAN ports. Check stale paths, partial coverage and disabled rules using fixtures.
+- R265 (N-07): Suppress Office installation, removal and migration for QA builds and isolated profiles. Check the first-use screen and preserve a disk-backed registration fixture.
+- R266 (N-07): Give private installers a distinct product, executable, application ID, profile and prerelease version. Inspect the installer payload and launch both owner modes from the shipped script.
+- R267 (N-07): Check each required offline recognizer file before starting the owner copy. Remove a fixture input and verify an actionable launcher error.
+- R268 (N-07): Time the first local speech review with an unloaded model and after preload. Record both delays and any missed review.
+- R269 (N-07): Exercise the splash live region, tray image selection and isolated migration. Keep the original native failure in the private receipt.

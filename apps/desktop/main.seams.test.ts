@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync as writeDisk } from "node:fs";
 import { runInNewContext } from "node:vm";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { EventEmitter } from "node:events";
@@ -44,7 +45,10 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   const modules: Record<string, any> = {
     electron: {
       crashReporter: { start() {} },
-      app: { isPackaged: true, getPath: () => "G:/fake", setPath: (name: string, value: string) => { calls.push(`setPath ${name} ${value}`); },
+      app: { isPackaged: true, getPath: (name: string) => {
+          if (name === "appData" && env.FILOW_USER_DATA_DIR) throw Error("unexpected roaming lookup");
+          return "G:/fake";
+        }, setPath: (name: string, value: string) => { calls.push(`setPath ${name} ${value}`); },
         on: (event: string, fn: (...args: any[]) => void) => { appHandlers[event] = fn; }, setAppUserModelId() {},
         requestSingleInstanceLock: () => { calls.push("lock"); return !lockHeld; }, exit: appExit,
         whenReady, getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}), commandLine: { appendSwitch: (...a: string[]) => { calls.push(`switch ${a.join(" ")}`); } } },
@@ -87,7 +91,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   // the old seeded model ids loadEnv reads as unset
   modules["./env-defaults.js"] = createRequire(import.meta.url)("./env-defaults.js");
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
-    ;({ applyOffline, loadSettings, wireScreenSense, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
+    ;({ registerPptManifest, migrateLegacyProfile, firewallStatus, applyOffline, loadSettings, wireScreenSense, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
        setTakeLive, loadUpdater, installUpdate, setUpdateState, setMainWin: (win, shown = false) => { mainWin = win; mainWasShown = shown; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, publicSession: () => currentSession, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
@@ -100,7 +104,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
       return modules[id];
     },
-    __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {}, exit: processExit },
+    __dirname: "G:/fake", process: { env, platform, execPath: "D:/private/Filow.exe", arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {}, exit: processExit },
     URL, URLSearchParams, console, setTimeout, clearTimeout, setInterval: () => ({ unref() {} }), clearInterval, AbortController,
   });
   return { api, env, menu, quitAndInstall, updaterLoad, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, renameSync, appendFileSync, rmSync, fsReads: fsRead,
@@ -934,4 +938,40 @@ it.each(["en", "it", "ru", "ro", "ja"] as const)("shows a disabled pilot update 
   f.api.buildMenu({ webContents: new EventEmitter(), isDestroyed: () => false });
   const items = f.menu.mock.calls[0][0].flatMap((item: any) => item.submenu ?? []);
   expect(items).toContainEqual({ label: t("menu.updatesOff", lang), enabled: false });
+});
+
+describe("Windows installation boundaries", () => {
+  it.each([true, false])("preserves Office registration with profile override %s", async isolated => {
+    const dir = mkdtempSync(path.join(tmpdir(), "office-fixture-"));
+    const key = path.join(dir, "registration");
+    writeDisk(key, "installed manifest");
+    const spawn = vi.fn(() => {
+      writeDisk(key, "changed");
+      const p = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter() });
+      queueMicrotask(() => p.emit("exit", 0));
+      return p;
+    });
+    try {
+      const f = fixture(isolated ? { FILOW_USER_DATA_DIR: "/private" } : {}, { qaBuild: !isolated, childProcess: { spawn } });
+      await f.api.registerPptManifest();
+      expect(readFileSync(key, "utf8")).toBe("installed manifest");
+      expect(spawn).not.toHaveBeenCalled();
+    } finally { rmSync(dir, { recursive: true }); }
+  });
+
+  it("skips roaming lookup on isolated migration", () => {
+    expect(fixture({ FILOW_USER_DATA_DIR: "/private" }).api.migrateLegacyProfile()).toBe(false);
+  });
+
+  const rule = { ApplicationName: "d:/PRIVATE/Filow.exe", Enabled: true, Direction: 1, Action: 1, Profiles: 2, Protocol: 6, LocalPorts: "58110-58111" };
+  it.each([
+    [rule, "ok"], [{ ...rule, ApplicationName: "D:/old/Filow.exe" }, "missing"],
+    [{ ...rule, Enabled: false }, "missing"], [{ ...rule, Profiles: 4 }, "missing"],
+    [{ ...rule, Protocol: 17 }, "missing"], [{ ...rule, LocalPorts: "58110" }, "missing"],
+    [{ ...rule, Direction: 2 }, "missing"], [{ ...rule, Action: 0 }, "missing"],
+  ])("checks the inbound TCP rule %j", (row, status) => {
+    const execFileSync = vi.fn(() => JSON.stringify({ profiles: 2, rules: [row] }));
+    const f = fixture({ FILOW_PORT: "58110", FILOW_SESSION_PORT: "58111" }, { childProcess: { execFileSync } });
+    expect(f.api.firewallStatus()).toBe(status);
+  });
 });

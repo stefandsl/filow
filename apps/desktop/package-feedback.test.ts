@@ -1,25 +1,31 @@
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
-const asset = (name: string) => readFileSync(new URL(name, import.meta.url));
+const load = createRequire(import.meta.url);
 
 describe("packaged Windows feedback", () => {
-  it("passes the multi-size Windows icon to the tray", () => {
-    const ico = asset("./build/icon.ico");
+  it("supplies a multi-resolution image for the Windows tray", () => {
+    const { trayImage } = load("./tray-image");
+    const ico = readFileSync(trayImage("win32", fileURLToPath(new URL(".", import.meta.url))));
     const widths = Array.from({ length: ico.readUInt16LE(4) }, (_, i) => ico[6 + 16 * i] || 256);
     expect(widths).toEqual(expect.arrayContaining([16, 32]));
-    const source = asset("./okfilow.js").toString();
-    const tray = source.slice(source.indexOf("function buildTray()"), source.indexOf("function refreshTray()"));
-    expect(tray).toMatch(/process\.platform === "win32"\s*\? path\.join\(__dirname, "build", "icon\.ico"\)/);
   });
 
-  it("announces startup status updates through the splash live region", () => {
-    expect(asset("./splash.html").toString()).toMatch(/<[^>]*id="status"[^>]*role="status"[^>]*>/);
+  it("updates the status exposed to assistive technology", () => {
+    const { parse } = load("next/dist/compiled/node-html-parser");
+    const doc = parse(readFileSync(new URL("./splash.html", import.meta.url), "utf8"));
+    const window = {} as { setStatus(text: string, done: boolean): void };
+    doc.querySelector("#badge").replaceChildren = () => {};
+    const document = {
+      documentElement: { dataset: {} }, getElementById: (id: string) => doc.querySelector("#" + id),
+      createElement: (tag: string) => parse("<" + tag + "></" + tag + ">").firstChild,
+      createTextNode: (text: string) => text,
+    };
+    runInNewContext(doc.querySelector("script").textContent, { window, document, URLSearchParams, location: { search: "" } });
+    window.setStatus("Ready", true);
+    expect(doc.querySelector('[role="status"]').textContent).toBe("Ready");
   });
-});
-
-it("skips Windows legacy folder lookup on an isolated profile", () => {
-  const source = asset("./main.js").toString();
-  const lookup = source.indexOf('app.getPath("appData")');
-  expect(lookup).toBeGreaterThan(source.indexOf("if (process.env.FILOW_USER_DATA_DIR) return false;"));
 });

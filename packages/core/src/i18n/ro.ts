@@ -358,7 +358,7 @@ export const ro: Dictionary = {
   "pair.netIface": "Adresa din codul QR: {ip} ({iface})",
   "pair.netVirtual": "adaptor virtual: telefoanele nu îl pot accesa",
   "pair.netPickTitle": "Ce adaptor de rețea să folosească telefonul",
-  "pair.firewallMissing": "Windows Firewall blochează Filow",
+  "pair.firewallMissing": "Nu există o regulă de intrare pentru această copie. Cere administratorului acces la LAN.",
   "pair.firewallOk": "permis în Windows Firewall",
   "pair.firewallAllow": "Permite în Windows Firewall",
   "pair.stopPublic": "Oprește linkul public",

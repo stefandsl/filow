@@ -109,6 +109,7 @@
       "ui-preferences.js",
       "vendor/*.css",
       "okfilow.js",
+      "tray-image.js",
       "okfilow-lesson.js",
       "cloud-lab.html",
       "cloud-lab.js",

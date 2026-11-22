@@ -244,6 +244,8 @@ Come è protetto l'abbinamento: un codice funziona **una sola volta** e per **5 
 - App desktop: il relay gira dentro l'app. Il QR contiene l'indirizzo LAN del tuo portatile. Il primo avvio provoca una richiesta del firewall di Windows.
 - Server ospitato: vedi la sezione Debian; imposta `ACCESS_PASSWORD` così gli estranei non spendono i tuoi crediti.
 
+Il pannello di abbinamento LAN verifica che una regola in ingresso di Windows copra questo eseguibile ed entrambe le porte del server. Le copie di test private mantengono intatte le regole del firewall e la registrazione di PowerPoint.
+
 #### Telefono su un'altra rete
 
 Un telefono in rete mobile, o su una Wi-Fi aziendale che isola i client, non può raggiungere l'indirizzo del tuo portatile. Tre strade, in ordine di impegno:

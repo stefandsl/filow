@@ -239,6 +239,8 @@ How pairing is protected: a code works **once** and for **5 minutes** (the dialo
 - Desktop app: the relay runs inside the app. The QR carries your laptop's LAN address. The first launch triggers one Windows firewall prompt.
 - Hosted server: see the Debian section; set `ACCESS_PASSWORD` so strangers cannot spend your credits.
 
+The LAN pairing panel checks that a Windows inbound rule covers this executable and both server ports. Private test copies leave firewall rules and PowerPoint registration alone.
+
 #### Phone on another network
 
 A phone on mobile data, or on an office Wi-Fi that isolates clients, cannot reach your laptop's address. Three ways, in order of effort:

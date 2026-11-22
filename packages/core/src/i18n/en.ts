@@ -359,7 +359,7 @@ export const en = {
   "pair.netIface": "Address in the QR: {ip} ({iface})",
   "pair.netVirtual": "virtual adapter: phones cannot reach it",
   "pair.netPickTitle": "Which network adapter the phone should use",
-  "pair.firewallMissing": "Windows Firewall blocks Filow",
+  "pair.firewallMissing": "No matching inbound rule for this copy. Ask your network administrator about LAN access.",
   "pair.firewallOk": "allowed in Windows Firewall",
   "pair.firewallAllow": "Allow in Windows Firewall",
   "pair.stopPublic": "Stop public link",

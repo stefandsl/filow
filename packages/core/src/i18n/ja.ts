@@ -359,7 +359,7 @@ export const ja: Dictionary = {
   "pair.netIface": "QRのアドレス：{ip}({iface})",
   "pair.netVirtual": "仮想アダプター：スマートフォンからは届きません",
   "pair.netPickTitle": "スマートフォンが使うネットワークアダプター",
-  "pair.firewallMissing": "WindowsファイアウォールがFilowをブロックしています",
+  "pair.firewallMissing": "このコピーに一致する受信規則がありません。LAN 接続についてネットワーク管理者に確認してください。",
   "pair.firewallOk": "Windowsファイアウォールで許可済み",
   "pair.firewallAllow": "Windowsファイアウォールで許可",
   "pair.stopPublic": "公開リンクを停止",
