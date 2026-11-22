@@ -318,7 +318,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
           }
           case "cmd": {
             const id = String(msg.id);
-            if (msg.epoch !== undefined && msg.epoch !== publishedEpoch) {
+            if (msg.epoch !== publishedEpoch) {
               sock.send(JSON.stringify({ t: "ack", id, ok: false, error: "place-changed" }));
               break;
             }

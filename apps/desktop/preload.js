@@ -114,7 +114,7 @@ contextBridge.exposeInMainWorld("filow", {
     resume: (url) => ipcRenderer.invoke("session:resume", url),
   },
   takePlace: {
-    begin: (key) => ipcRenderer.invoke("take:openPlace", key),
+    begin: (key, recover) => ipcRenderer.invoke("take:openPlace", key, recover),
     save: (writer, version, place) => ipcRenderer.invoke("take:savePlace", writer, version, place),
   },
   /** Live slide show (PowerPoint via COM / AppleScript): {running, index, total, title}. */

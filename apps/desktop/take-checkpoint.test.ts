@@ -31,10 +31,10 @@ describe("desktop take checkpoint", () => {
     const second = resumed.begin(key);
     expect(second.place).toEqual(place);
     expect(resumed.save(first.writer, 9, place)).toBe(false);
+    const bytes = readFileSync(join(dir, "take-place.json"), "utf8");
     const changed = resumed.begin(key + " edited");
     expect(changed.place).toBeNull();
     expect(resumed.save(second.writer, 11, place)).toBe(false);
-    const bytes = readFileSync(join(dir, "take-place.json"), "utf8");
     for (const privateText of [key, "private-tail", "private-token", first.writer]) expect(bytes).not.toContain(privateText);
     expect(resumed.save(changed.writer, 1, { sectionId: "s0", points: {} })).toBe(true);
     expect(open().begin(key).place).toBeNull();

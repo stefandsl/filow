@@ -554,3 +554,7 @@ Follow [PLAN.md](docs/PLAN.md) and the [release checklist](docs/RELEASE-CHECKLIS
 
 - [Small items](docs/okfilow/SMALL-ITEMS.md) covers notice copy, local dates and overlay finishing, including the observed label overlap during abrupt turns.
 - [Local lesson gauntlet](docs/gauntlet/G2-LESSONS.md) records the rejected and incomplete candidates, the frozen protocol and the held-out topics left unscored.
+
+## N-03 Round 2
+
+The previous correction and near-point numbers describe fixes on the frozen tuning clips. The earlier English alias run recognized 1/4 independent phrasings. Speech worker continuation was effectively unchanged (9.1 to 9.2 seconds). Peak sampled private memory increased by 95 MB (4.4%). Physical Bluetooth and a LAN handset both remain HOLD (owner).

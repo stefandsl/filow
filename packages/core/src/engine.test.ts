@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Engine, missedPoints } from "./engine";
 import { parseScript } from "./script";
 import type { DecideRequest, DecideResponse } from "./api";
-import frozen from "../../../tools/autoloop/e2e/n03-cases.json";
 import { matcherDecide } from "./matcher";
 import { pointDisplayState } from "./anchor";
 import { checkClaim } from "./guard";
@@ -80,12 +79,13 @@ describe("script-scoped place", () => {
     e.dispatch({ type: "stopTake" });
     expect(e.getState().engine.recording).toBe(false);
   });
-  it("rejects a repeated final at Reset and late speech at Stop while allowing a fresh take", async () => {
+  it("rejects an in-flight final at Reset and late speech at Stop while allowing a fresh take", async () => {
     const { e, calls } = makeEngine([{ s0b0: 1 }]);
     const words = "hello everyone. ";
     e.start();
     e.feed({ committed: words });
     await e.tick();
+    e.feed({ partial: words });
     e.dispatch({ type: "resetSection" });
     e.feed({ committed: words });
     await e.tick();
@@ -153,7 +153,34 @@ describe("script-scoped place", () => {
   });
 });
 
-describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries", (_lang, journey) => {
+const journeys = {
+  en: {
+    script: "# Conference\n- Durham workshop\n- Service owner Nina\n- Launch date Friday\n# Operations\n- Weekly review\n- Backup retention policy\n- Backup restore test",
+    partial: "The nightly restore test passed.",
+    corrected: "The nightly backup restore test did not pass.",
+    ambiguous: "Our service department will present later.",
+    general: "Everyone came back from the interval.",
+    clips: {
+      alias: { text: "Nina manages the service group." },
+      resume: { text: "Our launch date is Friday." },
+      correction: { text: "Our launch date is Friday. I mean our department lunch is Friday." },
+    },
+  },
+  it: {
+    script: "# Congresso\n- Laboratorio Verona\n- Referente servizio Nina\n- Data avvio venerdì\n# Operazioni\n- Revisione settimanale\n- Politica di conservazione backup\n- Test di ripristino backup",
+    partial: "Il test di ripristino notturno è riuscito.",
+    corrected: "Il test di ripristino del backup notturno non è riuscito.",
+    ambiguous: "Il reparto servizio parlerà più tardi.",
+    general: "Siamo rientrati tutti dalla pausa.",
+    clips: {
+      alias: { text: "Nina dirige la squadra di servizio." },
+      resume: { text: "La data di avvio è venerdì." },
+      correction: { text: "La data di avvio è venerdì. Mi correggo, la cena del reparto è venerdì." },
+    },
+  },
+};
+
+describe.each(Object.entries(journeys))("%s committed speech boundaries", (_lang, journey) => {
   it("withholds a retention tick on the shared backup topic, then preserves genuine retention evidence", async () => {
     const [general, weekly, restore, retention, correction] = _lang === "en" ? [
       "We do backups", "We hold a weekly review", "We passed the backup restore test",
@@ -256,7 +283,7 @@ describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries",
     // Exercise the real matcher's lexical stage in isolation from embeddings and hardware.
     const decide = matcherDecide(async () => [new Float32Array(1)], () => ({ key: "lexical", ids: [], vectors: [] }));
     const { e } = makeEngine([], 0, { decide });
-    const owner = _lang === "en" ? "Maya" : "Giulia";
+    const owner = "Nina";
     for (const [label, line, done] of [
       [owner, journey.ambiguous, false],
       [owner, journey.clips.alias.text.replace(owner, "Elena"), false],

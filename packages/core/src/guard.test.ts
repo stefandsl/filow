@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import { checkClaim } from "./guard";
-import frozen from "../../../tools/autoloop/e2e/n03-cases.json";
+
 
 const blocked = (point: string, said: string) => checkClaim(point, said);
 
@@ -352,7 +352,7 @@ it.each([
   expect(checkClaim(point, speech).ok).toBe(pass);
 });
 
-describe.each(Object.entries(frozen.journeys))("%s affirmative and corrected claims", (lang, journey) => {
+describe.each(["en", "it"])("%s affirmative and corrected claims", (lang) => {
   const date = lang === "en" ? "Launch date Monday" : "Data avvio lunedì";
   const restore = lang === "en" ? "Backup restore test" : "Backup: test di ripristino";
   it("follows the copies across a topic label and a pronoun without crediting a different object", () => {
@@ -424,13 +424,13 @@ describe.each(Object.entries(frozen.journeys))("%s affirmative and corrected cla
     expect(checkClaim(date, unset + " " + confirmed).ok).toBe(true);
   });
   it("distinguishes the meal from the start and accepts the actual start", () => {
-    expect(checkClaim(date, journey.clips.near.text).ok).toBe(false);
-    expect(checkClaim(date, journey.clips.correction.text).ok).toBe(false);
-    expect(checkClaim(date, journey.clips.resume.text).ok).toBe(true);
+    expect(checkClaim(date, lang === "en" ? "Staff breakfast is Monday." : "La colazione del personale è lunedì.").ok).toBe(false);
+    expect(checkClaim(date, lang === "en" ? "Our launch is Monday. Our breakfast is Monday." : "Il lancio è lunedì. La colazione è lunedì.").ok).toBe(false);
+    expect(checkClaim(date, lang === "en" ? "We start on Monday." : "Iniziamo lunedì.").ok).toBe(true);
   });
   it("withdraws a negated test result without borrowing another subject's denial", () => {
-    expect(checkClaim(restore, journey.corrected).ok).toBe(false);
-    expect(checkClaim(restore, journey.partial).ok).toBe(true);
+    expect(checkClaim(restore, lang === "en" ? "The offsite backup recovery test did not pass." : "Il test del ripristino non ha avuto successo.").ok).toBe(false);
+    expect(checkClaim(restore, lang === "en" ? "The recovery test succeeded." : "Il test del ripristino ha avuto successo.").ok).toBe(true);
     const nearby = lang === "en" ? "The restore test passed while the audit has not passed." : "Il test di ripristino è riuscito mentre la verifica non è riuscita.";
     expect(checkClaim(restore, nearby).ok).toBe(true);
   });

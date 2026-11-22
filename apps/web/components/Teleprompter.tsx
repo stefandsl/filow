@@ -237,9 +237,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     const owner = writer.current;
     if (!bridge || !owner) return;
     const place = engine.committedPlace();
-    if (!place || place.scriptKey !== owner.key) return;
-    const { sectionId, here, points } = place;
-    const payload = { sectionId, here, points };
+    if (place && place.scriptKey !== owner.key) return;
+    const payload = place && { sectionId: place.sectionId, here: place.here, points: place.points };
     const encoded = JSON.stringify(payload);
     if (owner.last === encoded) return;
     owner.last = encoded;
@@ -251,7 +250,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     void bridge.save(owner.id, engine.getState().version, payload).then(ok => { if (!ok) failed(); }, failed);
   }, [engine]);
   useEffect(() => engine.subscribe((_state, ops) => {
-    if (ops.some(op => /^\/(points(?:\/|$)|sectionIdx$|here$)/.test(op.path))) persistPlace();
+    if (ops.some(op => /^\/(points(?:\/|$)|sectionIdx$|controlEpoch$|here$)/.test(op.path))) persistPlace();
   }), [engine, persistPlace]);
 
   const installScript = useCallback(async (text: string, script: Script, number: number, recover: boolean) => {
@@ -260,12 +259,12 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     const key = bridge && scriptIdentity(script);
     let saved = null;
     writer.current = null;
-    if (bridge && key) {
+    if (bridge) {
       try {
-        const opened = await bridge.begin(key);
+        const opened = await bridge.begin(key || "", recover);
         if (number !== loadNumber.current) return;
-        writer.current = { key, id: opened.writer, last: "" };
-        if (recover && opened.place) saved = { ...opened.place, scriptKey: key };
+        if (key) writer.current = { key, id: opened.writer, last: "" };
+        if (key && recover && opened.place) saved = { ...opened.place, scriptKey: key };
       } catch {
         if (number !== loadNumber.current) return;
         engine.setError(checkpointError.current);

@@ -10,8 +10,8 @@ export type DesktopBridge = {
     resume(url: string): Promise<{ id: string; engineToken: string } | null>;
   };
   takePlace?: {
-    begin(key: string): Promise<{ writer: string; place: Omit<import("@filow/core").CommittedPlace, "scriptKey"> | null }>;
-    save(writer: string, version: number, place: Omit<import("@filow/core").CommittedPlace, "scriptKey">): Promise<boolean>;
+    begin(key: string, recover: boolean): Promise<{ writer: string; place: Omit<import("@filow/core").CommittedPlace, "scriptKey"> | null }>;
+    save(writer: string, version: number, place: Omit<import("@filow/core").CommittedPlace, "scriptKey"> | null): Promise<boolean>;
   };
   desktop: true;
   account?: {

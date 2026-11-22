@@ -134,7 +134,7 @@ export class Engine {
   private paused = false;
   private takeFloor = 0;
   private lastFinal = "";
-  private resetDuplicate = "";
+  private clearedPlace = "";
 
   constructor(opts: EngineOptions) {
     this.o = {
@@ -213,6 +213,13 @@ export class Engine {
 
   // ---- script ---------------------------------------------------------------
   committedPlace(): CommittedPlace | null {
+    const place = this.projectPlace();
+    if (this.clearedPlace && JSON.stringify(place) === this.clearedPlace) return null;
+    this.clearedPlace = "";
+    return place;
+  }
+
+  private projectPlace(): CommittedPlace | null {
     const { script, sectionIdx, here, points } = this.state;
     if (!this.scriptKey || script.source === "screen" || !script.sections[sectionIdx]) return null;
     const committed: Record<string, PointState> = {};
@@ -238,7 +245,7 @@ export class Engine {
       Object.keys(saved.points).every(id => script.sections.some(s => s.bullets.some(b => b.id === id)));
     this.committed = "";
     this.lastFinal = "";
-    this.resetDuplicate = "";
+    this.clearedPlace = "";
     this.segs = [];
     this.partial = "";
     this.lastSent = "";
@@ -255,13 +262,12 @@ export class Engine {
       delete s.here;
       if (restored && saved.here) s.here = saved.here;
       s.transcriptTail = "";
-    });
+    }, !restored);
   }
 
   // ---- inputs -----------------------------------------------------------------
   feed(e: TranscriptEvent, onAccepted?: () => void): void {
-    if (this.paused || (e.committed && e.committed.trim() === this.resetDuplicate && !this.partial.trim())) return;
-    if (e.partial?.trim() || e.committed) this.resetDuplicate = "";
+    if (this.paused) return;
     // A final already in progress at Reset belongs to the old section. It advances the
     // transcript fence below, but cannot navigate, trigger a correction or enter rehearsal.
     const accepted = this.fenceNextCommit === null;
@@ -299,7 +305,7 @@ export class Engine {
   /** Account for a correction even if its first version was already accepted or is in flight. */
   private reconcileCorrection(final: string): { withdrawn: string[]; endsClaim: boolean } {
     const { script, sectionIdx, points } = this.state;
-    const cue = /(?:^|[.!?,]\s*|^sorry[, ]+)\s*(?:sorry[, ]+)?(?:i mean|mi correggo)\b/i.exec(final);
+    const cue = /(?:^|[.!?,]\s*|^sorry[, ]+)\s*(?:sorry[, ]+)?(?:i\s+mean(?:t)?|mi\s+corregg\w*|anzi|rettific\w*|actually|correction|scratch\s+that|volev\w*\s+dire)\b/i.exec(final);
     const from = cue ? cue.index + cue[0].length : 0;
     const correction = final.slice(from);
     const withdrawn: string[] = [];
@@ -420,7 +426,7 @@ export class Engine {
         this.update((st) => {
           st.controlEpoch = (st.controlEpoch ?? 0) + 1;
           for (const b of section.bullets) delete st.points[b.id];
-        });
+        }, true);
         for (const b of section.bullets) {
           delete this.streak[b.id];
           this.held.delete(b.id);
@@ -430,7 +436,6 @@ export class Engine {
         // Words still being transcribed at the Reset were said before it: their segment is fenced off
         // too when it commits. "(reconnecting…)" is a status, not words: the socket that held them is gone.
         this.fences.set(s.sectionIdx, this.committedTotal);
-        this.resetDuplicate = this.lastFinal;
         this.fenceNextCommit = this.partial.trim() && !/^\s*\(reconnecting\b/.test(this.partial) ? s.sectionIdx : null;
         this.lastSent = "";
         this.invalidate();
@@ -610,7 +615,7 @@ export class Engine {
         delete p.active;
         if (p.status === "waiting") p.confidence = 0;
       }
-    });
+    }, true);
   }
 
   /**
@@ -873,13 +878,14 @@ export class Engine {
   }
 
   // ---- state plumbing -----------------------------------------------------------
-  private update(mutate: (draft: SessionState) => void): void {
+  private update(mutate: (draft: SessionState) => void, clearPlace = false): void {
     const prev = this.state;
     const next: SessionState = structuredClone(prev);
     mutate(next);
     next.version = prev.version + 1;
     const ops = compare(prev, next);
     this.state = next;
+    if (clearPlace) this.clearedPlace = JSON.stringify(this.projectPlace());
     for (const fn of this.subs) fn(next, ops);
   }
 }

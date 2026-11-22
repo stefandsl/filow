@@ -40,13 +40,18 @@ function createTakeCheckpoint(profile) {
   const file = path.join(profile, "take-place.json");
   let active;
   return {
-    begin(key) {
-      if (typeof key !== "string" || !key) throw new TypeError("Missing script identity");
+    finish() {
+      active = undefined;
+      fs.rmSync(file, { force: true });
+    },
+    begin(key, recover = true) {
+      if (typeof key !== "string") throw new TypeError("Missing script identity");
       active = { writer: randomUUID(), digest: createHash("sha256").update(key).digest("hex"), version: -1 };
       let place = null;
       try {
         const saved = JSON.parse(fs.readFileSync(file, "utf8"));
-        if (saved?.schema === 1 && saved.script === active.digest) place = committedFields(saved);
+        if (recover && key && saved?.schema === 1 && saved.script === active.digest) place = committedFields(saved);
+        if (!place) fs.rmSync(file, { force: true });
       } catch (err) {
         if (err.code !== "ENOENT" && !(err instanceof SyntaxError)) throw err;
       }
@@ -54,6 +59,11 @@ function createTakeCheckpoint(profile) {
     },
     save(writer, version, input) {
       if (!active || active.writer !== writer || !Number.isSafeInteger(version) || version <= active.version) return false;
+      if (input === null) {
+        fs.rmSync(file, { force: true });
+        active.version = version;
+        return true;
+      }
       const place = committedFields(input);
       if (!place) return false;
       fs.writeFileSync(file + ".tmp", JSON.stringify({ schema: 1, script: active.digest, ...place }), { mode: 0o600, flush: true });

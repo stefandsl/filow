@@ -27,17 +27,16 @@ export type ClaimCheck = {
  * leaves the original decision question intact. The actual provider still casts the vote.
  */
 export function spokenOwnerPoint(label: string, final: string): boolean {
-  const text = final.trim().replace(/[.!]$/, "").toLowerCase();
-  const point = label.trim().toLowerCase();
-  const en = /^([\p{L} -]+) (?:owner|lead) ([\p{L}'’-]+)$/u.exec(point);
-  if (en) {
-    const said = /^([\p{L}'’-]+) (?:leads|manages|runs|heads) (?:the )?([\p{L} -]+?) team$/u.exec(text);
-    return !!said && said[1] === en[2] && said[2] === en[1];
-  }
-  const it = /^(?:responsabile|referente) ([\p{L} -]+) ([\p{L}'’-]+)$/u.exec(point);
-  if (!it) return false;
-  const said = /^([\p{L}'’-]+) (?:guida|dirige|gestisce) (?:il gruppo|il team|la squadra) di ([\p{L} -]+)$/u.exec(text);
-  return !!said && said[1] === it[2] && said[2] === it[1];
+  const words = tokenize(label).map(t => t.norm);
+  const role = words.findIndex(w => /^(?:owner|lead|responsabile|referente)$/.test(w));
+  if (role < 0 || words.length < 3 || /[?]/.test(final)) return false;
+  const person = words.at(-1)!;
+  const team = words.filter((_, i) => i !== role && i < words.length - 1);
+  const said = tokenize(final).map(t => t.norm);
+  const verb = said.findIndex(w => /^(?:leads|manages|runs|heads|guida|dirige|gestisce)$/.test(w));
+  // Require the named person as agent and the entire named team as object.
+  return verb === 1 && said[0] === person &&
+    said.slice(verb + 1).filter(w => !STOP.has(w) && !/^(?:team|group|gruppo|squadra)$/.test(w)).join(" ") === team.join(" ");
 }
 
 // ---- word lists -----------------------------------------------------------------------------------
@@ -77,7 +76,8 @@ const SCOPE_END = new Set([
 /** Words that open a contrasting clause. */
 const CLAUSE_START = new Set(["while", "whereas", "mentre", "but", "ma", "invece", "но", "а", "dar", "iar", "insa"]);
 const START_EVENT = /^(?:launch|rollout|kickoff|avvio|lancio|partenza)$/;
-const MEAL = /^(?:breakfast|lunch|dinner|colazione|pranzo|cena)$/;
+const START_VERB = /^(?:launch|start|begin|rollout|partiamo|iniziamo|cominciamo|lancio|avvio)$/;
+const UNSET = /^(?:pending|undecided|unconfirmed|tentative|uncertain|unset|unknown|tbd|perhaps|maybe|might|could|may|forse|potremmo|provvisori[oa]|incert[oa]|indefinit[oa])$/;
 const WEEKDAY = /^(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)$/;
 
 const BACKUP_COPY = /^(?:backups?|snapshots?|copy|copies|copi[ae]|salvataggio|salvataggi)$/;
@@ -87,12 +87,12 @@ const RETENTION_ACTION = /^(?:retain(?:s|ed)?|keep|keeps|kept|expir(?:e|es|ed|y|
 /** A restore test can take thirty days without saying how long a copy is kept.
  * Track the object of each predicate, including "we keep them" after an explicit
  * mention. A new object ends that reference. */
-function retentionEvidence(sentence: string, topic: { copies: boolean; heading: boolean }): boolean | undefined {
+function retentionEvidence(sentence: string, denotesObject: (word: string) => boolean, topic: { copies: boolean; heading: boolean }): boolean | undefined {
   let evidence: boolean | undefined;
   for (const part of sentence.split(/[,;:!?]|\b(?:and|but|while|whereas|e|ma|mentre|invece)\b/iu)) {
     const words = tokenize(part).map(t => t.norm);
     if (!words.length) continue;
-    const namesCopy = words.some(w => BACKUP_COPY.test(w));
+    const namesCopy = words.some(denotesObject);
     const policy = words.some(w => RETENTION_TERM.test(w));
     const phrase = words.join(" ");
     const pronoun = /\b(?:they|them)\b|^(?:li|le) (?:conserv|manteni|teniamo|elimin|cancell)/.test(phrase);
@@ -108,51 +108,36 @@ function retentionEvidence(sentence: string, topic: { copies: boolean; heading: 
   return evidence;
 }
 
-/** Read the weekday attached to the event noun or verb in a compact date label. */
-function statedStartDay(words: string[], tokens: Token[]): "matching" | "different" | "tentative" | undefined {
-  const expected = words.filter(w => WEEKDAY.test(w));
-  const event = words.find(w => START_EVENT.test(w));
-  if (expected.length !== 1 || !event ||
-      !words.every(w => WEEKDAY.test(w) || START_EVENT.test(w) || w === "date" || w === "data")) return;
-  const denial = tokens.some((t, i) => (t.norm === "non" || t.norm === "not") && WEEKDAY.test(tokens[i + 1]?.norm ?? ""));
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    if (!WEEKDAY.test(tokens[i].norm)) continue;
-    const before = tokens.slice(Math.max(0, i - 9), i);
-    const lead = before.map(t => t.norm).join(" ");
-    if (/\b(?:we (?:might|may|could) (?:launch|start|begin)(?: on)?|(?:perhaps|maybe) we (?:launch|start|begin)(?: on)?|forse (?:partiamo|iniziamo|cominciamo)(?: il)?|potremmo (?:partire|iniziare|cominciare)(?: il)?)$/.test(lead)) return "tentative";
-    const verb = /\b(?:we (?:will )?(?:launch|start|begin)(?: on)?|(?:partiamo|iniziamo|cominciamo)(?: il)?)$/.test(lead);
-    const subject = before.map(t => t.norm === event ? "<event>" : t.norm).join(" ");
-    const named = /<event>(?: date)? (?:is|was|has been)(?: (?:set|scheduled|confirmed) for| on)?$/.test(subject) ||
-      /<event> e(?: (?:previst[oa]|fissat[oa]|confermat[oa]) per| il)?$/.test(subject);
-    if (verb || named) {
-      if (tokens[i].norm !== expected[0]) return "different";
-      // A second event can deny our weekday explicitly. Otherwise let the normal guard
-      // check a matching day for negation, including a denial of the entire sentence.
-      return denial ? "matching" : undefined;
+/** Bind calendar values to the named event within a clause. Prefer the event's
+ * own clause when a neighboring appointment supplies a second date. */
+function calendarReading(words: string[], text: string, tokens: Token[]) {
+  const days = words.filter(w => WEEKDAY.test(w));
+  if (days.length !== 1) return;
+  const subject = words.filter(w => !WEEKDAY.test(w) && w !== "date" && w !== "data");
+  if (!subject.length) return;
+  const start = subject.some(w => START_EVENT.test(w));
+  let other = false;
+  for (const part of clauses(text, tokens).reverse()) {
+    const names = part.map(t => t.norm);
+    const day = names.find((w, i) => WEEKDAY.test(w) && !NEGATIONS.has(names[i - 1]));
+    if (!names.some(w => subject.includes(w) || (start && START_VERB.test(w)))) {
+      if (day && !names.some(w => NEGATIONS.has(w)) &&
+          names.some(w => /^(?:is|was|are|on|happens|scheduled|booked|previst[oa]|e|sara|si)$/.test(w))) other = true;
+      continue;
+    }
+    const tentative = names.some((w, i) => UNSET.test(w) ||
+      ((w === "da" || w === "be") && /^(?:decid|fiss|conferm|stabil)/.test(names[i + 1] ?? "")) ||
+      (NEGATIONS.has(w) && names.slice(i + 1, i + 5).some(v => /^(?:set|schedul|confirm|decid|fissat|stabilit|decis|confermat|definit)/.test(v))));
+    if (tentative) return "uncertain";
+    if (day) {
+      if (day !== days[0]) return "different";
+      if (deniesPointWords(text, part, [...subject, day])) return "denied";
+      return "matching";
     }
   }
+  if (other) return "subject";
 }
 
-/** Match the date's own predicate. A second date in the same sentence may still be undecided. */
-function deniesScheduledDay(words: string[], parts: Token[][]): boolean {
-  if (!words.some(w => WEEKDAY.test(w))) return false;
-  const event = words.find(w => START_EVENT.test(w));
-  if (!event) return false;
-  return parts.some(part => {
-    const clause = part.map(t => t.norm === event ? "<event>" : t.norm).join(" ");
-    return /(?:<event> date|\bdate of (?:the )?<event>) (?:is|remains) (?:still )?(?:uncertain|undecided|unconfirmed|tentative|unset)\b/.test(clause) ||
-      /\bdata (?:di |del |dell )?<event> (?:e|resta) (?:ancora )?(?:incerta|provvisoria|da (?:decidere|fissare|confermare))\b/.test(clause) ||
-      /(?:<event> date|\bdate of (?:the )?<event>) (?:has not|had not|is not|was not|hasn t|hadn t|isn t|wasn t) (?:yet )?(?:been )?(?:set|scheduled|confirmed|decided)\b/.test(clause) ||
-      /\bdata (?:di |del |dell )?<event> non (?:e |era )?(?:ancora )?(?:stata )?(?:fissata|stabilita|decisa|confermata|definita)\b/.test(clause);
-  });
-}
-
-/** A meal explicitly scheduled for the same weekday can sound like the start of a project. */
-function schedulesMeal(words: string[], toks: Token[]): boolean {
-  return words.some(w => START_EVENT.test(w)) && toks.some(t => MEAL.test(t.norm)) &&
-    !toks.some(t => START_EVENT.test(t.norm)) &&
-    toks.some(t => WEEKDAY.test(t.norm) && words.includes(t.norm));
-}
 const SCOPE = 5;
 
 /** Italian words that make a following "mai" (within 3 words) a denial: "non ... mai", "nessuno mai". ("né" is left out: folded it is Romanian "ne", "us".) */
@@ -312,16 +297,17 @@ function read(claim: Claim, sentence: string): Reading {
   const about = parts.filter((c) => c.some((t) => matchesAny(claim.anchors.length ? claim.anchors : claim.words, t.norm)));
   const scope = about.length ? about : parts;
 
-  if (!claim.negated && deniesScheduledDay(claim.words, about)) {
-    return { conflict: { kind: "negation", detail: "the event date has not been set" }, carriesClaim: true, anchored };
-  }
-
-  // A short test label often leaves the successful outcome implicit. Require the test itself
-  // as subject immediately before the denied result, so an audit denied elsewhere still passes.
-  if (!claim.negated && claim.words.includes("test") && about.some(c =>
-    coverage(claim.words, c) >= 0.6 &&
-    /\btest(?: (?:di|del|della|of|the) \w+){0,3} (?:has not passed|did not pass|non e riuscit[oa]|non ha avuto successo)\b/.test(c.map(t => t.norm).join(" "))
-  )) return { conflict: { kind: "negation", detail: "the test result was denied" }, carriesClaim: true, anchored };
+  // Outcome labels imply completion. Scope an adverse result to the same
+  // predicate as the test, including a negated positive outcome.
+  if (!claim.negated && claim.words.includes("test") && about.some(part => {
+    const words = part.map(t => t.norm);
+    const test = words.indexOf("test");
+    if (test < 0 || coverage(claim.words, part) < 0.6) return false;
+    return words.slice(test + 1).some((w, i) =>
+      /^(?:fail(?:s|ed|ure)?|unsuccessful|fallit[oa]|falliment[oa])$/.test(w) ||
+      (/^(?:pass(?:ed)?|succeed(?:ed)?|riuscit[oa]|successo)$/.test(w) &&
+        words.slice(test + 1, test + 1 + i).some(v => NEGATIONS.has(v))));
+  })) return { conflict: { kind: "negation", detail: "negative test outcome" }, carriesClaim: true, anchored };
 
   // numbers and units, per class: a conflict only when the speech has numbers of a class and none of the point's numbers of that class
   const sq = withNouns(st, quantitiesFromTokens(st).filter((q) => q.kind !== "year"));
@@ -409,17 +395,19 @@ const round = (x: number) => Math.round(x * 100) / 100;
  */
 export function checkClaim(point: string, transcript: string): ClaimCheck {
   const claim = claimOf(point);
-  const retentionPoint = claim.words.some(w => RETENTION_TERM.test(w)) && claim.words.some(w => BACKUP_COPY.test(w));
+  const objects = claim.words.filter(w => !RETENTION_TERM.test(w) && !/^(?:policy|politica)$/.test(w));
+  const retentionPoint = claim.words.some(w => RETENTION_TERM.test(w)) && objects.length > 0;
+  const copy = objects.some(w => BACKUP_COPY.test(w));
+  const denotesObject = (word: string) => objects.includes(word) || (copy && BACKUP_COPY.test(word));
   const copyTopic = { copies: false, heading: false };
   const readings = sentences(transcript).map((s) => {
     const toks = tokenize(s.text);
     const lexical = coverage(claim.words, toks);
     const sq = quantitiesFromTokens(toks);
     const numberMatch = claim.quantities.some((q) => sq.some((x) => sameQuantity(q, x)));
-    const meal = schedulesMeal(claim.words, toks);
-    const day = statedStartDay(claim.words, toks);
-    const retention = retentionPoint ? retentionEvidence(s.text, copyTopic) : undefined;
-    return { s, lexical, meal, day, retention, relevance: meal || day !== undefined || retention ? 1 : Math.min(1, lexical + (numberMatch ? 0.5 : 0)) };
+    const day = calendarReading(claim.words, s.text, toks);
+    const retention = retentionPoint ? retentionEvidence(s.text, denotesObject, copyTopic) : undefined;
+    return { s, lexical, day, retention, relevance: day !== undefined || retention ? 1 : Math.min(1, lexical + (numberMatch ? 0.5 : 0)) };
   });
   const scored = readings.some(r => r.retention !== undefined) ? readings.filter(r => r.retention) : readings;
   // A shared subject provides no evidence for retention. It does not contradict a
@@ -428,9 +416,10 @@ export function checkClaim(point: string, transcript: string): ClaimCheck {
   const relevant = scored.filter((x) => x.relevance >= MIN_RELEVANT);
   for (let i = relevant.length - 1; i >= 0; i--) {
     const x = relevant[i];
-    if (x.day !== undefined) return { ok: x.day === "matching", evidence: x.s, lexical: round(x.lexical),
-      ...(x.day === "different" ? { conflict: { kind: "negation" as const, detail: "the speaker named a different start day" } } : {}) };
-    if (x.meal) return { ok: false, evidence: x.s, lexical: round(x.lexical), conflict: { kind: "subject", detail: "the weekday is stated for a meal" } };
+    if (x.day && x.day !== "matching") return { ok: false, evidence: x.s, lexical: round(x.lexical),
+      conflict: { kind: x.day === "subject" ? "subject" : "negation", detail: "calendar relation: " + x.day } };
+    if (x.day === "matching" && clauses(x.s.text, tokenize(x.s.text)).length > 1)
+      return { ok: true, evidence: x.s, lexical: round(x.lexical) };
     const r = read(claim, x.s.text);
     if (r.conflict && (r.anchored || !claim.anchors.length)) return { ok: false, evidence: x.s, lexical: round(x.lexical), conflict: r.conflict };
     if (!r.conflict && r.carriesClaim) return { ok: true, evidence: x.s, lexical: round(x.lexical) };

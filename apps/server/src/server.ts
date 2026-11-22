@@ -717,7 +717,7 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
           }
           if (!s.engine || s.engine.readyState !== WebSocket.OPEN) return ack(id, "engine offline");
           const epoch = (s.lastState as { controlEpoch?: number } | null)?.controlEpoch;
-          if (msg.epoch !== undefined) {
+          if (epoch !== undefined || msg.epoch !== undefined) {
             const sequence = Number(id);
             if (msg.epoch !== epoch || !Number.isSafeInteger(sequence) || sequence <= lastCommand) return ack(id, "place-changed");
             lastCommand = sequence;

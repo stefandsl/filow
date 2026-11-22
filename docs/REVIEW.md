@@ -191,3 +191,8 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R176 (2026-11-22, N-03): Follow the object of a retention statement through a topic heading or a pronoun. Check: accept the English and Italian labels verbatim, a copy lifetime expressed through disposal, and a policy referring to the preceding copies. Keep the point open when the presenter retains invoices and tests backups.
 - R177 (2026-11-22, N-03): Invalidate pending script loads and release the checkpoint writer when the presenter effect cleans up. Check: lint the actual component with zero warnings and verify that a read begun before cleanup cannot install or save its script after the next setup.
 - R178 (2026-11-22, N-03): Check the evidence source together with its supporting words in speech regressions. Check: type-check the retention assertion against both evidence variants and require the model quote to contain the actual retention statement.
+
+- R179 (2026-11-22, N-03): bind the date, outcome or owner to the subject of its clause. Check: train on separate scripts and freeze bilingual audio before edits. Report correction recovery, near-point errors and ordinary-speech exposure separately.
+- R180 (2026-11-22, N-03): end the disk checkpoint on Stop, Reset, script replacement and clean quit. Check: reopen the old script after each boundary and race a lower-version save against clear.
+- R181 (2026-11-22, N-03): reject a missing command epoch when the presenter has published one. Check: send an unstamped command followed by a current one and count deliveries.
+- R182 (2026-11-22, N-03): fence only a segment already in progress at Reset. Check: repeat an identical committed sentence on a final-only backend and separately finish a pre-Reset partial.
