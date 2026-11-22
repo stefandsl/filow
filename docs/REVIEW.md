@@ -212,3 +212,10 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R195 (2026-11-22, N-04): Exercise the waiting point with the real row component types after a lesson interruption. Check: typecheck both renderers, deliver a late final and compare their current point and preceding manual mark.
 - R196 (2026-11-22, N-04): Prepare the lesson in the target created for this turn and verify its exact start URL in both the top-level frame and navigation history. Check: start with a new-tab page and a prior turn, delay the fragment commit, substitute a matching tab, lose the create reply and press Stop during preparation. Count at most one creation and zero lesson navigations before approval.
 - R197 (2026-11-22, N-04): Use the shared right-arrow icon for each prepared water-cycle relation and keep the process, source and destination readable as table text. Check: run the flat-CSS guard and render all four rows in English and Italian, matching each process to its source, drawn arrow and destination.
+- R198 (N-04): Serve the packaged lesson from an exclusive app-owned listener and verify its response and document instance. Occupy the port before prepare and substitute another instance during reconciliation.
+- R199 (N-04): Bind Open once to a fresh enrolled wake phrase after review. Feed a low personal score and a positive score during playback before accepting the enrolled speaker.
+- R200 (N-04): Close the dedicated Edge browser on Stop and Return. Observe the browser close command and check the debugging endpoint after the run.
+- R201 (N-04): Require cooling below the dew point for the below-threshold narration. Stop the slider exactly at the dew point and inspect the phase.
+- R202 (N-04): Draw precipitation from clouds to ground and runoff from ground to lake. Read both relations in English and Italian.
+- R203 (N-04): Keep unrelated command text out of the approval flow. Check the unmatched reply and absent decision, then submit the exact phrase.
+- R204 (N-04): Disable Open once during its click handler. Deliver two clicks before a render and count one approval request.

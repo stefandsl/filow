@@ -62,11 +62,12 @@ function edgeStartup(fault?: "frame" | "history" | "lost reply" | "stop before c
     }
   }
   const launch = { spawn: () => {
-    const child = Object.assign(new EventEmitter(), { unref() {} });
+    const child = Object.assign(new EventEmitter(), { unref() {}, kill() {} });
     queueMicrotask(() => child.emit("spawn"));
     return child;
   } };
   const builtins: Record<string, unknown> = {
+    "./cloud-lab": { LESSON_URL, serveCloudLab: async () => ({ instance:"instance", close() {} }) },
     "node:child_process": launch,
     "node:fs": { existsSync: () => true, readFileSync: () => {
       if (++endpointReads === 1) throw Error("endpoint starting");
@@ -126,8 +127,8 @@ function trial() {
   async function proposal(words = "Open Cloud Lab") {
     const { turn } = await lesson.prepare(owner);
     const result = await lesson.request(owner, turn, words);
-    assert.equal(result.phase, "approval");
-    return result.decision;
+    assert.equal(result.phase, "speaker");
+    return lesson.confirmSpeaker(lesson.challenge()).decision;
   }
   return { lesson, proposal, owner, effects, saved, changeTarget: () => { current = { ...origin, tab: "elsewhere" }; },
     backgroundTab: () => { current = { ...origin, selected: false }; }, blur: () => { foreground = false; } };
@@ -157,12 +158,12 @@ it("consumes one exact local decision even with concurrent approvals", async () 
 });
 
 it("requires a fresh top-level document and a trusted change to this slider", () => {
-  const origin = { browser: "edge", window: 2, tab: "tab", frame: "f", entry: 1, loader: "before" };
+  const origin = { instance: "instance", browser: "edge", window: 2, tab: "tab", frame: "f", entry: 1, loader: "before" };
   const live = { ...origin, entry: 2, loader: "after", previous: 1, url: LESSON_URL, frameUrl: LESSON_URL,
     documentUrl: LESSON_URL, referrer: "http://127.0.0.1:48764/filow-turn/abc", started: 101,
     redirects: 0, status: 200, navigation: "navigate", complete: true };
   assert.equal(arrived(origin, live, "abc", 100), true);
-  for (const changed of [{ tab: "prior" }, { previous: 0 }, { redirects: 1 }, { referrer: "" },
+  for (const changed of [{ instance: "foreign" }, { tab: "prior" }, { previous: 0 }, { redirects: 1 }, { referrer: "" },
     { entry: 1 }, { loader: "before" }, { started: 99 }, { documentUrl: "about:blank" }, { navigation: "reload" }, { status: 404 }]) {
     assert.equal(arrived(origin, { ...live, ...changed }, "abc", 100), false);
   }
@@ -176,7 +177,7 @@ it("requires a fresh top-level document and a trusted change to this slider", ()
 });
 
 it("refuses each changed field, a changed target, loss of focus, decline and a stopped turn", async () => {
-  for (const key of ["teacher", "window", "tab", "turn", "action", "url"]) {
+  for (const key of ["teacher", "presenter", "window", "tab", "turn", "action", "url"]) {
     const x = trial();
     const decision = await x.proposal();
     await x.lesson.approve(x.owner, { ...decision, [key]: "other" });
@@ -196,7 +197,7 @@ it("refuses each changed field, a changed target, loss of focus, decline and a s
 
 it("reconciles the interrupted dispatch without sending it again and retires the pointer on takeover", async () => {
   const turn = "74e9efa4-85ae-4a8f-8961-f9ef4e41b975";
-  const origin = { browser: "edge", tab: "tab", window: 1, frame: "f", entry: 1, loader: "first", url: "about:blank#filow-" + turn };
+  const origin = { instance: "instance", browser: "edge", tab: "tab", window: 1, frame: "f", entry: 1, loader: "first", url: "about:blank#filow-" + turn };
   const receipt = { phase: "dispatched", turn, sentAt: 10, origin };
   const live = { ...origin, entry: 2, previous: 1, loader: "second", frameUrl: LESSON_URL, url: LESSON_URL,
     documentUrl: LESSON_URL, referrer: "http://127.0.0.1:48764/filow-turn/" + turn, navigation: "navigate", status: 200,
@@ -226,7 +227,8 @@ it("drops a target check that finishes after keyboard or on-screen Stop", async 
   const driver = { prepare: async () => target, close() {}, current: () => new Promise(resolve => { finish = resolve; }), open() { sends++; } };
   const lesson = createLesson({ driver, focused: () => true, journal: { read: () => null, write() {} } });
   const { turn } = await lesson.prepare("teacher");
-  const { decision } = lesson.request("teacher", turn, "Open Cloud Lab");
+  lesson.request("teacher", turn, "Open Cloud Lab");
+  const { decision } = lesson.confirmSpeaker(lesson.challenge());
   const approval = lesson.approve("teacher", decision);
   lesson.stop("teacher", turn);
   finish(target);

@@ -4,6 +4,6 @@ export { t as lessonText, type I18nKey as LessonTextKey } from "../../../../pack
 export const waterCycle = [
   ["lesson.evaporation", "lesson.surface", "lesson.vapour"],
   ["lesson.condensation", "lesson.vapour", "lesson.droplets"],
-  ["lesson.precipitation", "lesson.droplets", "lesson.surface"],
-  ["lesson.runoff", "lesson.surface", "lesson.collection"],
+  ["lesson.precipitation", "lesson.clouds", "lesson.ground"],
+  ["lesson.runoff", "lesson.ground", "lesson.lake"],
 ] as const;

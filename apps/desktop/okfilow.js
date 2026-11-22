@@ -187,6 +187,7 @@ function nextCfg(was, patch) {
 }
 
 function createOkFilow(deps) {
+  let lessonSpeaker = null;
   let wake = null, wakeTimer = null, wakeQuestion = false, wakeQuestionTimer = null;
   let wakePaused = false, wakeLocked = false, speechEndedAt = 0;
   const wakeIndicators = new Set();
@@ -1843,6 +1844,8 @@ function createOkFilow(deps) {
       sendOverlays("okfilow:wake:state", s); sendPanel("okfilow:wake:state", s);
       if (!s.enabled) { if (wakeQuestion) sendPanel("okfilow:cancel", { purpose: null }); wakeQuestion = false; clearTimeout(wakeQuestionTimer); scheduleFade(); }
     },
+    lessonChallenge: () => lessonSpeaker?.challenge(),
+    confirmLesson: id => lessonSpeaker?.confirmSpeaker(id),
     detected: (carry) => {
       wakeQuestion = true;
       wakeQuestionTimer = setTimeout(() => { wakeQuestion = false; sendPanel("okfilow:cancel", { purpose: null }); }, 35000);
@@ -1956,7 +1959,7 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, openLessonAsk, clearLessonDraft, askFromPhone, phoneAskers, publishPhoneCount, micReport: () => micOpens.report(), wakeAction, wakeReconcile: () => wake.reconcile(), outboundSignal };
+  return { bindLessonSpeaker(controller) { lessonSpeaker = controller; }, start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, openLessonAsk, clearLessonDraft, askFromPhone, phoneAskers, publishPhoneCount, micReport: () => micOpens.report(), wakeAction, wakeReconcile: () => wake.reconcile(), outboundSignal };
 }
 
 /**

@@ -6,15 +6,16 @@ const { spawn } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
 const { setTimeout: delay } = require("node:timers/promises");
 
-const LESSON_URL = "http://127.0.0.1:48764/lesson/cloud-lab";
+const { serveCloudLab, LESSON_URL } = require("./cloud-lab");
 const SAME_PAGE = ["browser", "window", "tab", "frame", "loader", "url", "frameUrl", "entry"];
-const SCOPE = ["teacher", "window", "tab", "turn", "action", "url"];
+const SCOPE = ["teacher", "presenter", "window", "tab", "turn", "action", "url"];
 const matches = (a, b, keys) => a && b && keys.every(key => a[key] === b[key]);
 const held = { phase: "held" };
 const lessonReferrer = turn => new URL("/filow-turn/" + turn, LESSON_URL).href;
 
 function arrived(origin, live, turn, sentAt) {
   return Boolean(matches(origin, live, ["browser", "window", "tab", "frame"])
+    && typeof origin.instance === "string" && origin.instance === live.instance
     && live.loader !== origin.loader && live.entry !== origin.entry && live.previous === origin.entry
     && live.url === LESSON_URL && live.frameUrl === LESSON_URL && live.documentUrl === LESSON_URL
     && live.referrer === lessonReferrer(turn) && live.started >= sentAt && live.redirects === 0
@@ -22,7 +23,7 @@ function arrived(origin, live, turn, sentAt) {
 }
 function cooled(first, next) {
   return Boolean(first && next && next.focused && next.input > first.input && next.inputValue === next.temperature
-    && next.dew === first.dew && first.temperature > first.dew && next.temperature <= next.dew);
+    && next.dew === first.dew && first.temperature > first.dew && next.temperature < next.dew);
 }
 
 function createLessonDraft() {
@@ -49,8 +50,8 @@ function createLesson({ driver, focused, journal }) {
     if (!owns(owner, turn)) return;
     const last = active;
     active = null;
-    last.abort.abort();
     driver.close();
+    last.abort.abort();
     journal.write(null);
   }
   async function prepare(owner) {
@@ -71,15 +72,25 @@ function createLesson({ driver, focused, journal }) {
       if (active !== a) return held;
       a.origin = origin;
       a.phase = "ready";
-    } catch { if (active === a) a.phase = "held"; }
+    } catch { if (active === a) { driver.close(); a.phase = "held"; } }
     return view();
   }
   function request(owner, turn, words) {
     if (!owns(owner, turn) || active.phase !== "ready" || !focused()) return held;
     if (typeof words !== "string" || !/^(?:(?:(?:please )?open|apri|deschide|открой) cloud lab|cloud lab を開いて)[.!?。]?$/iu.test(words.trim())) return { ...view(), unmatched: true };
-    const { origin } = active;
-    active.decision = { teacher: owner, turn, window: origin.window, tab: origin.tab, action: "open", url: LESSON_URL };
+    active.challenge = randomUUID();
     active.expires = Date.now() + 120_000;
+    active.phase = "speaker";
+    return view();
+  }
+  function challenge() {
+    return active?.phase === "speaker" && focused() && Date.now() < active.expires ? active.challenge : null;
+  }
+  function confirmSpeaker(id) {
+    if (!id || id !== challenge()) return held;
+    const { owner, origin, turn } = active;
+    active.decision = { presenter: owner, teacher: "enrolled-wake/" + id, turn, window: origin.window,
+      tab: origin.tab, action: "open", url: LESSON_URL };
     active.phase = "approval";
     return view();
   }
@@ -153,15 +164,15 @@ function createLesson({ driver, focused, journal }) {
     return view();
   }
   function blur() {
-    if (active && ["approval", "checking"].includes(active.phase)) active.phase = "held";
+    if (active && ["speaker", "approval", "checking"].includes(active.phase)) active.phase = "held";
   }
   function interrupt() {
     const last = active;
     active = null;
+    driver.detach?.();
     last?.abort.abort();
-    driver.close();
   }
-  return { prepare, request, approve, observe, reconcile, stop, blur, interrupt, view };
+  return { prepare, request, approve, observe, reconcile, stop, blur, interrupt, challenge, confirmSpeaker, view };
 }
 
 function lessonJournal(dir) {
@@ -233,7 +244,7 @@ async function connectBrowser(dir, signal) {
 function readDocument() {
   const { document, location } = globalThis;
   const nav = performance.getEntriesByType("navigation")[0];
-  const result = { documentUrl: location.href, referrer: document.referrer, started: performance.timeOrigin,
+  const result = { instance: document.querySelector('meta[name="filow-instance"]')?.content, documentUrl: location.href, referrer: document.referrer, started: performance.timeOrigin,
     redirects: nav?.redirectCount, navigation: nav?.type, status: nav?.responseStatus, complete: document.readyState === "complete" };
   const ranges = Array.from(document.querySelectorAll('input[type="range"]')).filter(node =>
     (node.getAttribute("aria-label") || Array.from(node.labels || []).map(label => label.textContent.trim()).join(" ")) === "Air temperature");
@@ -267,7 +278,7 @@ function readDocument() {
 
 function edgeDriver(userData) {
   const dir = path.join(userData, "lesson-browser");
-  let connection, session, tab;
+  let connection, session, tab, service, child;
   const page = (method, params) => connection.send(method, params, session);
   async function current() {
     const [{ windowId, bounds }, { frameTree }, history] = await Promise.all([
@@ -318,9 +329,19 @@ function edgeDriver(userData) {
     return page("Overlay.highlightQuad", { quad: [x, y, x + 9, y - 22, x + 18, y - 15, x, y],
       color: { r: 255, g: 184, b: 0, a: 1 }, outlineColor: { r: 32, g: 32, b: 32, a: 1 } });
   }
-  function close() {
+  function detach() {
+    service?.close();
+    service = null;
     connection?.close();
     connection = session = tab = null;
+  }
+  function close() {
+    const client = connection;
+    if (!client) { child?.kill(); detach(); return; }
+    // Send before Stop aborts the CDP session. Edge shuts down its private profile.
+    void client.send("Browser.close").catch(() => {}).finally(() => client.close());
+    service?.close();
+    service = connection = session = tab = child = null;
   }
   async function waitForStart(start, signal) {
     for (let attempt = 0; attempt < 40; attempt++) {
@@ -336,12 +357,13 @@ function edgeDriver(userData) {
   }
   async function prepare(turn, signal) {
     signal.throwIfAborted();
+    service = await serveCloudLab(turn, signal);
     const exe = [process.env["ProgramFiles(x86)"], process.env.ProgramFiles].filter(Boolean)
       .map(root => path.join(root, "Microsoft", "Edge", "Application", "msedge.exe")).find(file => fs.existsSync(file));
     if (process.platform !== "win32" || !exe) throw Error("Edge unavailable");
     const start = "about:blank#filow-" + turn;
-    const child = spawn(exe, ["--user-data-dir=" + dir, "--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1",
-      "--no-first-run", "--no-default-browser-check", "--disable-sync", "--disable-background-networking", "about:blank"],
+    child = spawn(exe, ["--user-data-dir=" + dir, "--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1",
+      "--no-first-run", "--no-default-browser-check", "--disable-sync", "--no-proxy-server", "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost", "--disable-quic", "--disable-background-networking", "about:blank"],
       { stdio: "ignore", detached: true, windowsHide: false,
         env: Object.fromEntries(Object.entries(process.env).filter(([name]) =>
           /^(SystemRoot|SystemDrive|WINDIR|TEMP|TMP|USERPROFILE|LOCALAPPDATA|APPDATA|ProgramFiles(?:\(x86\))?|PATH|ComSpec)$/i.test(name))) });
@@ -368,14 +390,15 @@ function edgeDriver(userData) {
       client.listen(event => {
         if (event.sessionId !== session || event.method !== "Fetch.requestPaused") return;
         const { requestId, frameId, request, responseStatusCode } = event.params;
-        const approved = frameId === prepared.frame && request.url === LESSON_URL && responseStatusCode === 200;
+        const approved = frameId === prepared.frame && request.url === LESSON_URL && responseStatusCode === 200
+          && event.params.responseHeaders?.some(h => h.name.toLowerCase() === "x-filow-instance" && h.value === service?.instance);
         // A redirect response is stopped before Chromium follows its Location.
         void client.send(approved ? "Fetch.continueRequest" : "Fetch.failRequest",
           approved ? { requestId } : { requestId, errorReason: "Aborted" }, session).catch(() => {});
       });
       await page("Fetch.enable", { patterns: [{ urlPattern: LESSON_URL, resourceType: "Document", requestStage: "Response" }] });
       signal.throwIfAborted();
-      return prepared;
+      return { ...prepared, instance: service.instance };
     } catch (err) {
       if (connection === client) close();
       else client.close();
@@ -391,6 +414,6 @@ function edgeDriver(userData) {
     if (errorText || !loaderId) throw Error("navigation unresolved");
     await page("Page.bringToFront");
   }
-  return { prepare, current, open, observe, attach, point, close, show: () => page("Page.bringToFront") };
+  return { prepare, current, open, observe, attach, point, close, detach, show: () => page("Page.bringToFront") };
 }
 module.exports = { LESSON_URL, createLesson, createLessonDraft, lessonJournal, edgeDriver, arrived, cooled };

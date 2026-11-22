@@ -36,11 +36,12 @@ async function createDetectors(dir, profile, utilityProcess) {
     return { feed(samples, at) { return b.call({ type: "feed", samples, at }); }, reset() { return b.call({ type: "reset" }); }, stop() { b.stop(); } };
   } catch (e) { b.stop(); throw e; }
 }
-function createWake({ userData, utilityProcess, state, changed, detected, verifyModelsFn = verifyModels, ensureModelsFn = ensureModels, createDetectorsFn = createDetectors }) {
+function createWake({ userData, utilityProcess, state, changed, detected, lessonChallenge, confirmLesson, verifyModelsFn = verifyModels, ensureModelsFn = ensureModels, createDetectorsFn = createDetectors }) {
   const dir = path.join(userData, "models", "wake"), root = path.join(userData, "wake");
   const profileFile = path.join(root, "profile.json");
   let enabled = false, listening = false, error = "", phase = "off", count = 0, testing = false;
   let detectors = null, trainer = null, combiner = null, abort = null, epoch = 0, pending = false, at = 0;
+  let currentChallenge, speakerCombiner;
   let captureEpoch = 0, desiredPhase = "off";
   let ring = new Float32Array(), profile = null;
   const captureWatch = createCaptureWatch();
@@ -57,6 +58,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
   const publish = () => changed(snapshot());
   function stop() {
     captureWatch.reset();
+    currentChallenge = null;
     captureEpoch++; desiredPhase = "off";
     epoch++; enabled = false; listening = false; pending = false; phase = "off";
     abort?.abort(); abort = null; detectors?.stop(); detectors = null; trainer?.stop(); trainer = null;
@@ -70,6 +72,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     const next = !reason;
     const target = reason || "listening";
     if (desiredPhase === target) return;
+    currentChallenge = null;
     desiredPhase = target; const token = ++captureEpoch;
     listening = false; phase = reason || "opening"; ring = new Float32Array(); combiner.reset(); publish();
     try {
@@ -128,8 +131,23 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     const token = epoch, captureToken = captureEpoch; pending = true; at += 100;
     const joined = new Float32Array(ring.length + samples.length); joined.set(ring); joined.set(samples, ring.length); ring = joined.slice(-32000);
     try {
+      const challenge = lessonChallenge?.() || null;
+      if (challenge !== (currentChallenge || null)) {
+        currentChallenge = challenge;
+        // Neither detector may carry audio from before the presenter asked for review.
+        await detectors.reset();
+        combiner.reset();
+        speakerCombiner = challenge && profileCombiner({ ...profile, phrase: DEFAULTS.phrase }, "strict");
+        ring = new Float32Array();
+        return;
+      }
       const result = await detectors.feed(samples, at);
       if (token !== epoch || captureToken !== captureEpoch || !listening || allowed()) return;
+      if (challenge !== (lessonChallenge?.() || null)) return;
+      if (challenge) {
+        if (!testing && speakerCombiner.push(result)) confirmLesson(challenge);
+        return;
+      }
       if (combiner.push(result)) {
         count++; publish();
         if (!testing) {

@@ -1,6 +1,6 @@
 # What leaves this PC, and how the user is told
 
-The prepared Cloud Lab board displays a teacher-selected local photo. On Windows, the teacher can start a separate Microsoft Edge lesson profile and approve one navigation to the displayed loopback URL. The local page server receives a random turn ID in the navigation referrer. The desktop observes the top-level navigation, selected temperature control and dew point in that lesson tab. A dispatch record in the Filow profile supports an explicit check after interruption. Stop or return clears the record. The board uses an installed local voice when one is available for its language.
+The prepared Cloud Lab board displays a teacher-selected local photo. On Windows, the teacher can start a separate Microsoft Edge lesson profile and approve one navigation to the displayed loopback URL. Filow serves the packaged HTML on its own loopback listener and checks a fresh instance identifier before reading the page. The local page server receives a random turn ID in the navigation referrer. The desktop observes the top-level navigation, selected temperature control and dew point in that lesson tab. A dispatch record in the Filow profile supports an explicit check after interruption. Stop or return clears the record. The board uses an installed local voice when one is available for its language.
 
 Owner's requirement (2026-11-09): if information goes outside, the user gets a visible confirmation
 at the moment it happens, and is told that the screenshot and the recorded voice go to other

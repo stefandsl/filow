@@ -104,6 +104,8 @@
       "vendor/*.css",
       "okfilow.js",
       "okfilow-lesson.js",
+      "cloud-lab.html",
+      "cloud-lab.js",
       "okfilow-preload.js",
       "okfilow-gestures.js",
       "okfilow-hook-retry.js",

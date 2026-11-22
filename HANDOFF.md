@@ -2,7 +2,7 @@
 
 ## N-04 | Prepared Cloud Lab lesson
 
-The desktop prompter and Talk or type panel open the prepared water-cycle board. The teacher chooses the local photograph, prepares a dedicated Microsoft Edge window, then reviews the spoken or typed request in Filow. The fixed lesson document is served by `node tools/autoloop/e2e/n04-windows.mjs`. The fixture prints a turn ID and arrival count for top-level document responses. Its optional numeric arguments set the starting air temperature and dew point in °C.
+The desktop prompter and Talk or type panel open the prepared water-cycle board. The teacher chooses the local photograph, prepares a dedicated Microsoft Edge window, then reviews the spoken or typed request in Filow. Filow serves the packaged page from its own loopback listener. The presenter reviews the command, says their enrolled wake phrase with personal wake listening, and selects Open once. An occupied lesson port holds preparation.
 
 The focused checks cover the scoped decision, interrupted navigation, learner range changes, both board languages and the waiting point on the two row renderers. Packaged Windows observation, actual paired-phone rows, unaided learner transfer, independent review and unseen-topic generation remain on HOLD pending operator evidence.
 

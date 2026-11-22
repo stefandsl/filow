@@ -2628,6 +2628,7 @@ async function main() {
       const { createLesson, lessonJournal, edgeDriver } = require("./okfilow-lesson");
       lessonOwner = owner;
       lesson = createLesson({ driver: edgeDriver(userData), focused: () => !win.isDestroyed() && win.isFocused(), journal: lessonJournal(userData) });
+      okFilow?.bindLessonSpeaker(lesson);
       return lesson.prepare(owner);
     }
     if (!lesson || owner !== lessonOwner) return { phase: "idle" };

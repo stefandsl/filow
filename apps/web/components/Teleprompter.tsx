@@ -1047,6 +1047,14 @@ export function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; on
   );
 }
 
+export function OpenOnceButton({ label, approve }: { label: string; approve(): void }) {
+  return <button className="btn primary" onClick={event => {
+    if (event.currentTarget.disabled) return;
+    event.currentTarget.disabled = true;
+    approve();
+  }}>{label}</button>;
+}
+
 export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; onComplete?(explanation: string): void }) {
   const bridge = desktopBridge()?.lesson;
   const lang = useLang();
@@ -1074,12 +1082,12 @@ export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; o
     };
   }, [bridge, nextRequest]);
   useEffect(() => {
-    if (!bridge || (view.phase !== "dispatched" && view.phase !== "guiding")) return;
+    if (!bridge || (view.phase !== "speaker" && view.phase !== "dispatched" && view.phase !== "guiding")) return;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     const id = generation.current;
     const poll = async () => {
-      const next = await bridge.control("observe", view.turn).catch((): LessonView => ({ phase: "held" }));
+      const next = await bridge.control(view.phase === "speaker" ? "state" : "observe", view.turn).catch((): LessonView => ({ phase: "held" }));
       if (disposed || generation.current !== id) return;
       setView(next);
       if (next.phase === view.phase) timer = setTimeout(() => void poll(), 350);
@@ -1145,10 +1153,11 @@ export function PreparedWaterCycle({ onClose, onComplete }: { onClose(): void; o
         {view.unmatched && <p role="status">{t("lesson.tryCommand", { command: t("lesson.command") })}</p>}
         <button className="btn" disabled={!words.trim()}>{t("lesson.review")}</button>
       </form>}
+      {view.phase === "speaker" && <p>{t("lesson.speaker")}</p>}
       {view.phase === "approval" && view.decision && <>
         <p>{t("lesson.destination", { window: view.decision.window, turn: view.decision.turn })}<br /><code>{view.decision.url}</code></p>
         <button className="btn" onClick={() => void control("stop")}>{t("common.cancel")}</button>
-        <button className="btn primary" onClick={() => void control("approve")}>{t("lesson.allow")}</button>
+        <OpenOnceButton label={t("lesson.allow")} approve={() => void control("approve")} />
       </>}
       {["checking", "preparing", "dispatched"].includes(view.phase) && <p>{t("lesson.waiting")}</p>}
       {view.phase === "interrupted" && <button className="btn" onClick={() => void control("reconcile")}>{t("lesson.reconcile")}</button>}
