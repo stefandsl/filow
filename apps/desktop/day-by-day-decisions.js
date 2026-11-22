@@ -55,11 +55,15 @@ function splitArguments(rest, allowIndirect) {
 
 const pronoun = /^(?:he|she|they|them|him|her|lei|lui|loro|gli|le|lo|la|li)$/u;
 const determiner = /^(?:a|an|the|my|your|his|her|their|our|this|that|one|il|lo|la|i|le|gli|un|una|uno|al|alla|mio|mia|nostr[oa]|l['’])(?:\s|')/u;
+const title = /^(?:(?:il|la) )?(?:mr|mrs|ms|dr|dott|dottore|dottoressa|signor|signore|signora)\.?\s+/u;
+const plainName = value => normalize(value).replace(title, "");
+function containsName(person, reference) {
+  return (" " + plainName(person) + " ").includes(" " + plainName(reference) + " ");
+}
 function personMatches(reference, person) {
   if (!person) return false;
-  const title = /^(?:(?:il|la) )?(?:mr|mrs|ms|dr|dott|dottore|dottoressa|signor|signore|signora)\.?\s+/u;
-  reference = reference.replace(title, "");
-  const name = normalize(person).replace(title, "");
+  reference = plainName(reference);
+  const name = plainName(person);
   if (pronoun.test(reference)) return true;
   if (determiner.test(reference)) {
     if (/^(?:one|un[oa]) (?:of|dei|delle)\b/.test(reference)) return true;
@@ -67,7 +71,7 @@ function personMatches(reference, person) {
     const head = words.filter(word => lexicon().nouns.has(word)).at(-1);
     return !head || lexicon().roles.has(head);
   }
-  return (" " + name + " ").includes(" " + reference + " ") || name.split(/\s+/).some(part => part.startsWith(reference));
+  return containsName(name, reference) || name.split(/\s+/).some(part => part.startsWith(reference));
 }
 
 function parseReport(input, repair) {
@@ -181,6 +185,20 @@ function objectPair(words, row) {
   return objectKey(src.object) === objectKey(normalize(dest.object)) ? null : [src.object, dest.object];
 }
 
+function namedCandidates(words, rows) {
+  const phrase = normalize(words).replace(/[.!]+$/, "");
+  const report = parseReport(phrase.replace(correction, ""), correction.test(phrase));
+  if (!report) return rows;
+  const exact = rows.filter(row => {
+    const args = taskArguments(report, row);
+    if (!args) return false;
+    const person = args.dest.person || (args.directName && args.dest.object);
+    const reference = args.src.person || (args.directName && args.src.object);
+    return person && reference && !pronoun.test(reference) && containsName(person, reference);
+  });
+  return exact.length ? exact : rows;
+}
+
 function contradictsRecipient(words, row) {
   const phrase = normalize(words).replace(/[.!]+$/, "");
   const report = parseReport(phrase.replace(correction, ""), correction.test(phrase));
@@ -224,4 +242,4 @@ function interpret(input, tasks, options = {}) {
   return { type: "create", words, text, dueTomorrow: tomorrow.test(words), targets: [] };
 }
 
-module.exports = { interpret, contradictsRecipient, conflictsWithEvent, objectPair };
+module.exports = { interpret, namedCandidates, contradictsRecipient, conflictsWithEvent, objectPair };

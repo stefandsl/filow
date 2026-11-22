@@ -52,7 +52,7 @@ it("recognizes the next report after a task was added during a listening pause",
   const messages: any[] = [];
   const worker: any = { ready: true, start: async () => ({ model: "local" }), feed() {}, dispose() {},
     worker: { postMessage(m: any) { worker.context = m.context; } } };
-  const daily = createDaily({ store: storage(), recognizer: () => worker, notify: (m: any) => messages.push(m) });
+  const daily = createDaily({ store: storage(), match: load("./day-by-day-decisions").interpret, recognizer: () => worker, notify: (m: any) => messages.push(m) });
   let v = daily.control("open");
   const capture = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
   await daily.control("arm", { ...v, capture });

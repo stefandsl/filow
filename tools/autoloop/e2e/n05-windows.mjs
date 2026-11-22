@@ -261,12 +261,14 @@ async function journey(spec, record, root, replayPath) {
     page?.close(); page = undefined; child = undefined;
   }
   async function report(type, text) {
-    if (spec.mode === "audio") await playClip(page,replayPath(spec.clips[type]),record.clips);
-    else await writeForm(page,typedReport,text);
+    if (spec.mode === "audio") {
+      await playClip(page,replayPath(spec.clips[type]),record.clips);
+      assert.equal(await page.evaluate('!!document.querySelector(".daily-review")'), false);
+    }
+    await writeForm(page,typedReport,text);
     const words = await until(() => page.evaluate("document.querySelector('.daily-review blockquote')?.textContent"),"reviewed words");
     const before = await rows(page);
-    assert.equal(before[0].done, type === "correction");
-    assert.equal(before[1].done, false);
+    assert.ok(before.every(row => !row.done));
     await press(page,".daily-review > button:first-of-type");
     return { words, before };
   }
@@ -291,32 +293,42 @@ async function journey(spec, record, root, replayPath) {
       if (spec.mode === "audio") Object.assign(record.clips.at(-1), { target:after[i].id, delta:after[i].rev });
     }
     const delivered = await report("report",spec.report);
-    const tick = await observeRows(page,list => list[0]?.done && list[0].evidence === delivered.words && !list[1].done);
-    assert.equal(tick[0].rev,delivered.before[0].rev+1);
+    const remaining = await observeRows(page,list => list.length === 1 && list[0].id === delivered.before[1].id);
+    const archive = async () => {
+      await press(page,".daily nav button:nth-child(3)");
+      return observeRows(page,list => list.length === 1 && list[0].done);
+    };
+    const [tick] = await archive();
+    assert.equal(tick.evidence, delivered.words);
+    assert.equal(tick.rev, delivered.before[0].rev + 1);
     record.tick = tick;
-    if (spec.mode === "audio") Object.assign(record.clips.at(-1), { target:tick[0].id, delta:1 });
     if (spec.trial === "correction") {
-      await press(page,".daily-list li:first-child summary");
-      assert.ok(await page.evaluate("document.querySelector('details').open"));
-      const correction = await report("correction",spec.correction);
-      const reopened = await observeRows(page,list => !list[0].done && list[0].evidence === correction.words);
-      if (spec.mode === "audio") Object.assign(record.clips.at(-1), { target:reopened[0].id, delta:reopened[0].rev-tick[0].rev });
+      await press(page,".daily-list summary");
+      await press(page,".daily nav button:nth-child(2)");
+      await writeForm(page,typedReport,spec.correction);
+      await until(() => page.evaluate('!!document.querySelector(".daily-review")'), "correction review");
+      await press(page,".daily-review > button:first-of-type");
+      await observeRows(page,list => list.length === 2 && !list[0].done);
       await writeForm(page,".daily-list li:nth-child(2) form",spec.edited);
       await press(page,".daily-list li:first-child .controls button");
-      await observeRows(page,list => list[0].done && list[0].evidence === delivered.words && list[1].text === spec.edited);
+      await observeRows(page,list => list.length === 1 && list[0].text === spec.edited);
     }
     await kill();
     await launch(spec.dayTwo);
     assert.equal(await page.evaluate("document.querySelector('time').dateTime"),civil(day2));
-    const recovered = await rows(page);
-    assert.deepEqual(recovered.map(r => r.id), tick.map(r => r.id));
-    assert.ok(recovered[0].done && !recovered[1].done && recovered[0].evidence === delivered.words);
+    assert.deepEqual((await rows(page)).map(row => row.id), remaining.map(row => row.id));
+    const [recovered] = await archive();
+    assert.equal(recovered.id, tick.id);
+    assert.equal(recovered.evidence, tick.evidence);
     if (spec.trial === "crash") {
       assert.deepEqual(recovered,tick);
+      await press(page,'.daily-list input[type="checkbox"]');
+    }
+    await press(page,".daily nav button:first-child");
+    if (spec.trial === "crash") {
+      await observeRows(page,list => list.length === 2 && !list[0].done);
       await writeForm(page,".daily-list li:nth-child(2) form",spec.edited);
-      await observeRows(page,list => list[1].text === spec.edited);
-      await press(page,".daily-list li:first-child .controls button");
-      await observeRows(page,list => !list[0].done && list[1].text === spec.edited);
+      await observeRows(page,list => list[1]?.text === spec.edited);
     }
     record.dayTwo = await rows(page);
     await kill(); await launch(spec.dayTwo);

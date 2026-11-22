@@ -73,4 +73,18 @@ function qaHardware(env = process.env, parse = () => require("./vendor/hardware"
   }
 }
 
-module.exports = { isQaBuild, describeConnect, installSocketLog, qaHardware };
+// Test profiles must also fence unexpected requests from the embedded web server.
+function blockTestModelPort(onAttempt = () => {}, Socket = require("node:net").Socket) {
+  const connect = Socket.prototype.connect;
+  Socket.prototype.connect = function (...args) {
+    if (describeConnect(args)?.port === 11434) {
+      const error = Error("Test attempted a connection to port 11434");
+      onAttempt(error);
+      throw error;
+    }
+    return connect.apply(this, args);
+  };
+  return () => { Socket.prototype.connect = connect; };
+}
+
+module.exports = { blockTestModelPort, isQaBuild, describeConnect, installSocketLog, qaHardware };

@@ -138,3 +138,9 @@ it("resolves partial names and titles and asks about ambiguous pronouns", async 
   }
   assert.equal((await match("I called her", rows, {})).which, true);
 });
+
+it("prefers a whole first name to another person's longer first name", async () => {
+  const rows = ["Call Al Wynn", "Call Alan Wells"].map((text,i) => ({ ...tasks[i], text }));
+  const match = matcher(() => ({ ...aligned, reason:"called", verdict:"yes" }));
+  assert.deepEqual((await match("I called Al", rows, {})).targets.map((row:any) => row.id), ["0"]);
+});

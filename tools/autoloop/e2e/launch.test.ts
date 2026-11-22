@@ -58,3 +58,32 @@ it("blocks unsafe profiles and inherited Ollama endpoints before spawning a norm
   }
   expect(testLaunchEnv(env).OLLAMA_URL).toBe("http://127.0.0.1:0");
 });
+
+it("rejects even a direct connection before the socket transport sees it", async () => {
+  const { blockTestModelPort } = await import("../../../apps/desktop/qa.js");
+  const calls: unknown[] = [];
+  class Socket { connect(...args: unknown[]) { calls.push(args); } }
+  const restore = blockTestModelPort(undefined, Socket);
+  try {
+    for (const args of [[11434, "127.0.0.1"], [{host:"localhost", port:11434}], [[{host:"::1", port:11434}]]]) {
+      expect(() => new Socket().connect(...args)).toThrow(/11434/);
+    }
+    expect(calls).toEqual([]);
+  } finally { restore(); }
+});
+
+it("applies the guard to the child process independently of build metadata", async () => {
+  const { spawnTestApp } = await import("./test-launch.cjs");
+  const options = { env: { ...process.env, FILOW_USER_DATA_DIR: dir, FILOW_PORT:"51201",
+    FILOW_SESSION_PORT:"51202", OLLAMA_URL:"http://127.0.0.1:11434" }, windowsHide: true };
+  expect(() => spawnTestApp(process.execPath, ["--version"], options)).toThrow(/endpoint/);
+  options.env.OLLAMA_URL = "";
+  const child = spawnTestApp(process.execPath, ["-p", "process.env.OLLAMA_URL"], options);
+  let output = "";
+  child.stdout.on("data", (chunk: Buffer) => { output += chunk; });
+  await new Promise<void>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", (code: number) => code === 0 ? resolve() : reject(Error(String(code))));
+  });
+  expect(output.trim()).toBe("http://127.0.0.1:0");
+});

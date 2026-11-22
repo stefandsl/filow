@@ -1,4 +1,4 @@
-const { interpret, conflictsWithEvent, contradictsRecipient, objectPair } = require("./day-by-day-decisions");
+const { interpret, namedCandidates, conflictsWithEvent, contradictsRecipient, objectPair } = require("./day-by-day-decisions");
 const { cleanText } = require("./day-by-day-store");
 const { isolatedOllamaUrl, ollamaProbeUrl, fetchOllamaTags } = require("./localai");
 
@@ -53,11 +53,12 @@ function matchAtOrigin(origin, request, unavailable = () => {}) {
   return async function match(input, tasks, options) {
     const words = cleanText(input);
     if (!words || /["“”«»?\n;]/u.test(words)) return null;
-    const grounded = interpret(words, tasks, options);
+    const eligible = namedCandidates(words, tasks.filter(row => row.done === correction.test(words)));
+    const grounded = interpret(words, eligible, options);
     const repair = correction.test(words);
     if (indirect.test(words) || negated.test(words) !== repair) return null;
     if (grounded?.type === "create") return grounded;
-    const candidates = tasks.filter(row => row.done === repair && !conflictsWithEvent(words, row, options) && !contradictsRecipient(words, row));
+    const candidates = eligible.filter(row => !conflictsWithEvent(words, row, options) && !contradictsRecipient(words, row));
     const targets = [];
     const signal = AbortSignal.timeout(45000);
     try {
@@ -114,4 +115,4 @@ function createMatcher(base, request = fetch) {
   return matchAtOrigin(isolatedOllamaUrl(base), request);
 }
 
-module.exports = { createMatcher, dailyModel };
+module.exports = { createMatcher, dailyModel, manualOrDraft };

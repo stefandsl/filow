@@ -1,5 +1,5 @@
 const { randomUUID } = require("node:crypto");
-const { interpret } = require("./day-by-day-decisions");
+const { manualOrDraft } = require("./day-by-day-model");
 const { localDay } = require("./day-by-day-store");
 
 function dailyFrame(event, win, origin, pathname = "/day-by-day") {
@@ -11,7 +11,7 @@ function dailyFrame(event, win, origin, pathname = "/day-by-day") {
   } catch { return false; }
 }
 
-function createDaily({ store, match = interpret, now = () => new Date(), recognizer, notify = () => {} }) {
+function createDaily({ store, match = manualOrDraft, now = () => new Date(), recognizer, notify = () => {} }) {
   let session = "";
   let offset = 0;
   let dayGeneration = 0;
