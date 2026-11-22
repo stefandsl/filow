@@ -2592,6 +2592,44 @@ async function main() {
     okFilow.practice(mark);
     return true;
   });
+  let lesson, lessonOwner, lessonKeyBound = false;
+  const lessonStopKey = "Control+Shift+F12";
+  const interruptLesson = () => {
+    lesson?.interrupt();
+    if (lessonKeyBound) globalShortcut.unregister(lessonStopKey);
+    lessonKeyBound = false;
+  };
+  const stopLesson = () => {
+    const turn = lesson?.view().turn;
+    if (turn) lesson.stop(lessonOwner, turn);
+    interruptLesson();
+    if (!win.isDestroyed()) win.webContents.send("lesson:stopped");
+  };
+  win.on("blur", () => lesson?.blur());
+  win.on("closed", interruptLesson);
+  win.webContents.on("render-process-gone", interruptLesson);
+  win.webContents.on("did-start-navigation", (_event, _url, inPage, mainFrame) => {
+    if (mainFrame && !inPage) interruptLesson();
+  });
+  appHandle("lesson:control", async (event, action, turn, payload) => {
+    if (event.sender !== win.webContents || new URL(event.senderFrame.url).pathname !== "/") throw new Error("Denied");
+    const owner = String(event.sender.id) + "/" + String(event.senderFrame.routingId);
+    if (action === "prepare") {
+      if (!win.isFocused() || lessonKeyBound || process.platform !== "win32") return { phase: "held" };
+      lessonKeyBound = globalShortcut.register(lessonStopKey, stopLesson);
+      if (!lessonKeyBound) return { phase: "held" };
+      const { createLesson, lessonJournal, edgeDriver } = require("./okfilow-lesson");
+      lessonOwner = owner;
+      lesson = createLesson({ driver: edgeDriver(userData), focused: () => !win.isDestroyed() && win.isFocused(), journal: lessonJournal(userData) });
+      return lesson.prepare(owner);
+    }
+    if (!lesson || owner !== lessonOwner) return { phase: "idle" };
+    if (action === "state") return lesson.view();
+    if (action === "stop" && (!turn || lesson.view().turn === turn)) { stopLesson(); return { phase: "idle" }; }
+    if (action === "request") return lesson.request(owner, turn, payload);
+    if (action === "approve" && turn === payload?.turn) return lesson.approve(owner, payload);
+    return { phase: "held" };
+  });
   // The page names a language, the shell picks the sentence: a page of the main window cannot hand the
   // assistant (which may take a screenshot and send it to the provider the user said yes to) its own words.
   appHandle("tour:ask", (event, lang) => {

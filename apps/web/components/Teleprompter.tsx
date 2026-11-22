@@ -37,7 +37,7 @@ import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "./LangSwitch";
 import { ResourcesPanel } from "./ResourcesPanel";
-import { desktopBridge, type UpdateStatus } from "@/lib/sessionUrl";
+import { desktopBridge, type LessonView, type UpdateStatus } from "@/lib/sessionUrl";
 import { publicLinkOn, useRemoteStatus } from "@/lib/useRemoteStatus";
 
 import { SectionNav } from "./prompter/SectionNav";
@@ -1026,6 +1026,36 @@ export function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; on
 
 export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
   const t = useT();
+  const bridge = desktopBridge()?.lesson;
+  const [view, setView] = useState<LessonView>({ phase: "idle" });
+  const [words, setWords] = useState("");
+  const generation = useRef(0);
+  const nextRequest = useCallback(() => ++generation.current, []);
+  const usingBrowser = useRef(false);
+  useEffect(() => {
+    const off = bridge?.onStop(() => {
+      nextRequest();
+      usingBrowser.current = false;
+      setView({ phase: "idle" });
+      setWords("");
+    });
+    return () => {
+      off?.();
+      nextRequest();
+      if (usingBrowser.current) void bridge?.control("stop").catch(() => {});
+    };
+  }, [bridge, nextRequest]);
+  const control = async (action: "prepare" | "request" | "approve" | "stop") => {
+    if (!bridge) return;
+    const id = nextRequest();
+    usingBrowser.current = true;
+    const result = bridge.control(action, view.turn, action === "approve" ? view.decision : action === "request" ? words : undefined);
+    if (action === "prepare" || action === "approve") setView({ phase: action === "prepare" ? "preparing" : "checking" });
+    try {
+      const next = await result;
+      if (id === generation.current) setView(next);
+    } catch { if (id === generation.current) setView({ phase: "held" }); }
+  };
   const [photo, setPhoto] = useState<{ name: string; url: string } | null>(null);
   useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.url); }, [photo]);
   return <Dialog title={t("lesson.prepared")} onClose={onClose} heading>
@@ -1041,6 +1071,21 @@ export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
         <th scope="row">{t(process)}</th><td>{t(from)}</td><td aria-hidden="true">→</td><td>{t(to)}</td>
       </tr>)}
     </tbody></table>
+    {bridge && <section aria-live="polite">
+      {view.phase === "idle" && <button className="btn" onClick={() => void control("prepare")}>{t("lesson.browser")}</button>}
+      {view.phase === "ready" && <form onSubmit={e => { e.preventDefault(); void control("request"); }}>
+        <label>{t("lesson.request")} <input value={words} placeholder={t("lesson.command")} onChange={e => setWords(e.target.value)} /></label>
+        <button className="btn" disabled={!words.trim()}>{t("lesson.review")}</button>
+      </form>}
+      {view.phase === "approval" && view.decision && <>
+        <p>{t("lesson.destination", { window: view.decision.window, turn: view.decision.turn })}<br /><code>{view.decision.url}</code></p>
+        <button className="btn" onClick={() => void control("stop")}>{t("common.cancel")}</button>
+        <button className="btn primary" onClick={() => void control("approve")}>{t("lesson.allow")}</button>
+      </>}
+      {["checking", "preparing", "dispatched"].includes(view.phase) && <p>{t("lesson.waiting")}</p>}
+      {view.phase === "held" && <p role="status">{t("lesson.held")}</p>}
+      {view.phase !== "idle" && <button className="btn" onClick={() => void control("stop")}>{t("lesson.stop")}</button>}
+    </section>}
     <div className="controls"><button type="button" className="btn" onClick={onClose}>{t("lesson.return")}</button></div>
   </Dialog>;
 }

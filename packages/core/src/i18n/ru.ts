@@ -1,6 +1,15 @@
 import type { Dictionary } from "./en";
 
 export const ru: Dictionary = {
+  "lesson.command": "Открой Cloud Lab",
+  "lesson.browser": "Подготовить окно Edge для урока",
+  "lesson.request": "Вернитесь в Filow и попросите открыть Cloud Lab",
+  "lesson.review": "Проверить запрос",
+  "lesson.allow": "Открыть один раз",
+  "lesson.destination": "Открыть Cloud Lab в окне {window} Microsoft Edge для этого запроса ({turn})?",
+  "lesson.waiting": "Ожидание страницы урока в Edge.",
+  "lesson.held": "Действие в браузере приостановлено. Проверьте окно урока.",
+  "lesson.stop": "Остановить урок (Ctrl+Shift+F12)",
   "lesson.prepared": "Подготовленная схема круговорота воды",
   "lesson.photo": "Выберите фотографию облаков на компьютере",
   "lesson.evaporation": "Испарение",

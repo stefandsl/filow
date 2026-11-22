@@ -1,6 +1,15 @@
 import type { Dictionary } from "./en";
 
 export const ja: Dictionary = {
+  "lesson.command": "Cloud Lab を開いて",
+  "lesson.browser": "授業用の Edge ウィンドウを準備",
+  "lesson.request": "Filow に戻り、Cloud Lab を開くように依頼してください",
+  "lesson.review": "依頼を確認",
+  "lesson.allow": "一度だけ開く",
+  "lesson.destination": "今回の依頼（{turn}）で Microsoft Edge のウィンドウ {window} に Cloud Lab を開きますか？",
+  "lesson.waiting": "Edge で授業ページを待っています。",
+  "lesson.held": "ブラウザー操作を一時停止しました。授業ウィンドウを確認してください。",
+  "lesson.stop": "授業を停止（Ctrl+Shift+F12）",
   "lesson.prepared": "準備済みの水循環図",
   "lesson.photo": "端末から雲の写真を選ぶ",
   "lesson.evaporation": "蒸発",

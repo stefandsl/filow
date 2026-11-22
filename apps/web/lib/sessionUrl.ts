@@ -4,7 +4,13 @@
  * 2. NEXT_PUBLIC_SESSION_URL set at build time: use it ("" = same origin, hosted mode behind Caddy).
  * 3. Otherwise: same host, port 4748 (dev).
  */
+export type LessonDecision = { teacher: string; turn: string; window: number; tab: string; action: "open"; url: string };
+export type LessonView = { phase: "idle" | "preparing" | "ready" | "approval" | "checking" | "dispatched" | "held"; turn?: string; decision?: LessonDecision };
 export type DesktopBridge = {
+  lesson?: {
+    control(action: "prepare" | "request" | "approve" | "state" | "stop", turn?: string, payload?: string | LessonDecision): Promise<LessonView>;
+    onStop(fn: () => void): () => void;
+  };
   relayIdentity?: {
     remember(url: string, identity: { id: string; engineToken: string }): Promise<void>;
     resume(url: string): Promise<{ id: string; engineToken: string } | null>;

@@ -103,6 +103,7 @@
       "ui-preferences.js",
       "vendor/*.css",
       "okfilow.js",
+      "okfilow-lesson.js",
       "okfilow-preload.js",
       "okfilow-gestures.js",
       "okfilow-hook-retry.js",

@@ -1,6 +1,15 @@
 import type { Dictionary } from "./en";
 
 export const ro: Dictionary = {
+  "lesson.command": "Deschide Cloud Lab",
+  "lesson.browser": "Pregătește o fereastră Edge pentru lecție",
+  "lesson.request": "Revino în Filow și cere deschiderea Cloud Lab",
+  "lesson.review": "Verifică cererea",
+  "lesson.allow": "Deschide o dată",
+  "lesson.destination": "Deschizi Cloud Lab în fereastra {window} din Microsoft Edge pentru această intervenție ({turn})?",
+  "lesson.waiting": "Se așteaptă pagina lecției în Edge.",
+  "lesson.held": "Acțiunea din browser este suspendată. Verifică fereastra lecției.",
+  "lesson.stop": "Oprește lecția (Ctrl+Shift+F12)",
   "lesson.prepared": "Schema pregătită a circuitului apei",
   "lesson.photo": "Alege o fotografie locală cu nori",
   "lesson.evaporation": "Evaporare",

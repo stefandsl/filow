@@ -5,6 +5,17 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("filow", {
   desktop: true,
+  lesson: {
+    control: (action, turn, payload) => {
+      if (["prepare", "approve"].includes(action) && !navigator.userActivation.isActive) return Promise.resolve({ phase: "held" });
+      return ipcRenderer.invoke("lesson:control", action, turn, payload);
+    },
+    onStop: fn => {
+      const listener = () => fn();
+      ipcRenderer.on("lesson:stopped", listener);
+      return () => ipcRenderer.removeListener("lesson:stopped", listener);
+    },
+  },
   account: {
     status: () => ipcRenderer.invoke("account:status"),
     configured: () => ipcRenderer.invoke("account:configured"),

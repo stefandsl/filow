@@ -1,6 +1,15 @@
 // English: the reference dictionary. Every other language has exactly these keys
 // (packages/core/src/i18n/i18n.test.ts and tools/autoloop/checks/i18n-parity.mjs).
 export const en = {
+  "lesson.command": "Open Cloud Lab",
+  "lesson.browser": "Prepare an Edge lesson window",
+  "lesson.request": "Return to Filow and ask to open Cloud Lab",
+  "lesson.review": "Review my request",
+  "lesson.allow": "Open once",
+  "lesson.destination": "Open Cloud Lab in Microsoft Edge window {window} for this turn ({turn})?",
+  "lesson.waiting": "Waiting for the lesson page in Edge.",
+  "lesson.held": "The browser action is paused. Check the lesson window.",
+  "lesson.stop": "Stop lesson (Ctrl+Shift+F12)",
   "lesson.prepared": "Prepared water-cycle board",
   "lesson.photo": "Choose a local cloud photograph",
   "lesson.evaporation": "Evaporation",
