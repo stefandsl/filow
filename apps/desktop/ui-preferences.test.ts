@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import * as helpers from "../../packages/core/src/ui-preferences";
 const { createUiPreferences, trustedUiSender, createWelcomeController } = createRequire(import.meta.url)("./ui-preferences.js");
 
-function fixture(options: { platform?: string; packaged?: boolean; portable?: boolean; initial?: Record<string, unknown> } = {}) {
+function fixture(options: { platform?: string; privateBuild?: boolean; packaged?: boolean; portable?: boolean; initial?: Record<string, unknown> } = {}) {
   let settings: Record<string, unknown> = { secret: "never exposed", ...options.initial };
   let os = { openAtLogin: false, status: "not-registered", launchItems: [] as { name: string; path: string; args: string[]; enabled: boolean }[] };
   const app = {
@@ -16,7 +16,7 @@ function fixture(options: { platform?: string; packaged?: boolean; portable?: bo
   const systemPreferences = Object.assign(new EventEmitter(), { getAccentColor: vi.fn(() => "aabbccff"), subscribeNotification: vi.fn(() => 3), unsubscribeNotification: vi.fn() });
   const save = vi.fn(async (candidate: Record<string, unknown>) => { settings = candidate; });
   const canComplete = vi.fn(() => true);
-  const service = createUiPreferences({ app, nativeTheme, systemPreferences, platform: options.platform ?? "win32", portable: options.portable, execPath: "G:\\Apps With Spaces\\Filow.exe", read: () => settings, save, initial: options.initial ?? {}, helpers, canComplete });
+  const service = createUiPreferences({ app, nativeTheme, systemPreferences, platform: options.platform ?? "win32", privateBuild: options.privateBuild, portable: options.portable, execPath: "G:\\Apps With Spaces\\Filow.exe", read: () => settings, save, initial: options.initial ?? {}, helpers, canComplete });
   return { service, app, nativeTheme, systemPreferences, save, canComplete, settings: () => settings, externalDisable: () => { os.launchItems.forEach(i => i.enabled = false); }, pending: () => { os.status = "requires-approval"; } };
 }
 describe("desktop UI authority", () => {
@@ -51,7 +51,7 @@ describe("desktop UI authority", () => {
     expect(f.settings().runAtStartup).toBe(false);
     f.service.dispose();
   });
-  it.each([{ platform: "linux" }, { packaged: false }, { portable: true }])("never registers unsupported runs %j", async options => {
+  it.each([{ platform: "linux" }, { packaged: false }, { portable: true }, { privateBuild: true }])("never registers unsupported runs %j", async options => {
     const f = fixture(options); expect((await f.service.update({ runAtStartup: true })).ok).toBe(false); expect(f.app.setLoginItemSettings).not.toHaveBeenCalled(); f.service.dispose();
   });
   it("keeps macOS approval pending", async () => {

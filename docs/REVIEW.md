@@ -284,3 +284,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R267 (N-07): Check each required offline recognizer file before starting the owner copy. Remove a fixture input and verify an actionable launcher error.
 - R268 (N-07): Time the first local speech review with an unloaded model and after preload. Record both delays and any missed review.
 - R269 (N-07): Exercise the splash live region, tray image selection and isolated migration. Keep the original native failure in the private receipt.
+- R270 (N-07): Disable login registration for the private package. Toggle startup in a packaged fixture and check that Electron receives no registration call.
+- R271 (N-07): Copy each standalone dependency to the private installer once. Check the package completes and the extracted web server answers.

@@ -322,6 +322,7 @@ const internalEvents = new (require("node:events"))();
 function initializeUiPreferences() {
   uiPreferences = createUiPreferences({
     app, nativeTheme, systemPreferences, platform: process.platform, execPath: process.execPath,
+    privateBuild: Boolean(privateAppId),
     portable: !!(process.env.PORTABLE_EXECUTABLE_FILE || process.env.PORTABLE_EXECUTABLE_DIR),
     read: () => settings, save: saveSettings, initial: initialUiSettings,
     canComplete: () => !quitting && !!welcomeWin && !welcomeWin.isDestroyed(),

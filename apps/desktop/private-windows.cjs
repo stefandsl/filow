@@ -12,5 +12,9 @@ module.exports = {
     name: "filow-private-n07", version: "0.9.45-qa." + sourceSha.slice(0, 8),
     privateAppId: appId, sourceSha, filowQa: true, updates: false,
   },
+  // The following resource entry already copies the standalone root dependencies.
+  extraResources: base.extraResources.map(resource => resource.to === "app"
+    ? { ...resource, filter: [...resource.filter, "!node_modules/**"] }
+    : resource),
   nsis: { ...base.nsis, shortcutName: productName },
 };

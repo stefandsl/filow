@@ -15,12 +15,12 @@ function trustedUiSender(event, { welcome, pages, welcomeUrl, appUrl, pathPrefix
   } catch { return false; }
 }
 
-function createUiPreferences({ app, nativeTheme, systemPreferences, platform, execPath, portable = false, read, save, initial = {}, helpers = require("./vendor/ui-preferences"), canComplete = () => true }) {
+function createUiPreferences({ app, nativeTheme, systemPreferences, platform, execPath, portable = false, privateBuild = false, read, save, initial = {}, helpers = require("./vendor/ui-preferences"), canComplete = () => true }) {
   const { normalizeUiPreferences, resolveUiLanguage, parseSystemAccent, validUiPatch } = helpers;
   let revision = 0, last, queue = Promise.resolve(), disposed = false;
   const listeners = new Set();
   const committed = new Set();
-  const startupSupported = app.isPackaged && !portable && (platform === "win32" || platform === "darwin");
+  const startupSupported = app.isPackaged && !portable && !privateBuild && (platform === "win32" || platform === "darwin");
   const accentSupported = platform === "win32" || platform === "darwin";
   const loginOptions = platform === "win32" ? { path: execPath, args: [] } : {};
   nativeTheme.themeSource = normalizeUiPreferences(read()).theme;
