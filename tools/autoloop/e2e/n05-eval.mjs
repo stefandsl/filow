@@ -31,6 +31,10 @@ export async function trial(tasks, c, dir) {
   worker.onResult(c.partial ? { ...event, committed: "", partial: c.utterance } : event);
   worker.onResult(event.committed && !c.partial ? event : { ...event, committed: "" });
   v = app.control("state", v);
+  assert.ok(!v.review || v.review.type === "create", "Speech without Gemma can only draft a task");
+  if (!v.review && !c.partial && (!c.source || c.source === "daily")) {
+    v = app.control("review", { ...v, text: c.utterance, op: randomUUID() });
+  }
   const unconfirmed = v.version - initial;
   const r = v.review;
   let ack = null;
@@ -85,7 +89,7 @@ export async function score(input, temp = os.tmpdir()) {
     }
     results[language] = m;
   }
-  return { route: "local rules with explicit confirmation", n06: "unqualified", input: "text",
+  return { route: "no-model speech drafts and typed reports with explicit confirmation", n06: "unqualified", input: "text",
     verdict: Object.values(results).every(m => !m.failed.length) ? "PASS" : "HOLD", languages: results };
 }
 

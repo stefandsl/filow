@@ -117,7 +117,7 @@ if (process.env.FILOW_USER_DATA_DIR) {
 }
 // Pin the launch override before reading the seeded profile .env. Port zero disables model access.
 if (process.env.FILOW_USER_DATA_DIR || INPUT_OFF || (app.isPackaged && require("./qa.js").isQaBuild(app))) {
-  require("./qa").blockTestModelPort();
+  require("./qa.js").blockTestModelPort();
   process.env.OLLAMA_URL = require("./localai").isolatedOllamaUrl(process.env.OLLAMA_URL) || "http://127.0.0.1:0";
 }
 const userData = app.getPath("userData");

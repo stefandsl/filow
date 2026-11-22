@@ -532,6 +532,13 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
         <div className="hint">{t("settings.languageHint")}</div>
       </section>
 
+      {dailyGrant && <button className="btn" onClick={async () => {
+        try {
+          const result = await desktopBridge()?.daily?.control("withdrawModel");
+          setDailyGrant(!!result?.modelGranted);
+        } catch { setError(t("daily.error")); }
+      }}>{t("daily.withdraw")}</button>}
+
       {!status ? (
         <div className="hint">{t("common.loading")}</div>
       ) : (
@@ -938,12 +945,6 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               </div>
             )}
             <div className="hint">{t("settings.offlineHint")}</div>
-            {dailyGrant && <button className="btn" onClick={async () => {
-              try {
-                const result = await desktopBridge()?.daily?.control("withdrawModel");
-                setDailyGrant(!!result?.modelGranted);
-              } catch { setError(t("daily.error")); }
-            }}>{t("daily.withdraw")}</button>}
             <AboutPrivacyLink />
           </section>
           {error && <span className="chip err">{error}</span>}

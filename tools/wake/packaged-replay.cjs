@@ -3,7 +3,6 @@ const { spawnTestApp } = require("../autoloop/e2e/test-launch.cjs");
 const fs = require("node:fs");
 const path = require("node:path");
 const net = require("node:net");
-const { spawn } = require("node:child_process");
 const { once } = require("node:events");
 const { setTimeout: wait } = require("node:timers/promises");
 
