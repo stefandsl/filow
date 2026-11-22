@@ -275,3 +275,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R258 (N-06): Retry invalid model layout fields through the plan parser. Check two invalid answers yield a plan error.
 - R259 (N-06): Build and launch the dispatched branch installer when smoke is requested without a tag. Check the branch smoke job runs against the dispatched SHA.
 - R260 (N-06): Interpret intent as a selector only in an explicit directive. Check a lesson about the role of intent alongside a request selecting an unknown intent.
+- R261 (N-07): Give the Windows tray the multi-size icon. Check the tray uses the packaged ICO and that it contains both 16 and 32 pixel frames.
+- R262 (N-07): Announce changes to the splash startup message. Check the element updated by the shell has the status role.

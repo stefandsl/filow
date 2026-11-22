@@ -906,7 +906,9 @@ function createOkFilow(deps) {
   function buildTray() {
     if (tray) return;
     try {
-      const img = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+      const img = process.platform === "win32"
+        ? path.join(__dirname, "build", "icon.ico")
+        : nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
       const TrayClass = trayFor(Tray);
       tray = new TrayClass(img);
       tray.setToolTip("OK Filow");
