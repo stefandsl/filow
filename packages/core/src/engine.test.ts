@@ -1225,3 +1225,25 @@ describe("Engine: active hint and window edges (P1 review)", () => {
     expect("Oggi abbiamo quattrocentocinquanta clienti attivi in Italia.".split(" ")).toContain(first);
   });
 });
+
+it.each(["stop", "reset"] as const)("discards the durable place on %s even with marks in another section", action => {
+  const { e } = makeEngine();
+  e.start();
+  e.dispatch({ type: "markStarted", id: "s0b0" });
+  e.dispatch({ type: "anchor", idx: 1 });
+  expect(e.committedPlace()?.points.s0b0).toBeDefined();
+  if (action === "stop") e.stop();
+  else e.dispatch({ type: "resetSection" });
+  expect(e.committedPlace()).toBeNull();
+});
+
+it("accepts the same final in a new section rehearsal without interim events", async () => {
+  const { e, calls } = makeEngine([{ s0b0: 1 }]);
+  for (let take = 0; take < 2; take++) {
+    e.dispatch({ type: "resetSection" });
+    e.feed({ committed: "Hello everyone!" });
+    await e.tick();
+    expect(e.getState().points.s0b0?.status).toBe("started");
+  }
+  expect(calls).toHaveLength(2);
+});

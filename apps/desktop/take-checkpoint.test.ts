@@ -52,3 +52,31 @@ describe("desktop take checkpoint", () => {
     expect(existsSync(join(dir, "settings.json"))).toBe(true);
   });
 });
+
+it("invalidates the old file as soon as a different script opens", () => {
+  dir = mkdtempSync(join(tmpdir(), "filow-change-"));
+  const store = open();
+  store.save(store.begin(key).writer, 1, place);
+  store.begin("another talk");
+  expect(open().begin(key).place).toBeNull();
+});
+
+it("revokes the last writer on a clean exit", () => {
+  dir = mkdtempSync(join(tmpdir(), "filow-quit-"));
+  const store = open();
+  const { writer } = store.begin(key);
+  store.save(writer, 1, place);
+  store.finish();
+  expect(store.save(writer, 2, place)).toBe(false);
+  expect(open().begin(key).place).toBeNull();
+});
+
+it("removes a checkpoint on a versioned clear and rejects an older save", () => {
+  dir = mkdtempSync(join(tmpdir(), "filow-clear-"));
+  const store = open();
+  const { writer } = store.begin(key);
+  store.save(writer, 1, place);
+  expect(store.save(writer, 3, null)).toBe(true);
+  expect(store.save(writer, 2, place)).toBe(false);
+  expect(open().begin(key).place).toBeNull();
+});

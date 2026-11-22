@@ -67,10 +67,12 @@ describe("relay", () => {
     const phone = open(id, { role: "view", token: viewToken });
     await phone.next();
     await phone.next();
+    phone.send({ t: "cmd", id: "0", cmd: { type: "nextSection" } });
     phone.send({ t: "cmd", id: "1", epoch: 2, cmd: { type: "prevSection" } });
     phone.send({ t: "cmd", id: "2", epoch: 3, cmd: { type: "nextSection" } });
     const fresh = await engine.next();
     expect(fresh).toMatchObject({ t: "cmd", epoch: 3, cmd: { type: "nextSection" } });
+    expect(await phone.next()).toMatchObject({ t: "ack", id: "0", error: "place-changed" });
     expect(await phone.next()).toMatchObject({ t: "ack", id: "1", ok: false });
     engine.send({ t: "ack", id: fresh.id, ok: true });
     expect(await phone.next()).toMatchObject({ t: "ack", id: "2", ok: true });

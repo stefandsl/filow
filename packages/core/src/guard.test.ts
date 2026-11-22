@@ -435,3 +435,13 @@ describe.each(Object.entries(frozen.journeys))("%s affirmative and corrected cla
     expect(checkClaim(restore, nearby).ok).toBe(true);
   });
 });
+
+it.each([
+  ["Workshop Friday", "The workshop has shifted to Saturday."],
+  ["Collaudo sabato", "Il collaudo si svolgerà venerdì."],
+  ["Inspection date Sunday", "The inspection date is pending."],
+  ["Cooling test", "The cooling test was unsuccessful."],
+  ["Workshop Friday", "Our payroll transfer happens Friday."],
+])("checks the relation in %s", (label, speech) => {
+  expect(checkClaim(label, speech).ok).toBe(false);
+});
