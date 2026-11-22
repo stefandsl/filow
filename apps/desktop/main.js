@@ -2478,11 +2478,11 @@ async function main() {
     loadSecrets();
     aliasLegacyEnv();
     loadSettings();
-    dailyRetention = require("./day-by-day-store").startDailyRetention(userData, () => logLine("daily: expiry unavailable"));
-    app.once("will-quit", dailyRetention.stop);
     freeLlm().apply(); // FreeLLMAPI: the address and model saved in Settings win over .env
     if (migrated) settings.profileMigrated = true;
     dropInstallerChoices();
+    dailyRetention = require("./day-by-day-store").startDailyRetention(userData, () => logLine("daily: expiry unavailable"));
+    app.once("will-quit", dailyRetention.stop);
     initializeUiPreferences();
     if (settings.welcomeCompleted !== true) {
       startupTransition = true;
