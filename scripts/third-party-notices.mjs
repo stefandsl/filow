@@ -34,6 +34,8 @@ const out = [
   "Filow is free software under GPL-3.0-or-later. It bundles the components below; each keeps its own license.",
   "Electron's own notices (Chromium and its dependencies) ship next to Filow.exe as LICENSES.chromium.html.",
   "",
+  fs.readFileSync("apps/desktop/daily-lexicon/README.md", "utf8").trim().replace(/^# /, "## "),
+  "",
   "## Speech models",
   "",
   "The on-device speech recognizers below are downloaded on request, the one each spoken language needs;",
