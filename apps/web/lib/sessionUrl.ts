@@ -12,6 +12,7 @@ export type LessonView = {
 
 export type DailyTask = { id: string; rev: number; text: string; due: string; done: boolean; evidence: string; undo: boolean };
 export type DailyView = {
+  modelGranted?: boolean; modelReady?: boolean;
   session: string; version: number; day: string; today: string; offset: number; tasks: DailyTask[];
   review?: { token: string; type: "create" | "complete" | "reopen"; words: string; text?: string; due: string;
     targets: { id: string; rev: number; text: string }[]; which?: boolean } | null;

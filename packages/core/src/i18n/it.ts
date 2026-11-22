@@ -27,6 +27,8 @@ export const it: Dictionary = {
   "daily.live": "In ascolto su questo dispositivo",
   "daily.off": "Microfono spento",
   "daily.micError": "Il riconoscimento locale non è disponibile. Scrivi l’attività o il resoconto qui sotto.",
+  "daily.modelHint": "Per riconoscere più resoconti, usa Gemma 4 E2B su questo PC (Ollama, 4,3 GiB, Apache 2.0).",
+  "daily.useModel": "Usa Gemma già installato",
   "daily.report": "Resoconto dei progressi",
   "daily.review": "Verifica resoconto",
   "daily.confirm": "Conferma modifica",

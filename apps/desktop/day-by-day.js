@@ -170,19 +170,27 @@ function createDaily({ store, match = interpret, now = () => new Date(), recogni
   } };
 }
 
-function wireDaily({ win, appHandle, appOn, origin, getStore, qaEpoch, recognizer }) {
+function wireDaily({ win, appHandle, appOn, origin, getStore, qaEpoch, recognizer, hasGrant, saveGrant }) {
   let workspace;
-  const match = require("./day-by-day-model").createMatcher(process.env.OLLAMA_URL);
+  const model = require("./day-by-day-model").dailyModel({ hasGrant });
   const launched = Date.now();
   const now = Number.isFinite(qaEpoch) ? () => new Date(qaEpoch + Date.now() - launched) : () => new Date();
-  appHandle("daily:control", (event, action, p) => {
+  appHandle("daily:control", async (event, action, p) => {
     if (!dailyFrame(event, win, origin) || (action === "arm" && !win.isFocused())) throw Error("Denied");
     if (action === "meter" && Number.isFinite(qaEpoch)) return workspace?.meter();
     const frame = event.senderFrame;
-    workspace ??= createDaily({ match, store: getStore(), now, recognizer, notify(message) {
+    workspace ??= createDaily({ match: model.match, store: getStore(), now, recognizer, notify(message) {
       if (dailyFrame({ sender: win.webContents, senderFrame: frame }, win, origin)) frame.send("daily:speech", message);
     } });
-    return workspace.control(action, p);
+    if (action === "grantModel") {
+      workspace.control("state", p);
+      if (model.grant) saveGrant(model.grant);
+      action = "state";
+      await model.available();
+    }
+    const result = await workspace.control(action, p);
+    if (action === "open") await model.available();
+    return result && { ...result, modelGranted: model.granted(), modelReady: model.ready() };
   });
   appOn("daily:pcm", (event, p, samples) => {
     if (dailyFrame(event, win, origin)) workspace?.feed(p, samples);

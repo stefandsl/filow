@@ -27,6 +27,8 @@ export const ru: Dictionary = {
   "daily.live": "Идёт запись на устройстве",
   "daily.off": "Микрофон выключен",
   "daily.micError": "Локальное распознавание недоступно. Введите задачу или отчёт ниже.",
+  "daily.modelHint": "Для более точного сопоставления используйте Gemma 4 E2B на этом компьютере (Ollama, 4,3 ГиБ, Apache 2.0).",
+  "daily.useModel": "Использовать установленную Gemma",
   "daily.report": "Отчёт о ходе работы",
   "daily.review": "Проверить отчёт",
   "daily.confirm": "Подтвердить изменение",

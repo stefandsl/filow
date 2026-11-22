@@ -56,6 +56,8 @@ Filow is a live speaking companion: it listens as you present, checks off your t
 
 ## Day-by-day
 
+Basic matching works offline. For more paraphrases, choose **Use installed Gemma** in Day-by-day after installing Gemma 4 E2B in Local models. You can always tick a task by hand.
+
 From the desktop presenter, open **Day-by-day** and choose **Today** or **Tomorrow**. Type a task and select **Add task**, or tap **Talk** and dictate one task at a time. Wait for **Listening on this device**, review the wording, then add the task. Speech understands English and Italian task requests and progress reports. Use **Delete task** for one row or **Delete entire list** for every date. Typing also works when the microphone or local speech model is unavailable.
 
 Report matching uses Gemma 4 E2B when `OLLAMA_URL` points to a local Ollama instance on a dedicated port with `gemma4:e2b` installed. If the model is unavailable, Filow uses its built-in English and Italian dictionaries.

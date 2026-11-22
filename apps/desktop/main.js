@@ -2540,6 +2540,7 @@ async function main() {
   const qaEpoch = app.isPackaged && INPUT_OFF && process.env.FILOW_USER_DATA_DIR && require("./qa.js").isQaBuild(app)
     ? Date.parse(process.env.FILOW_QA_DAILY_TIME || "") : NaN;
   require("./day-by-day").wireDaily({ win, appHandle, appOn, origin: APP_URL, getStore: dailyRetention.getStore,
+    hasGrant: key => settings.dailyModelGrant === key, saveGrant: key => saveSettings({ ...settings, dailyModelGrant: key }),
     recognizer: () => new sttLocal.SttSession(userData, () => {}, { use: "tracking" }), qaEpoch });
   win.on("focus", () => uiPreferences?.refresh());
   win.on("closed", () => { mainWin = null; aboutPages?.close(); }); // About must not keep Filow running alone

@@ -20,14 +20,13 @@ function isolatedOllamaUrl(value) {
   } catch { return null; }
 }
 
-function ollamaProbeUrl() {
-  if (process.env.FILOW_USER_DATA_DIR || process.env.NODE_TEST_CONTEXT || process.env.NODE_ENV === "test" ||
-      process.env.VITEST || require("./package.json").filowQa) return isolatedOllamaUrl(process.env.OLLAMA_URL);
-  return (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+function ollamaProbeUrl(env = process.env, qa = require("./package.json").filowQa) {
+  if (env.FILOW_USER_DATA_DIR || env.NODE_TEST_CONTEXT || env.NODE_ENV === "test" ||
+      env.VITEST || qa) return isolatedOllamaUrl(env.OLLAMA_URL);
+  return (env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
 }
 
-async function fetchOllamaTags(request = fetch) {
-  const url = ollamaProbeUrl();
+async function fetchOllamaTags(request = fetch, url = ollamaProbeUrl()) {
   if (!url) return null;
   const response = await request(url + "/api/tags", { redirect: "error", signal: AbortSignal.timeout(1500) });
   return response.ok ? response.json() : null;

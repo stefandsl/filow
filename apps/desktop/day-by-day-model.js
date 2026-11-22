@@ -1,6 +1,6 @@
 const { interpret, contradictsRecipient, objectPair } = require("./day-by-day-decisions");
 const { cleanText } = require("./day-by-day-store");
-const { isolatedOllamaUrl } = require("./localai");
+const { isolatedOllamaUrl, ollamaProbeUrl, fetchOllamaTags } = require("./localai");
 
 const model = "gemma4:e2b";
 const format = { type: "object", additionalProperties: false, required: ["reason", "verdict"],
@@ -37,8 +37,7 @@ async function assess(request, origin, row, words, repair, signal) {
   } catch { return false; }
 }
 
-function createMatcher(base, request = fetch) {
-  const origin = isolatedOllamaUrl(base);
+function matchAtOrigin(origin, request, unavailable = () => {}) {
   if (!origin) return interpret;
   return async function match(input, tasks, options) {
     const words = cleanText(input);
@@ -57,7 +56,7 @@ function createMatcher(base, request = fetch) {
           targets.push({ id: row.id, rev: row.rev, text: row.text });
         }
       }
-    } catch { return grounded; }
+    } catch { unavailable(); return grounded; }
     // Never narrow a grounded question about two people to a single guessed person.
     if (grounded?.which) {
       for (const row of grounded.targets) if (!targets.some(t => t.id === row.id)) targets.push(row);
@@ -66,4 +65,37 @@ function createMatcher(base, request = fetch) {
   };
 }
 
-module.exports = { createMatcher };
+// The source and model name together identify the user's persistent grant.
+function dailyModel({ origin = ollamaProbeUrl(), hasGrant, request = fetch }) {
+  let source;
+  try {
+    const url = new URL(origin);
+    if (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) &&
+        !url.username && !url.password && url.pathname === "/" && !url.hash && !url.search && url.port !== "0") source = url.origin;
+  } catch { /* No usable local source. */ }
+  const grant = source && source + "/" + model;
+  let installed = false;
+  const granted = () => Boolean(grant && hasGrant(grant));
+  async function available() {
+    installed = false;
+    if (granted()) {
+      try {
+        const tags = await fetchOllamaTags(request, source);
+        installed = tags?.models?.some(entry => entry.name === model) === true;
+      } catch { /* Offline matching stays available. */ }
+    }
+    return installed && granted();
+  }
+  const matchModel = matchAtOrigin(source, request, () => { installed = false; });
+  return { grant, granted, available, ready: () => granted() && installed,
+    async match(words, tasks, options) {
+      return await available() ? matchModel(words, tasks, options) : interpret(words, tasks, options);
+    }
+  };
+}
+
+function createMatcher(base, request = fetch) {
+  return matchAtOrigin(isolatedOllamaUrl(base), request);
+}
+
+module.exports = { createMatcher, dailyModel };

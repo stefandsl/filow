@@ -27,6 +27,8 @@ export const en = {
   "daily.live": "Listening on this device",
   "daily.off": "Microphone off",
   "daily.micError": "Local speech is unavailable. Type your task or progress report below.",
+  "daily.modelHint": "For better matching, use Gemma 4 E2B on this PC (Ollama, 4.3 GiB, Apache 2.0).",
+  "daily.useModel": "Use installed Gemma",
   "daily.report": "Progress report",
   "daily.review": "Review report",
   "daily.confirm": "Confirm change",

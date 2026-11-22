@@ -27,6 +27,8 @@ export const ro: Dictionary = {
   "daily.live": "Se ascultă pe acest dispozitiv",
   "daily.off": "Microfon oprit",
   "daily.micError": "Recunoașterea locală nu este disponibilă. Scrie sarcina sau raportul mai jos.",
+  "daily.modelHint": "Pentru potriviri mai bune, folosește Gemma 4 E2B pe acest PC (Ollama, 4,3 GiB, Apache 2.0).",
+  "daily.useModel": "Folosește Gemma instalat",
   "daily.report": "Raport de progres",
   "daily.review": "Verifică raportul",
   "daily.confirm": "Confirmă modificarea",

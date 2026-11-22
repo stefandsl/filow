@@ -27,6 +27,8 @@ export const ja: Dictionary = {
   "daily.live": "この端末で聞き取り中",
   "daily.off": "マイクはオフです",
   "daily.micError": "端末の音声認識を使用できません。下にタスクや進捗を入力してください。",
+  "daily.modelHint": "照合の精度を上げるには、この PC の Gemma 4 E2B（Ollama、4.3 GiB、Apache 2.0）を使用してください。",
+  "daily.useModel": "インストール済みの Gemma を使う",
   "daily.report": "進捗報告",
   "daily.review": "報告を確認",
   "daily.confirm": "変更を確定",

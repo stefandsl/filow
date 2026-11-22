@@ -53,7 +53,7 @@ it("routes the granted installed model through the profile's local source", asyn
       : { message: { content: JSON.stringify({ reason: "bound", verdict: "yes" }) } });
   };
   const options = { request, hasGrant: () => granted };
-  const daily = dailyModel(options);
+  const daily = dailyModel({ ...options, origin: load("./localai").ollamaProbeUrl({ NODE_ENV: "test" }) });
   const query = () => daily.match("The booklet now has its binding", tasks.slice(0, 1), {});
   assert.equal(await query(), null);
   assert.deepEqual(calls, []);

@@ -157,6 +157,9 @@ export default function DayByDay() {
         <label>{tr("daily.report")}<input value={report} maxLength={2000} onChange={e => setReport(e.target.value)} /></label>
         <button className="btn" disabled={!report.trim()}>{tr("daily.review")}</button>
       </form>
+      {!view.modelReady && <p>{tr("daily.modelHint")} {view.modelGranted
+        ? <Link href="/settings/local">{tr("editor.openLocalModels")}</Link>
+        : <button className="btn" onClick={() => void act("grantModel", {})}>{tr("daily.useModel")}</button>}</p>}
       <div className="controls"><button className="btn" data-daily-talk aria-pressed={mic !== "off"} onClick={() => void talk()}>{tr(mic === "off" ? "daily.talk" : "daily.stop")}</button>
         <span role="status" data-mic={mic}>{tr(`daily.${mic}`)}</span></div>
       {partial && <p>{partial}</p>}
