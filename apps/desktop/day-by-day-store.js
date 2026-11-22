@@ -64,7 +64,7 @@ function openDailyStore(dir) {
     state = replacement;
     return ack;
   }
-  return { view, apply };
+  return { view, apply, get version() { return state.version; } };
 }
 
 module.exports = { cleanText, localDay, openDailyStore };

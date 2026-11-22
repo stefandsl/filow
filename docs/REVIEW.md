@@ -226,3 +226,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R208 (N-04): Run a packaged approve and observe cycle in a private Electron session. Attribute non-loopback traffic to the application process tree.
 - R209 (N-04): Remove the response instance and turn referrer checks separately and verify that their negative tests fail.
 - R210 (N-04): Record critical errors with graded denominators for both arms and keep live generation HELD until the N-06 factual gate passes.
+- R212 (2026-11-22, N-05): Bind daily recognizer results to the visible list revision even when listening continues through a task edit. Check: deliver an idle audio block, save a task, replay a final from the old revision and report progress on the new one. Count one confirmation and one durable tick.

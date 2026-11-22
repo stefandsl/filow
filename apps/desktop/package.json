@@ -60,6 +60,7 @@
       "take-checkpoint.js",
       "day-by-day.js",
       "day-by-day-store.js",
+      "day-by-day-decisions.js",
       "stt-download.js",
       "dictation.js",
       "dictation-core.js",

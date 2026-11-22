@@ -2532,7 +2532,8 @@ async function main() {
   reloadOnCrash(win, "main");
   endTakeWithPage(win);
   const dailyQa = app.isPackaged && INPUT_OFF && process.env.FILOW_USER_DATA_DIR && require("./qa.js").isQaBuild(app);
-  require("./day-by-day").wireDaily({ win, appHandle, origin: APP_URL, userData,
+  require("./day-by-day").wireDaily({ win, appHandle, appOn, origin: APP_URL, userData,
+    recognizer: () => new sttLocal.SttSession(userData, () => {}, { use: "tracking" }),
     qaEpoch: dailyQa ? Date.parse(process.env.FILOW_QA_DAILY_TIME || "") : NaN });
   win.on("focus", () => uiPreferences?.refresh());
   win.on("closed", () => { mainWin = null; aboutPages?.close(); }); // About must not keep Filow running alone

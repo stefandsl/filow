@@ -6,7 +6,17 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("filow", {
   desktop: true,
   daily: {
-    control: (action, payload) => ipcRenderer.invoke("daily:control", action, payload),
+    control: (action, payload) => {
+      if (["arm", "create", "confirm", "edit", "undo", "reopen", "complete"].includes(action) && !navigator.userActivation.isActive)
+        return Promise.reject(new Error("User action required"));
+      return ipcRenderer.invoke("daily:control", action, payload);
+    },
+    feed: (session, capture, samples) => ipcRenderer.send("daily:pcm", { session, capture }, samples),
+    onSpeech: fn => {
+      const listener = (_event, message) => fn(message);
+      ipcRenderer.on("daily:speech", listener);
+      return () => ipcRenderer.removeListener("daily:speech", listener);
+    },
   },
   lesson: {
     control: (action, turn, payload) => {

@@ -13,10 +13,16 @@ export type LessonView = {
 export type DailyTask = { id: string; rev: number; text: string; due: string; done: boolean; evidence: string; undo: boolean };
 export type DailyView = {
   session: string; version: number; day: string; today: string; offset: number; tasks: DailyTask[];
+  review?: { token: string; type: "create" | "complete" | "reopen"; words: string; text?: string; due: string;
+    targets: { id: string; rev: number; text: string }[]; which?: boolean } | null;
   status?: "saved" | "stale" | "noMatch";
   ack?: { id: string; rev: number } | null;
 };
+export type DailySpeech = { session: string; capture: string; partial?: string; final?: string; error?: boolean;
+  stopped?: boolean; status?: "stale" | "noMatch" };
 export type DailyBridge = {
+  feed(session: string, capture: string, samples: Float32Array): void;
+  onSpeech(fn: (message: DailySpeech) => void): () => void;
   control(action: string, payload?: Record<string, unknown>): Promise<DailyView>;
 };
 export type DesktopBridge = {

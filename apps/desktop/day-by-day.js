@@ -1,4 +1,5 @@
 const { randomUUID } = require("node:crypto");
+const { interpret } = require("./day-by-day-decisions");
 const { localDay, openDailyStore } = require("./day-by-day-store");
 
 function dailyFrame(event, win, origin) {
@@ -10,17 +11,105 @@ function dailyFrame(event, win, origin) {
   } catch { return false; }
 }
 
-function createDaily({ store, now = () => new Date() }) {
+function createDaily({ store, now = () => new Date(), recognizer, notify = () => {} }) {
   let session = "";
   let offset = 0;
-  function close() { session = ""; }
+
+  let capture;
+  let pending = [];
+  let lastReview;
+  function stop() {
+    const ended = capture;
+    capture = undefined;
+    pending = pending.filter(review => !review.speech);
+    if (ended) void ended.worker.dispose();
+  }
+  function close() { stop(); pending = []; session = ""; }
+
   function view() {
     const stored = store.view();
     const date = now();
     const today = localDay(date);
     const day = localDay(date, offset);
     const tasks = stored.tasks.filter(row => row.due === day || (!offset && row.due < today && !row.done));
-    return { session, version: stored.version, day, today, offset, tasks };
+    pending = pending.filter(r => r.day === day && r.version === stored.version && r.expires > Date.now());
+    return { session, version: stored.version, day, today, offset, tasks, review: pending[0] || null };
+  }
+
+  function review(words, from, op, speech) {
+    const current = view();
+    if (from.day !== current.day || from.version !== current.version) return { ...current, status: "stale" };
+    const proposal = interpret(words, from.tasks, { speech });
+    if (!proposal) return { ...current, status: "noMatch" };
+    if (!pending.some(p => p.op === op) && pending.length < 30) pending.push({ ...proposal, token: randomUUID(), op, speech,
+      day: from.day, due: proposal.dueTomorrow ? localDay(now(), 1) : from.day,
+      version: from.version, expires: Date.now() + 120000 });
+    return view();
+  }
+  function confirm(p, current) {
+    const proposal = current.review;
+    if (!proposal || proposal.token !== p.token) return { ...current, status: "stale" };
+    const target = proposal.targets.find(t => t.id === p.id);
+    if (proposal.type !== "create" && !target) return { ...current, status: "stale" };
+    const ack = store.apply({ type: proposal.type, op: proposal.op, words: proposal.words, text: p.text,
+      due: proposal.due, id: target?.id, rev: target?.rev });
+    pending.shift();
+    if (ack && proposal.type === "create") {
+      offset = proposal.due === current.today ? 0 : 1;
+      for (const next of pending) {
+        if (next.type === "create" && next.due === proposal.due) {
+          next.day = proposal.due;
+          next.version = current.version + 1;
+        }
+      }
+    }
+    return { ...view(), status: ack ? "saved" : "stale", ack };
+  }
+  async function arm(p) {
+    stop();
+    const worker = recognizer();
+    const take = { id: p.capture, worker, sequence: 0, context: 0, live: false, from: null };
+    capture = take;
+    worker.onError = () => {
+      if (capture !== take) return;
+      stop();
+      notify({ session, capture: take.id, error: true });
+    };
+    worker.onResult = result => {
+      if (capture !== take || !take.live || result.context !== take.context) return;
+      if (!result.committed) {
+        if (result.partial) notify({ session, capture: take.id, partial: result.partial });
+        return;
+      }
+      if (!Number.isSafeInteger(result.sequence) || result.sequence <= take.sequence) return;
+      take.sequence = result.sequence;
+      const from = take.from;
+      // Keep the displayed list until a new version or civil day reaches capture.
+      if (from) {
+        const next = review(result.committed, from, take.id + "/" + result.sequence, true);
+        notify({ session, capture: take.id, final: result.committed, status: next.status });
+      }
+    };
+    try {
+      const model = await worker.start(p.language);
+      if (capture !== take) throw Error("Closed");
+      return { ...view(), model: model.model };
+    } catch {
+      if (capture === take) stop();
+      else void worker.dispose();
+      throw Error("Local speech unavailable");
+    }
+  }
+  function feed(p, samples) {
+    if (!session || p?.session !== session || !capture || p.capture !== capture.id || !capture.worker.ready ||
+        !(samples instanceof Float32Array) || !samples.length || samples.length > 3200) return;
+    capture.live = true;
+    if (!capture.from || capture.from.version !== store.version || capture.from.day !== localDay(now(), offset)) {
+      capture.from = view();
+      capture.context++;
+      capture.worker.worker.postMessage({ type: "daily-boundary", context: capture.context });
+    }
+    capture.worker.feed(samples);
   }
   function control(action, p = {}) {
     if (action === "open") {
@@ -32,28 +121,56 @@ function createDaily({ store, now = () => new Date() }) {
     if (!session || session !== p.session) throw Error("Closed");
     if (action === "close") { close(); return; }
     if (action === "state") return view();
-    if (action === "day") { offset = p.offset === 1 ? 1 : 0; return view(); }
+    if (action === "disarm") {
+      if (capture && capture.id === p.capture) stop();
+      return view();
+    }
+    if (action === "day") { stop(); pending = []; offset = p.offset === 1 ? 1 : 0; return view(); }
     const current = view();
     if (p.day !== current.day || p.version !== current.version) return { ...current, status: "stale" };
+    if (action === "arm") {
+      if (typeof p.capture !== "string" || !/^[a-f0-9-]{36}$/i.test(p.capture)) throw Error("Invalid capture");
+      return arm(p);
+    }
+    if (action === "review") {
+      if (typeof p.op !== "string" || p.op.length > 100 || !p.op) throw Error("Invalid operation");
+      if (lastReview === p.op) return current;
+      lastReview = p.op;
+      return review(p.text, current, p.op, false);
+    }
+    if (action === "dismiss") {
+      if (current.review?.token === p.token) pending.shift();
+      return view();
+    }
+    if (action === "confirm") return confirm(p, current);
     if (!["create", "edit", "complete", "reopen", "undo"].includes(action)) throw Error("Invalid action");
     const row = current.tasks.find(item => item.id === p.id && item.rev === p.rev);
     if (action !== "create" && !row) return { ...current, status: "stale" };
     const ack = store.apply({ type: action, op: p.op, due: current.day, text: p.text, id: row?.id, rev: row?.rev });
     return { ...view(), status: ack ? "saved" : "stale", ack };
   }
-  return { control, close };
+  return { control, close, feed, interrupt() {
+    if (capture) { const id = capture.id; stop(); notify({ session, capture: id, stopped: true }); }
+  } };
 }
 
-function wireDaily({ win, appHandle, origin, userData, qaEpoch }) {
+function wireDaily({ win, appHandle, appOn, origin, userData, qaEpoch, recognizer }) {
   let workspace;
   const launched = Date.now();
   const now = Number.isFinite(qaEpoch) ? () => new Date(qaEpoch + Date.now() - launched) : () => new Date();
   appHandle("daily:control", (event, action, p) => {
-    if (!dailyFrame(event, win, origin)) throw Error("Denied");
-    workspace ??= createDaily({ store: openDailyStore(userData), now });
+    if (!dailyFrame(event, win, origin) || (action === "arm" && !win.isFocused())) throw Error("Denied");
+    const frame = event.senderFrame;
+    workspace ??= createDaily({ store: openDailyStore(userData), now, recognizer, notify(message) {
+      if (dailyFrame({ sender: win.webContents, senderFrame: frame }, win, origin)) frame.send("daily:speech", message);
+    } });
     return workspace.control(action, p);
   });
-  const close = () => workspace?.close();
+  appOn("daily:pcm", (event, p, samples) => {
+    if (dailyFrame(event, win, origin)) workspace?.feed(p, samples);
+  });
+  const close = () => { workspace?.close(); workspace = undefined; };
+  win.on("blur", () => workspace?.interrupt());
   win.on("closed", close);
   win.webContents.on("render-process-gone", close);
   win.webContents.on("did-start-navigation", (_event, url, inPage, mainFrame) => {

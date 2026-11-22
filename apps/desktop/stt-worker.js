@@ -30,6 +30,17 @@ let pending = new Float32Array(0);
 let kind = "online";
 let streamLanguage = false;
 let language = "auto";
+let sequence = 0;
+let context;
+
+function result(partial, committed) {
+  const message = { type: "result", partial, committed };
+  if (context !== undefined) {
+    message.context = context;
+    if (committed) message.sequence = ++sequence;
+  }
+  parentPort.postMessage(message);
+}
 
 function init(msg) {
   const t0 = Date.now();
@@ -69,7 +80,7 @@ function drainPhrases() {
     s.acceptWaveform({ samples: segment.samples, sampleRate: SAMPLE_RATE });
     recognizer.decode(s);
     const committed = (recognizer.getResult(s).text || "").trim();
-    if (committed) parentPort.postMessage({ type: "result", partial: "", committed });
+    if (committed) result("", committed);
   }
 }
 
@@ -93,9 +104,9 @@ function feed(samples) {
   if (recognizer.isEndpoint(stream)) {
     const committed = (r.text || "").trim();
     recognizer.reset(stream);
-    parentPort.postMessage({ type: "result", partial: "", committed });
+    result("", committed);
   } else {
-    parentPort.postMessage({ type: "result", partial: r.text || "", committed: "" });
+    result(r.text || "", "");
   }
 }
 
@@ -122,13 +133,18 @@ function flush() {
   stream.inputFinished();
   while (recognizer.isReady(stream)) recognizer.decode(stream);
   const r = recognizer.getResult(stream);
-  if (r.text) parentPort.postMessage({ type: "result", partial: "", committed: r.text.trim() });
+  if (r.text) result("", r.text.trim());
   newStream();
 }
 
 parentPort.on("message", (msg) => {
   try {
     if (msg.type === "init") init(msg);
+    else if (msg.type === "daily-boundary") {
+      context = msg.context;
+      if (kind === "online") newStream();
+      else { pending = new Float32Array(0); vad.reset(); }
+    }
     else if (msg.type === "feed") feed(msg.samples instanceof Float32Array ? msg.samples : new Float32Array(msg.samples));
     else if (msg.type === "language") {
       language = msg.language || "auto";

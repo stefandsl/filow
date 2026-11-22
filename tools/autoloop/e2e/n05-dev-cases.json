@@ -1,0 +1,134 @@
+{
+  "languages": {
+    "en": {
+      "tasks": [
+        "Send the maps to Nora",
+        "Give Noreen the maps",
+        "Print the labels"
+      ],
+      "cases": [
+        {
+          "kind": "positive",
+          "utterance": "Nora received the maps",
+          "expectedMutations": 1,
+          "target": 0
+        },
+        {
+          "kind": "correction",
+          "utterance": "Correction Nora has not received the maps",
+          "expectedMutations": 1,
+          "target": 0,
+          "completed": [
+            0
+          ]
+        },
+        {
+          "kind": "ambiguous",
+          "utterance": "She received the maps",
+          "expectedMutations": 0,
+          "expectPersonQuestion": true
+        },
+        {
+          "kind": "negative",
+          "utterance": "Nora hasn't received the maps",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
+          "utterance": "She said Nora received the maps",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
+          "utterance": "“Nora received the maps”",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
+          "utterance": "Nora received the receipts",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
+          "utterance": "Leo received the maps",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
+          "utterance": "The hall opens at noon",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "draft",
+          "utterance": "Tomorrow file the invoices",
+          "expectedMutations": 1
+        }
+      ]
+    },
+    "it": {
+      "tasks": [
+        "Consegnare le mappe a Nora",
+        "Inviare le mappe a Nerea",
+        "Preparare le etichette"
+      ],
+      "cases": [
+        {
+          "kind": "positive",
+          "utterance": "Nora ha ricevuto le mappe",
+          "expectedMutations": 1,
+          "target": 0
+        },
+        {
+          "kind": "correction",
+          "utterance": "Mi correggo Nora non le ha ricevute",
+          "expectedMutations": 1,
+          "target": 0,
+          "completed": [
+            0
+          ]
+        },
+        {
+          "kind": "ambiguous",
+          "utterance": "Lei ha ricevuto le mappe",
+          "expectedMutations": 0,
+          "expectPersonQuestion": true
+        },
+        {
+          "kind": "negative",
+          "utterance": "Nora non ha ricevuto le mappe",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
+          "utterance": "Ha detto che Nora ha ricevuto le mappe",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
+          "utterance": "«Nora ha ricevuto le mappe»",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
+          "utterance": "Nora ha ricevuto i biglietti",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
+          "utterance": "Leo ha ricevuto le mappe",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
+          "utterance": "La sala apre a mezzogiorno",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "draft",
+          "utterance": "Domani archiviare le fatture",
+          "expectedMutations": 1
+        }
+      ]
+    }
+  }
+}
