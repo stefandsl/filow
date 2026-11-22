@@ -126,7 +126,7 @@ async function attach(debug, web, relay, pid) {
 
 // One synthetic microphone producer. The browser schedules the samples on its real audio clock.
 // The page still opens a MediaStream, runs its normal worklet and feeds the packaged local worker.
-async function audioSetup(page) {
+async function audioSetup(page, launch, activate) {
   await page.evaluate(`(() => {
     const ctx = new AudioContext({sampleRate:16000});
     const dest = ctx.createMediaStreamDestination();
@@ -140,8 +140,20 @@ async function audioSetup(page) {
     window.dailyReplay = {ctx, dest, words};
     return true;
   })()`);
-  await press(page, "[data-daily-talk]");
+  await pressTalk(page, launch, activate);
   await until(() => page.evaluate('document.querySelector("[data-mic]")?.dataset.mic === "live"'), "live microphone", 120000);
+}
+
+export async function pressTalk(page, launch, activate) {
+  const observed = launch.talkFocus = activate();
+  assert.ok(observed.foregroundHwnd === launch.hwnd && observed.foregroundPid === launch.pid,
+    "Windows did not foreground the isolated Filow window before Talk");
+  await focus(page, "[data-daily-talk]");
+  await until(async () => {
+    observed.documentFocused = await page.evaluate("document.hasFocus()");
+    return observed.documentFocused;
+  }, "daily document focus before Talk", 2000);
+  await key(page, "Enter");
 }
 async function playClip(page, file, clips) {
   const clip = wavInfo(fs.readFileSync(file));
@@ -258,7 +270,13 @@ async function journey(spec, record, root, replayPath) {
     assert.deepEqual(await rows(page),[]);
     assert.equal(await page.evaluate("document.querySelector('time').dateTime"),civil(day1));
     await press(page,".daily nav button:nth-child(2)");
-    if (spec.mode === "audio") await audioSetup(page);
+    if (spec.mode === "audio") {
+      const launchRecord = record.launches.at(-1);
+      await audioSetup(page, launchRecord, () => JSON.parse(execFileSync("powershell.exe", [
+        "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", path.join(import.meta.dirname, "n05-uia.ps1"),
+        "-ProcessId", String(launchRecord.pid), "-ExpectedExe", exe, "-ExpectedHwnd", launchRecord.hwnd
+      ], { encoding: "utf8", windowsHide: true, env, timeout: 15000 })));
+    }
     for (const [i, text] of spec.tasks.entries()) {
       if (spec.mode === "audio") {
         await playClip(page,replayPath(spec.clips.tasks[i]),record.clips);

@@ -1,14 +1,47 @@
 # Run against one visible, isolated Filow QA process. Steps and the receipt are private files.
+[CmdletBinding(DefaultParameterSetName='Steps')]
 param(
   [Parameter(Mandatory)][int]$ProcessId,
   [Parameter(Mandatory)][string]$ExpectedExe,
-  [Parameter(Mandatory)][string]$Steps,
-  [Parameter(Mandatory)][string]$Receipt
+  [Parameter(Mandatory, ParameterSetName='Foreground')][long]$ExpectedHwnd,
+  [Parameter(Mandatory, ParameterSetName='Steps')][string]$Steps,
+  [Parameter(Mandatory, ParameterSetName='Steps')][string]$Receipt
 )
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 $app = Get-Process -Id $ProcessId
-if ($app.Path -ne (Resolve-Path -LiteralPath $ExpectedExe).Path -or !$app.MainWindowHandle) { throw 'Window identity mismatch' }
+if ($app.Path -ne (Resolve-Path -LiteralPath $ExpectedExe).Path -or $app.MainWindowHandle -eq [IntPtr]::Zero) { throw 'Window identity mismatch' }
+if ($PSCmdlet.ParameterSetName -eq 'Foreground') {
+  Add-Type -Namespace DailyReplay -Name NativeWindow -MemberDefinition @'
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern void SwitchToThisWindow(IntPtr hwnd, bool altTab);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr hwnd);
+'@
+  $hwnd = $app.MainWindowHandle
+  [uint32]$owner = 0
+  [void][DailyReplay.NativeWindow]::GetWindowThreadProcessId($hwnd, [ref]$owner)
+  if ($hwnd.ToInt64() -ne $ExpectedHwnd -or $owner -ne $ProcessId -or ![DailyReplay.NativeWindow]::IsWindowVisible($hwnd)) {
+    throw 'Expected the visible main window of the isolated launch'
+  }
+  if ([DailyReplay.NativeWindow]::GetForegroundWindow() -ne $hwnd) {
+    [DailyReplay.NativeWindow]::SwitchToThisWindow($hwnd, $true)
+  }
+  $timer = [Diagnostics.Stopwatch]::StartNew()
+  do {
+    $foreground = [DailyReplay.NativeWindow]::GetForegroundWindow()
+    if ($foreground -eq $hwnd) { break }
+    Start-Sleep -Milliseconds 50
+  } while ($timer.Elapsed.TotalSeconds -lt 3)
+  [uint32]$foregroundPid = 0
+  [void][DailyReplay.NativeWindow]::GetWindowThreadProcessId($foreground, [ref]$foregroundPid)
+  [ordered]@{ foregroundHwnd = [string]$foreground.ToInt64(); foregroundPid = $foregroundPid } | ConvertTo-Json -Compress
+  return
+}
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 if (Test-Path -LiteralPath $Receipt) { throw 'A new receipt is required' }
 if ([IO.Path]::GetPathRoot([IO.Path]::GetFullPath($Receipt)) -ne 'G:\') { throw 'Use the private evidence volume' }
 $root = [Windows.Automation.AutomationElement]::FromHandle($app.MainWindowHandle)

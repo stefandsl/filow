@@ -15,6 +15,8 @@ For each packaged trial run `node tools/autoloop/e2e/n05-windows.mjs <private-sp
 
 The runner opens a marked QA package on an isolated profile. It navigates by keyboard, plays audio into the page's microphone stream on the browser audio clock, and tests interruption and restart. Private receipts include accepted audio frame counts and recognized words. Run the separate native trial with `n05-uia.ps1 -ProcessId <pid> -ExpectedExe <exe> -Steps <plan.json> -Receipt <new-file>`. Each item in `steps` names a visible control by exact `name` and UIA `role`, then requests `read`, `focus`, `invoke`, `expand`, `toggle` or `set` with a value. Record a human Narrator observation separately.
 
+Before pressing Talk, the audio replay asks Windows to activate the visible main window for the recorded executable, PID and HWND. If Windows refuses, the journey records HOLD and the observed foreground HWND and PID in `launches[].talkFocus`. If Windows activates the window but the daily document does not gain focus, the same record shows `documentFocused: false`.
+
 Capture process creation, exits and network attempts before launch through final shutdown. Run `n05-egress.ps1 -Journey <journey.json> -Receipt <new-file>` to extract Windows audit observations. For a reconciled verdict supply `-Coverage <independent.json>` with `journeySha256`, `sourceSha`, `packageSha512` and ordered `launches`. Each launch contains its root PID, UTC start and end, observed PIDs, completeness flag, lost events and loopback/external attempt counts (`root`, `start`, `end`, `pids`, `complete`, `lostEvents`, `loopbackAttempts`, `externalAttempts`). Missing coverage holds the verdict.
 
 Full CI, packaged replay, independent review and the owner's two actual days remain pending.

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 const { it } = process.env.VITEST ? await import("vitest") : await import("node:test");
-import { key, wavInfo, portsFor } from "./n05-windows.mjs";
+import { key, wavInfo, portsFor, pressTalk } from "./n05-windows.mjs";
 it("requires four independent non-default ports", () => {
   const ports = [52451,52452,52453,52454];
   assert.deepEqual(portsFor(ports),ports);
@@ -46,4 +46,28 @@ it("keeps Tab and Space as raw key presses", async () => {
       { ...event, type: "keyUp" }
     ]);
   }
+});
+
+it("presses Talk only for the foreground launch and its focused daily document", async () => {
+  const launch = { pid: 10, hwnd: "200" };
+  const presses: string[] = [];
+  let documentFocused = true;
+  const page = {
+    evaluate: (expression: string) => expression === "document.hasFocus()" ? documentFocused : true,
+    call: (_method: string, event: { type: string; key: string }) => {
+      if (event.type === "keyDown") presses.push(event.key);
+      return {};
+    }
+  };
+  const granted = { foregroundPid: 10, foregroundHwnd: "200" };
+  for (const other of [{ ...granted, foregroundPid: 11 }, { ...granted, foregroundHwnd: "201" }]) {
+    await assert.rejects(pressTalk(page, launch, () => other), /Windows did not foreground/);
+  }
+  documentFocused = false;
+  await assert.rejects(pressTalk(page, launch, () => ({ ...granted })), /document focus before Talk/);
+  assert.deepEqual(presses, []);
+  documentFocused = true;
+  await pressTalk(page, launch, () => ({ ...granted }));
+  assert.deepEqual(presses, ["Enter"]);
+  assert.deepEqual(launch, { pid: 10, hwnd: "200", talkFocus: { ...granted, documentFocused: true } });
 });
