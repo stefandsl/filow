@@ -62,10 +62,15 @@ async function until(readValue, name, ms = 40000) {
   }
   throw Error("Timed out at " + name);
 }
-async function key(page, name) {
+export async function key(page, name) {
   const code = { Tab: 9, Enter: 13, Space: 32 }[name];
-  for (const type of ["rawKeyDown", "keyUp"]) {
-    const r = await page.call("Input.dispatchKeyEvent", { type, key: name === "Space" ? " " : name, code: name, windowsVirtualKeyCode: code });
+  const events = name === "Enter"
+    ? [{ type: "keyDown", text: "\r", nativeVirtualKeyCode: code }, { type: "keyUp", nativeVirtualKeyCode: code }]
+    : [{ type: "rawKeyDown" }, { type: "keyUp" }];
+  for (const event of events) {
+    const r = await page.call("Input.dispatchKeyEvent", {
+      ...event, key: name === "Space" ? " " : name, code: name, windowsVirtualKeyCode: code
+    });
     assert.ok(!r.error);
   }
 }
