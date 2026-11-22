@@ -58,7 +58,9 @@ Filow is a live speaking companion: it listens as you present, checks off your t
 
 From the desktop presenter, open **Day-by-day** and choose **Today** or **Tomorrow**. Type a task and select **Add task**, or tap **Talk** and dictate one task at a time. Wait for **Listening on this device**, review the wording, then add the task. Speech understands English and Italian task requests and progress reports. Use **Delete task** for one row or **Delete entire list** for every date. Typing also works when the microphone or local speech model is unavailable.
 
-Type a delivery update under **Progress report** or say it while listening. Check the quoted words and select the task to confirm. If more than one recipient fits, choose a row or select **Dismiss**. Open **Evidence** on the row to see the report. A correction can reopen a task. **Undo** restores that row’s preceding revision. You can also change its wording or tick its checkbox directly.
+Report matching uses Gemma 4 E2B when `OLLAMA_URL` points to a local Ollama instance on a dedicated port with `gemma4:e2b` installed. If the model is unavailable, Filow uses its built-in English and Italian dictionaries.
+
+Type a progress update under **Progress report** or say it while listening. Check the quoted words and select the task to confirm. If more than one recipient fits, choose a row or select **Dismiss**. Open **Evidence** on the row to see the report. A correction can reopen a task. **Undo** restores that row’s preceding revision. You can also change its wording or tick its checkbox directly.
 
 Tomorrow’s list becomes today’s list at local midnight. Earlier unfinished tasks carry forward. Reopen Day-by-day to continue with the microphone off.
 

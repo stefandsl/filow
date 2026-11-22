@@ -60,7 +60,9 @@ Filow è un compagno di parola dal vivo: ti ascolta mentre presenti, spunta i tu
 
 Dal suggeritore desktop apri **Giorno per giorno** e scegli **Oggi** o **Domani**. Scrivi un’attività e seleziona **Aggiungi attività**, oppure premi **Parla** e detta un’attività alla volta. Attendi **In ascolto su questo dispositivo**, controlla il testo e aggiungi l’attività. Il riconoscimento delle richieste e dei resoconti supporta italiano e inglese. Usa **Elimina attività** per una riga o **Elimina tutta la lista** per tutte le date. Puoi scrivere anche quando il microfono o il modello vocale locale non sono disponibili.
 
-Scrivi un aggiornamento sulla consegna nel **Resoconto dei progressi** o pronuncialo durante l’ascolto. Controlla le parole riportate e seleziona l’attività per confermare. Se ci sono più destinatari possibili, scegli una riga o premi **Ignora**. Apri **Motivo** sulla riga per leggere il resoconto. Una rettifica può riaprire l’attività. **Annulla modifica** ripristina la versione precedente della singola riga. Puoi anche cambiare il testo o selezionare la casella direttamente.
+Se `OLLAMA_URL` indica un’istanza locale di Ollama su una porta dedicata con `gemma4:e2b` installato, Filow interpreta i resoconti con Gemma 4 E2B. Se il modello non è disponibile, usa i dizionari italiano e inglese inclusi.
+
+Scrivi un aggiornamento nel **Resoconto dei progressi** o pronuncialo durante l’ascolto. Controlla le parole riportate e seleziona l’attività per confermare. Se ci sono più destinatari possibili, scegli una riga o premi **Ignora**. Apri **Motivo** sulla riga per leggere il resoconto. Una rettifica può riaprire l’attività. **Annulla modifica** ripristina la versione precedente della singola riga. Puoi anche cambiare il testo o selezionare la casella direttamente.
 
 A mezzanotte, secondo l’ora locale, la lista di domani diventa quella di oggi. Le attività precedenti ancora aperte compaiono nella lista di oggi. Quando riapri Giorno per giorno il microfono è spento.
 
