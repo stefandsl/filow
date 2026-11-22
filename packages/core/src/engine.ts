@@ -6,7 +6,7 @@ import { lexicalScores } from "./gate";
 import { TENTATIVE_CONFIDENCE } from "./anchor";
 import { MATCHER_MODEL, matcherDecisions } from "./matcher";
 import { checkClaim, spokenOwnerPoint, type ClaimCheck } from "./guard";
-import { sentences } from "./text";
+import { sentences, tokenize } from "./text";
 import { parseScript, scriptIdentity } from "./script";
 import { isScreenScript, sectionFromSummary, type ScreenNote } from "./screen";
 import { PHONE_ASK } from "./phone-ask";
@@ -305,14 +305,12 @@ export class Engine {
   /** Account for a correction even if its first version was already accepted or is in flight. */
   private reconcileCorrection(final: string): { withdrawn: string[]; endsClaim: boolean } {
     const { script, sectionIdx, points } = this.state;
-    // Streaming backends can join both clauses without punctuation. First-person
-    // repairs delimit a replacement even there. Bare adverbs need a clause boundary.
-    const cue = /\b(?:i\s+mean(?:t)?|mi\s+corregg\w*|rettific\w*|scratch\s+that|volev\w*\s+dire|anzi)\b|(?:^|[.!?,]\s*)\s*(?:actually|correction)\b/i.exec(final);
-    const from = cue ? cue.index + cue[0].length : 0;
+    const boundary = repairBoundary(final);
+    const from = boundary ?? 0;
     const correction = final.slice(from);
     const withdrawn: string[] = [];
-    let revise = Boolean(cue);
-    let endsClaim = revise;
+    let revise = boundary !== undefined;
+    let endsClaim = false;
     for (const b of script.sections[sectionIdx]?.bullets ?? []) {
       const automatic = points[b.id]?.evidence?.source === "model";
       const pending = this.inFlight || !!this.streak[b.id] || this.held.has(b.id);
@@ -320,8 +318,9 @@ export class Engine {
       const check = checkClaim(b.text, correction);
       // Another event can have the same date. It only retracts a previous event when the
       // speaker explicitly replaces it. A direct denial of the same claim needs no cue.
-      if (!check.conflict || (check.conflict.kind === "subject" && !cue)) continue;
+      if (!check.conflict || (check.conflict.kind === "subject" && boundary === undefined)) continue;
       endsClaim = true;
+      if (boundary !== undefined) revise = true;
       if (!automatic && !pending) continue;
       if (automatic) withdrawn.push(b.id);
       delete this.streak[b.id];
@@ -893,6 +892,24 @@ export class Engine {
 }
 
 export class TimeoutError extends Error {}
+
+/** End offset of a first-person speech repair. Token offsets let the engine cut
+ * a single streaming final at the verb even when the recognizer omits punctuation. */
+function repairBoundary(text: string): number | undefined {
+  const words = tokenize(text);
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i].norm;
+    if (/^(?:i|we|io|noi|mi|ci)$/.test(word)) {
+      let verb = i + 1;
+      if (/^(?:must|should|will|devo|dobbiamo)$/.test(words[verb]?.norm ?? "")) verb++;
+      if (/^(?:mean[ts]?|clarif\w*|rephras\w*|amend\w*|correct\w*|corregg\w*|precis\w*|intend\w*)$/.test(words[verb]?.norm ?? ""))
+        return words[verb].end;
+    }
+    // Italian permits a dropped subject. Limit that reading to the first-person
+    // verb ending, so a noun naming a correction does not delimit the transcript.
+    if (/^(?:precis|corregg|riformul|ritratt)o$/.test(word)) return words[i].end;
+  }
+}
 
 function canAutoMark(point: PointState | undefined): boolean {
   return !point || (point.status === "waiting" && !point.reopened);

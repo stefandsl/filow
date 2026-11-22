@@ -1283,3 +1283,13 @@ it("uses the replacement clause inside a punctuation-free final", async () => {
   expect(e.getState().points.s0b0?.status).toBe("waiting");
 });
 
+it("reconciles a first-person amendment without matching an entire cue sentence", async () => {
+  const { e } = makeEngine([{ s0b0: 1 }]);
+  e.loadScript(parseScript("# Events\n- Workshop Friday"));
+  e.feed({ committed: "Our workshop is Friday. " });
+  await e.tick();
+  expect(e.getState().points.s0b0.status).toBe("started");
+  e.feed({ committed: "I should clarify, the interview is Friday." });
+  await e.tick();
+  expect(e.getState().points.s0b0.status).toBe("waiting");
+});

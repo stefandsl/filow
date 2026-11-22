@@ -77,7 +77,7 @@ const SCOPE_END = new Set([
 const CLAUSE_START = new Set(["while", "whereas", "mentre", "but", "ma", "invece", "но", "а", "dar", "iar", "insa"]);
 const START_EVENT = /^(?:launch|rollout|kickoff|avvio|lancio|partenza)$/;
 const START_VERB = /^(?:launch|start|begin|rollout|partiamo|iniziamo|cominciamo|lancio|avvio)$/;
-const UNSET = /^(?:pending|undecided|unconfirmed|tentative|uncertain|unset|unknown|tbd|perhaps|maybe|might|could|may|forse|potremmo|provvisori[oa]|incert[oa]|indefinit[oa])$/;
+const UNSET = /^(?:pending|undecided|unconfirmed|tentative|uncertain|unset|unknown|perhaps|maybe|might|could|may|forse|potremmo|provvisori[oa]|incert[oa]|indefinit[oa])$/;
 const WEEKDAY = /^(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)$/;
 
 const BACKUP_COPY = /^(?:backups?|snapshots?|copy|copies|copi[ae]|salvataggio|salvataggi)$/;
@@ -129,6 +129,9 @@ function calendarReading(words: string[], text: string, tokens: Token[]) {
       ((w === "da" || w === "be") && /^(?:decid|fiss|conferm|stabil)/.test(names[i + 1] ?? "")) ||
       (NEGATIONS.has(w) && names.slice(i + 1, i + 5).some(v => /^(?:set|schedul|confirm|decid|fissat|stabilit|decis|confermat|definit)/.test(v))));
     if (tentative) return "uncertain";
+    // A date field followed by an unspecified value supplies no weekday.
+    if (!day && names.some(w => w === "date" || w === "data") &&
+        names.some(w => /^(?:is|remains|e|resta)$/.test(w))) return "incomplete";
     if (day) {
       if (day !== days[0]) return "different";
       if (deniesPointWords(text, part, [...subject, day])) return "denied";
@@ -416,6 +419,7 @@ export function checkClaim(point: string, transcript: string): ClaimCheck {
   const relevant = scored.filter((x) => x.relevance >= MIN_RELEVANT);
   for (let i = relevant.length - 1; i >= 0; i--) {
     const x = relevant[i];
+    if (x.day === "incomplete") return { ok: false, evidence: x.s, lexical: round(x.lexical) };
     if (x.day && x.day !== "matching") return { ok: false, evidence: x.s, lexical: round(x.lexical),
       conflict: { kind: x.day === "subject" ? "subject" : "negation", detail: "calendar relation: " + x.day } };
     if (x.day === "matching" && clauses(x.s.text, tokenize(x.s.text)).length > 1)
