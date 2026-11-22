@@ -234,3 +234,34 @@ it("drops a target check that finishes after keyboard or on-screen Stop", async 
   assert.equal(sends, 0);
   assert.equal(lesson.view().phase, "idle");
 });
+
+it("refuses a foreign listener before launching Edge", async () => {
+  const { createServer } = await import("node:http");
+  const { edgeDriver } = await import("./okfilow-lesson");
+  let requests = 0;
+  const foreign = createServer((_req, res) => { requests++; res.end("Cloud Lab"); });
+  await new Promise<void>(resolve => foreign.listen(48764, "127.0.0.1", resolve));
+  try {
+    const driver = edgeDriver("unused");
+    await assert.rejects(driver.prepare("test", new AbortController().signal), { code: "EADDRINUSE" });
+    assert.equal(requests, 0);
+  } finally { foreign.close(); }
+});
+it("closes the dedicated browser on return", async () => {
+  const edge = edgeStartup();
+  await edge.prepare();
+  edge.close();
+  assert.ok(edge.calls.includes("Browser.close"));
+});
+it("waits for a temperature below the dew point", () => {
+  assert.equal(cooled({temperature:22, dew:12, input:0},
+    {temperature:12, dew:12, input:1, inputValue:12, focused:true}), false);
+});
+it("unrelated words create no decision and the exact command requires a fresh speaker check", async () => {
+  const x = trial();
+  const { turn } = await x.lesson.prepare(x.owner);
+  const wrong = x.lesson.request(x.owner, turn, "Describe Cloud Lab");
+  assert.equal(wrong.unmatched, true);
+  assert.equal(wrong.decision, undefined);
+  assert.equal(x.lesson.request(x.owner, turn, "Open Cloud Lab").phase, "speaker");
+});

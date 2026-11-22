@@ -267,3 +267,28 @@ it("recognises OK independently of the enrolled name only on automatic fallback"
   expect(combiner.push({ at: 700, keyword: true, prefixEndMs: 600 })).toBe(false);
   expect(combiner.push({ at: 900, score: 9 })).toBe(true);
 });
+
+it("requires enrolled speaker agreement and rejects Filow playback during lesson review", async () => {
+  const dir = temp();
+  fs.mkdirSync(path.join(dir, "wake"));
+  fs.writeFileSync(path.join(dir, "wake/profile.json"), JSON.stringify({version:1, phrase:"Filow",
+    weights:Array(1152).fill(0), bias:0, thresholds, verification, models:FILES.map((f: {sha256:string}) => f.sha256).join(":")}));
+  let score = 2, elapsed = 600;
+  const confirm = vi.fn();
+  const wake = createWake({userData:dir, state:() => ({...ready, sinceSpeechMs:elapsed}), changed() {}, detected() {},
+    lessonChallenge:() => "turn-one", confirmLesson:confirm, verifyModelsFn:async () => {},
+    createDetectorsFn:async () => ({reset() {}, stop() {}, feed:async (_pcm:unknown, at:number) => ({at, score, keyword:true, ms:1})})});
+  await wake.enable("balanced");
+  const feed = async () => { for (let i=0;i<25;i++) await wake.feed(new Float32Array(1600)); };
+  await feed();
+  expect(confirm).not.toHaveBeenCalled();
+  elapsed = 0; score = 10;
+  await wake.reconcile();
+  await wake.feed(new Float32Array(1600));
+  expect(confirm).not.toHaveBeenCalled();
+  elapsed = 1200;
+  await wake.reconcile();
+  await feed();
+  expect(confirm).toHaveBeenCalledWith("turn-one");
+  wake.stop();
+});

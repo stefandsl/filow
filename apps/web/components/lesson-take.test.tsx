@@ -11,14 +11,14 @@ for (const [lang, title, rows] of [
   ["en", "Prepared water-cycle board", [
     ["Evaporation", "Surface water", "Water vapour"],
     ["Condensation", "Water vapour", "Cloud droplets"],
-    ["Precipitation", "Cloud droplets", "Surface water"],
-    ["Runoff", "Surface water", "Collection"],
+    ["Precipitation", "Clouds", "Ground"],
+    ["Runoff", "Ground", "Lake"],
   ]],
   ["it", "Lavagna preparata sul ciclo dell’acqua", [
     ["Evaporazione", "Acqua in superficie", "Vapore acqueo"],
     ["Condensazione", "Vapore acqueo", "Goccioline nella nube"],
-    ["Precipitazioni", "Goccioline nella nube", "Acqua in superficie"],
-    ["Ruscellamento", "Acqua in superficie", "Raccolta"],
+    ["Precipitazioni", "Nuvole", "Suolo"],
+    ["Ruscellamento", "Suolo", "Lago"],
   ]],
 ] as const) it(`renders the prepared board and local photograph input in ${lang}`, () => {
   const html = renderToStaticMarkup(<LangProvider lang={lang}><PreparedWaterCycle onClose={() => {}} /></LangProvider>);
@@ -60,4 +60,15 @@ it("keeps the anchored waiting point and its preceding manual mark on both pause
     assert.ok(waiting.includes('aria-current="step"'));
     assert.ok(tags.find(tag => tag.includes('data-point-id="evaporation"'))?.includes('data-state="done"'));
   }
+});
+
+it("disables Open once synchronously across two clicks before render", async () => {
+  const { OpenOnceButton } = await import("./Teleprompter");
+  let requests = 0;
+  const button = OpenOnceButton({ label:"Open once", approve:() => { requests++; } });
+  const currentTarget = { disabled:false };
+  button.props.onClick({ currentTarget });
+  button.props.onClick({ currentTarget });
+  assert.equal(currentTarget.disabled, true);
+  assert.equal(requests, 1);
 });
