@@ -5,12 +5,8 @@ import path from "node:path";
 import net from "node:net";
 import { createHash } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
+import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
-import { extractFile } from "@electron/asar";
-import { replayPath } from "./n02-fixtures.mjs";
-import { PAST_ONBOARDING } from "./profile.mjs";
-import { connect, sleep } from "../../whiteboard/qa-dev.mjs";
-import stt from "../../../apps/desktop/stt.js";
 
 const read = file => JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
 export function portsFor(values) {
@@ -119,6 +115,7 @@ async function attach(debug, web, relay, pid) {
     { encoding:"utf8", windowsHide:true }).trim();
   assert.equal(owners, String(pid), "Each listener must belong to the isolated launch");
   assert.equal(new URL(target.webSocketDebuggerUrl).origin, "ws://127.0.0.1:" + debug);
+  const { connect } = await import("../../whiteboard/qa-dev.mjs");
   const page = await connect(target);
   await page.call("Page.bringToFront");
   if (new URL(target.url).pathname === "/tour") await press(page, ".tour-continue");
@@ -147,7 +144,7 @@ async function audioSetup(page) {
   await until(() => page.evaluate('document.querySelector("[data-mic]")?.dataset.mic === "live"'), "live microphone", 120000);
 }
 async function playClip(page, file, clips) {
-  const clip = wavInfo(fs.readFileSync(replayPath(file)));
+  const clip = wavInfo(fs.readFileSync(file));
   const before = await rows(page);
   const receipt = await page.evaluate(`(async () => {
     const {ctx,dest,words} = window.dailyReplay;
@@ -183,7 +180,7 @@ function isolatedEnvironment(root, ports, spec, day) {
     FILOW_QA_SOCKET_LOG: path.join(root, "sockets.jsonl"), LANG: spec.locale };
 }
 
-async function journey(spec, record, root) {
+async function journey(spec, record, root, replayPath) {
   assert.equal(process.platform, "win32");
   assert.ok(["typed","audio"].includes(spec.mode) && ["crash","correction"].includes(spec.trial));
   assert.ok(["en-US","it-IT"].includes(spec.locale) && ["light","dark"].includes(spec.theme));
@@ -191,6 +188,7 @@ async function journey(spec, record, root) {
   assert.ok(spec.report && spec.correction && spec.edited && Number.isFinite(Date.parse(spec.dayOne)) && Number.isFinite(Date.parse(spec.dayTwo)));
   const ports = portsFor(spec.ports), exe = replayPath(spec.exe);
   const asar = path.join(path.dirname(exe), "resources", "app.asar");
+  const { extractFile } = await import("@electron/asar");
   const pkg = JSON.parse(extractFile(asar, "package.json"));
   assert.match(spec.sha, /^[a-f0-9]{40}$/);
   assert.equal(pkg.sourceSha, spec.sha);
@@ -207,8 +205,10 @@ async function journey(spec, record, root) {
   assert.ok([day1,day2].some(d => d.toISOString().slice(0,10) !== civil(d)), "Exercise UTC/local date disagreement");
   const profile = path.join(root, "profile");
   const env = isolatedEnvironment(root, ports, spec, spec.dayOne);
+  const { PAST_ONBOARDING } = await import("./profile.mjs");
   fs.writeFileSync(path.join(profile, "settings.json"), JSON.stringify({ ...PAST_ONBOARDING, remoteShare:false, lang:spec.locale.slice(0,2), theme:spec.theme }), { flag:"wx" });
   if (spec.mode === "audio") {
+    const { default: stt } = await import("../../../apps/desktop/stt.js");
     const source = replayPath(spec.modelDir), dest = stt.modelDir(profile);
     fs.mkdirSync(dest, { recursive:true });
     record.modelFiles = {};
@@ -244,7 +244,7 @@ async function journey(spec, record, root) {
     page?.close(); page = undefined; child = undefined;
   }
   async function report(type, text) {
-    if (spec.mode === "audio") await playClip(page,spec.clips[type],record.clips);
+    if (spec.mode === "audio") await playClip(page,replayPath(spec.clips[type]),record.clips);
     else await writeForm(page,typedReport,text);
     const words = await until(() => page.evaluate("document.querySelector('.daily-review blockquote')?.textContent"),"reviewed words");
     const before = await rows(page);
@@ -261,7 +261,7 @@ async function journey(spec, record, root) {
     if (spec.mode === "audio") await audioSetup(page);
     for (const [i, text] of spec.tasks.entries()) {
       if (spec.mode === "audio") {
-        await playClip(page,spec.clips.tasks[i],record.clips);
+        await playClip(page,replayPath(spec.clips.tasks[i]),record.clips);
         await writeForm(page,".daily-review form",text);
       } else await writeForm(page,typedTask,text);
       const after = await observeRows(page,list => list.length === i+1 && list[i].text === text);
@@ -302,6 +302,7 @@ async function journey(spec, record, root) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  const { replayPath } = await import("./n02-fixtures.mjs");
   const spec = read(replayPath(process.argv[2]));
   const root = replayPath(spec.out);
   assert.match(root, /^G:[\\/]/i);
@@ -311,7 +312,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
     expected:"Two tasks, a grounded confirmed tick, local recovery and a durable edit", mode:spec.mode, trial:spec.trial,
     locale:spec.locale, timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone, device:os.hostname(), os:os.version(),
     launches:[], clips:[], egress:"HOLD", narrator:"HOLD", ownerTwoDays:"HOLD" };
-  try { await journey(spec,record,root); record.journey="PASS"; }
+  try { await journey(spec,record,root,replayPath); record.journey="PASS"; }
   catch (error) { record.journey="HOLD"; record.error=String(error); process.exitCode=1; }
   finally { record.exitCode=process.exitCode || 0; record.end=new Date().toISOString();
     fs.writeFileSync(path.join(root,"journey.json"),JSON.stringify(record,null,2),{flag:"wx"}); }
