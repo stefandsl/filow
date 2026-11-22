@@ -245,3 +245,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R228 (N-05): Confirm whole-list erasure inside the list with a separate user activation. Expand the disclosure in the packaged app, confirm, and inspect the journal.
 - R229 (N-05): Resolve names and pronouns in direct-contact tasks as well as deliveries. Check calls and meetings with two plausible contacts, including an Italian object clitic.
 - R230 (N-05): Preserve regular task vocabulary outside the synonym dictionary. Resolve a completed form back to its task verb and verify its object in both languages.
+- R234 (2026-11-22, N-05): Sweep the shared daily journal at startup, every 24 hours and on access. Inspect the on-disk journal across a timer tick without opening the list.
+- R235 (2026-11-22, N-05): Pin QA model probes to an explicit isolated loopback port before loading profile settings. Withhold the override and supply port 11434, then verify neither the version probe nor the welcome tags probe sends a request.

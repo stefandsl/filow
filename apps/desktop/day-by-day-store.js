@@ -87,7 +87,21 @@ function openDailyStore(dir, now = Date.now) {
     save(tasks, [...(type === "clear" ? [] : state.seen), { op, at: now() }]);
     return ack;
   }
-  return { view, apply, get version() { return state.version; } };
+  return { view, apply, expire, get version() { return state.version; } };
 }
 
-module.exports = { cleanText, localDay, openDailyStore };
+// Use the IPC writer's state for every sweep, including while the page is closed.
+function startDailyRetention(dir, onError = () => {}) {
+  let store;
+  const getStore = () => store ??= openDailyStore(dir);
+  const sweep = () => {
+    try { getStore().expire(); }
+    catch { onError(); }
+  };
+  sweep();
+  const timer = setInterval(sweep, 86400000);
+  timer.unref();
+  return { getStore, stop: () => clearInterval(timer) };
+}
+
+module.exports = { cleanText, localDay, openDailyStore, startDailyRetention };

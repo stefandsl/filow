@@ -1,6 +1,6 @@
 const { randomUUID } = require("node:crypto");
 const { interpret } = require("./day-by-day-decisions");
-const { localDay, openDailyStore } = require("./day-by-day-store");
+const { localDay } = require("./day-by-day-store");
 
 function dailyFrame(event, win, origin) {
   const frame = event.senderFrame;
@@ -157,7 +157,7 @@ function createDaily({ store, now = () => new Date(), recognizer, notify = () =>
   } };
 }
 
-function wireDaily({ win, appHandle, appOn, origin, userData, qaEpoch, recognizer }) {
+function wireDaily({ win, appHandle, appOn, origin, getStore, qaEpoch, recognizer }) {
   let workspace;
   const launched = Date.now();
   const now = Number.isFinite(qaEpoch) ? () => new Date(qaEpoch + Date.now() - launched) : () => new Date();
@@ -165,7 +165,7 @@ function wireDaily({ win, appHandle, appOn, origin, userData, qaEpoch, recognize
     if (!dailyFrame(event, win, origin) || (action === "arm" && !win.isFocused())) throw Error("Denied");
     if (action === "meter" && Number.isFinite(qaEpoch)) return workspace?.meter();
     const frame = event.senderFrame;
-    workspace ??= createDaily({ store: openDailyStore(userData), now, recognizer, notify(message) {
+    workspace ??= createDaily({ store: getStore(), now, recognizer, notify(message) {
       if (dailyFrame({ sender: win.webContents, senderFrame: frame }, win, origin)) frame.send("daily:speech", message);
     } });
     return workspace.control(action, p);

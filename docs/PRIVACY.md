@@ -71,7 +71,7 @@ config folder". The usual places are:
 | What | File or place | Why |
 |---|---|---|
 | Your talking points | `script.md` | the script you present from |
-| Daily list | `daily.json` | Task wording, local due dates, revision IDs, accepted reports and one Undo per task. Talk processes audio in memory with an installed local model. On list access, tasks expire 30 days after their last change. To erase the list, quit Filow and delete this file and any interrupted `daily.json.tmp` in the config folder. |
+| Daily list | `daily.json` | Task wording, local due dates, revision IDs, accepted reports and one Undo per task. Talk processes audio in memory with an installed local model. At startup, daily and on access, Filow deletes tasks last changed at least 30 days ago, including unfinished tasks. To erase the list, quit Filow and delete this file and any interrupted `daily.json.tmp` in the config folder. |
 | Your settings and consent answers | `settings.json` and the app's browser storage | so Filow remembers your choices |
 | API keys you added | `.env` (the key lines are blanked) and `secrets.json`, encrypted with your system's key store | so cloud features you chose can work |
 | A technical log | `startup.log` | which start-up steps ran and which errors happened; it can contain folder names |

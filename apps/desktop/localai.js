@@ -10,7 +10,28 @@ const { download } = require("./download");
 const { isCancelled } = require("./model-files");
 const { runtimeState, MIN_OLLAMA_VERSION } = require("./ollama-runtime");
 
-const OLLAMA_URL = () => process.env.OLLAMA_URL || "http://127.0.0.1:11434";
+function isolatedOllamaUrl(value) {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(u.hostname) ||
+        Number(u.port) < 1024 || ["4747", "4748", "11434"].includes(u.port) ||
+        u.username || u.password || u.pathname !== "/" || u.search || u.hash) return null;
+    return u.origin;
+  } catch { return null; }
+}
+
+function ollamaProbeUrl() {
+  if (process.env.FILOW_USER_DATA_DIR || process.env.NODE_TEST_CONTEXT || process.env.NODE_ENV === "test" ||
+      process.env.VITEST || require("./package.json").filowQa) return isolatedOllamaUrl(process.env.OLLAMA_URL);
+  return (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+}
+
+async function fetchOllamaTags(request = fetch) {
+  const url = ollamaProbeUrl();
+  if (!url) return null;
+  const response = await request(url + "/api/tags", { redirect: "error", signal: AbortSignal.timeout(1500) });
+  return response.ok ? response.json() : null;
+}
 
 /**
  * The setup profiles (packages/core/src/profile.ts) and the graphics card detection
@@ -162,7 +183,8 @@ function probeOllama(ms = 1500) {
     const quiet = () => finish(connected ? "busy" : "down");
     let req;
     try {
-      const url = OLLAMA_URL();
+      const url = ollamaProbeUrl();
+      if (!url) return finish("down");
       req = require(url.startsWith("https") ? "node:https" : "node:http").get(`${url}/api/version`, { timeout: ms }, (res) => {
         connected = true;
         let body = "";
@@ -227,7 +249,7 @@ function launchOllamaApp(exe, platform = process.platform) {
 /** False when OLLAMA_URL points at another machine: there is nothing to start on this one. */
 function ollamaIsLocal() {
   try {
-    return ["127.0.0.1", "localhost", "[::1]"].includes(new URL(OLLAMA_URL()).hostname);
+    return ["127.0.0.1", "localhost", "[::1]"].includes(new URL(ollamaProbeUrl()).hostname);
   } catch {
     return false;
   }
@@ -236,7 +258,7 @@ function ollamaIsLocal() {
 /** The address "ollama serve" must listen on to be found at OLLAMA_URL, when that is a port on this computer other than Ollama's own. */
 function serveHost() {
   try {
-    const u = new URL(OLLAMA_URL());
+    const u = new URL(ollamaProbeUrl());
     if (!["127.0.0.1", "localhost"].includes(u.hostname) || !u.port || u.port === "11434") return "";
     return `127.0.0.1:${u.port}`;
   } catch {
@@ -566,4 +588,4 @@ const OLLAMA_STOPPED = /\bOllama\b.*\bis not running\b/;
 /** A failed OK Filow answer { error, code } that means Ollama is stopped: the panel's code for it, or the server's sentence itself. */
 const isOllamaStopped = (failure) => Boolean(failure && (failure.code === "ollama_stopped" || OLLAMA_STOPPED.test(String(failure.error || ""))));
 
-module.exports = { CATALOG, OLLAMA_STOPPED, isOllamaStopped, hardwareScan, profileOf, recommend, ollamaExe, ollamaVersion, ollamaIsLocal, probeOllama, scrubLogLine, startOllama, stopOwnOllama, installOllama, installMacApp };
+module.exports = { isolatedOllamaUrl, ollamaProbeUrl, fetchOllamaTags, CATALOG, OLLAMA_STOPPED, isOllamaStopped, hardwareScan, profileOf, recommend, ollamaExe, ollamaVersion, ollamaIsLocal, probeOllama, scrubLogLine, startOllama, stopOwnOllama, installOllama, installMacApp };

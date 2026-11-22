@@ -115,6 +115,10 @@ if (process.env.FILOW_USER_DATA_DIR) {
   app.setPath("userData", process.env.FILOW_USER_DATA_DIR);
   app.setPath("sessionData", process.env.FILOW_USER_DATA_DIR);
 }
+// Pin the launch override before reading the seeded profile .env. Port zero disables model access.
+if (process.env.FILOW_USER_DATA_DIR || INPUT_OFF || (app.isPackaged && require("./qa.js").isQaBuild(app))) {
+  process.env.OLLAMA_URL = require("./localai").isolatedOllamaUrl(process.env.OLLAMA_URL) || "http://127.0.0.1:0";
+}
 const userData = app.getPath("userData");
 // One Filow per profile (single-instance.js): a second launch starts nothing and brings the running
 // window forward instead of fighting for the ports. Keyed on userData, so test profiles still coexist.
@@ -265,9 +269,8 @@ async function computeWelcomeOffer() {
   const scanStarted = Date.now();
   const info = await localAiInfo(); // await: the scan may become asynchronous (localai.js)
   logLine(`welcome: hardware scan ${Date.now() - scanStarted} ms`);
-  const ollama = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
   const installed = await probeSetup({
-    fetchJson: () => fetch(`${ollama}/api/tags`, { signal: AbortSignal.timeout(1500) }).then((r) => (r.ok ? r.json() : null)),
+    fetchJson: () => localAi.fetchOllamaTags(),
     sherpaReady: () => sttLocal.modelReady(userData),
     // Chromium's CacheStorage for this profile: empty or absent = no Whisper model can be cached yet.
     browserCache: () => {
@@ -2466,6 +2469,7 @@ async function main() {
   session.defaultSession.setPermissionCheckHandler(pagePermissions.check);
   /** What the user accepted in the first-run setup (the welcome's step, or the dialog after it): models to fetch. */
   let choices = null;
+  let dailyRetention;
   try {
     seed(scriptFile, "script.md");
     const migrated = migrateLegacyProfile();
@@ -2474,6 +2478,8 @@ async function main() {
     loadSecrets();
     aliasLegacyEnv();
     loadSettings();
+    dailyRetention = require("./day-by-day-store").startDailyRetention(userData, () => logLine("daily: expiry unavailable"));
+    app.once("will-quit", dailyRetention.stop);
     freeLlm().apply(); // FreeLLMAPI: the address and model saved in Settings win over .env
     if (migrated) settings.profileMigrated = true;
     dropInstallerChoices();
@@ -2533,7 +2539,7 @@ async function main() {
   endTakeWithPage(win);
   const qaEpoch = app.isPackaged && INPUT_OFF && process.env.FILOW_USER_DATA_DIR && require("./qa.js").isQaBuild(app)
     ? Date.parse(process.env.FILOW_QA_DAILY_TIME || "") : NaN;
-  require("./day-by-day").wireDaily({ win, appHandle, appOn, origin: APP_URL, userData,
+  require("./day-by-day").wireDaily({ win, appHandle, appOn, origin: APP_URL, getStore: dailyRetention.getStore,
     recognizer: () => new sttLocal.SttSession(userData, () => {}, { use: "tracking" }), qaEpoch });
   win.on("focus", () => uiPreferences?.refresh());
   win.on("closed", () => { mainWin = null; aboutPages?.close(); }); // About must not keep Filow running alone

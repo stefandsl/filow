@@ -231,6 +231,10 @@ async function journey(spec, record, root, replayPath) {
   }
   let child, page;
   async function launch(day) {
+    assert.equal(env.FILOW_PORT, String(ports[0]));
+    assert.equal(env.FILOW_SESSION_PORT, String(ports[1]));
+    assert.equal(env.OLLAMA_URL, "http://127.0.0.1:" + ports[3]);
+    assert.equal(env.OLLAMA_HOST, "127.0.0.1:" + ports[3]);
     await verifyFree(ports);
     child = spawn(exe, ["--remote-debugging-port="+ports[2], "--remote-debugging-address=127.0.0.1", "--force-renderer-accessibility", "--lang="+spec.locale,
       "--log-net-log="+path.join(root,"chromium-"+record.launches.length+".json")], { env:{ ...env, FILOW_QA_DAILY_TIME:day }, stdio:"ignore" });
