@@ -2531,6 +2531,9 @@ async function main() {
   });
   reloadOnCrash(win, "main");
   endTakeWithPage(win);
+  const dailyQa = app.isPackaged && INPUT_OFF && process.env.FILOW_USER_DATA_DIR && require("./qa.js").isQaBuild(app);
+  require("./day-by-day").wireDaily({ win, appHandle, origin: APP_URL, userData,
+    qaEpoch: dailyQa ? Date.parse(process.env.FILOW_QA_DAILY_TIME || "") : NaN });
   win.on("focus", () => uiPreferences?.refresh());
   win.on("closed", () => { mainWin = null; aboutPages?.close(); }); // About must not keep Filow running alone
   // Full screen hides the frame and the menu: the page's bar at the top leaves it, minimises or closes (window-controls.js).

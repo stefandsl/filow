@@ -131,6 +131,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     });
   }, [engine, lessonOpen, lessonResult]);
   // The OK Filow button (lib/buddy/openAsk.ts): drawn in the desktop app only, and says in words when OK Filow is not running.
+  const [dailyHere, setDailyHere] = useState(false);
+  useEffect(() => setDailyHere(Boolean(desktopBridge()?.daily)), []);
   const [okfHere, setOkfHere] = useState(false);
   const [okfDown, setOkfDown] = useState(false);
   useEffect(() => setOkfHere(canAskOkFilow()), []);
@@ -630,6 +632,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       <header className="topbar">
         <div className="logo"><Wordmark height={28} /></div>
         {okfHere && !eng.recording && <a className="chip" href="/tour">{t("tour.practice")}</a>}
+        {dailyHere && !eng.recording && <a className="btn" href="/day-by-day">{lessonText("daily.title", lang)}</a>}
         <span className="subtitle">{t("app.tagline")}</span><span className="spacer" />
         <PairPanel prompter info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} devices={sessionInfo.devices} onRevoke={sessionInfo.revokeDevice} onAllowAsk={sessionInfo.allowAsk} onApprove={sessionInfo.approveDevice} />
         <LangSwitch lang={lang} onChange={onLang} /><ThemeSwitch pref={theme} onChange={onTheme} />

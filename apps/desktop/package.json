@@ -58,6 +58,8 @@
       "stt-worker.js",
       "stt.js",
       "take-checkpoint.js",
+      "day-by-day.js",
+      "day-by-day-store.js",
       "stt-download.js",
       "dictation.js",
       "dictation-core.js",

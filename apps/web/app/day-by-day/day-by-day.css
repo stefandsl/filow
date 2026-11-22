@@ -1,0 +1,11 @@
+.daily { max-width: 48rem; margin: auto; padding: clamp(1rem, 4vw, 2.5rem); }
+.daily-header, .daily-entry { display: flex; gap: .75rem; justify-content: space-between; align-items: end; flex-wrap: wrap; }
+.daily-entry label { flex: 1 1 16rem; min-width: 0; }
+.daily-entry input { display: block; width: 100%; margin-top: .35rem; padding: .65rem; font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--muted); border-radius: var(--radius); }
+.daily [aria-pressed="true"] { color: var(--action-foreground); background: var(--action-background); }
+.daily-list { list-style: none; padding: 0; }
+.daily-list li, .daily-review { display: grid; gap: .75rem; padding: 1rem; margin-block: .75rem; border-radius: var(--radius); background: var(--panel); overflow-wrap: anywhere; }
+.daily-check { display: flex; align-items: baseline; gap: .5rem; font-weight: 700; }
+.daily-check:has(:checked) span { text-decoration: line-through; }
+.daily summary { cursor: pointer; }
+.daily :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

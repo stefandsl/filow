@@ -9,7 +9,18 @@ export type LessonView = {
   phase: "idle" | "preparing" | "ready" | "presenter" | "speaker" | "approval" | "checking" | "dispatched" | "guiding" | "explained" | "interrupted" | "held";
   turn?: string; decision?: LessonDecision; reading?: { temperature: number; dew: number }; micUnavailable?: boolean; confirmation?: string; expired?: boolean; unmatched?: boolean;
 };
+
+export type DailyTask = { id: string; rev: number; text: string; due: string; done: boolean; evidence: string; undo: boolean };
+export type DailyView = {
+  session: string; version: number; day: string; today: string; offset: number; tasks: DailyTask[];
+  status?: "saved" | "stale" | "noMatch";
+  ack?: { id: string; rev: number } | null;
+};
+export type DailyBridge = {
+  control(action: string, payload?: Record<string, unknown>): Promise<DailyView>;
+};
 export type DesktopBridge = {
+  daily?: DailyBridge;
   lesson?: {
     control(action: "prepare" | "confirmPresenter" | "talk" | "request" | "approve" | "reconcile" | "observe" | "state" | "stop", turn?: string, payload?: string | LessonDecision): Promise<LessonView>;
     onStop(fn: () => void): () => void;

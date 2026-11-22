@@ -5,6 +5,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("filow", {
   desktop: true,
+  daily: {
+    control: (action, payload) => ipcRenderer.invoke("daily:control", action, payload),
+  },
   lesson: {
     control: (action, turn, payload) => {
       if (["prepare", "confirmPresenter", "approve", "reconcile"].includes(action) && !navigator.userActivation.isActive) return Promise.resolve({ phase: "held" });
