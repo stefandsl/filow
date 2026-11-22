@@ -30,6 +30,11 @@
         },
         {
           "kind": "negative",
+          "utterance": "Nora has never received the maps",
+          "expectedMutations": 0
+        },
+        {
+          "kind": "negative",
           "utterance": "Nora hasn't received the maps",
           "expectedMutations": 0
         },
@@ -93,6 +98,11 @@
           "utterance": "Lei ha ricevuto le mappe",
           "expectedMutations": 0,
           "expectPersonQuestion": true
+        },
+        {
+          "kind": "negative",
+          "utterance": "Nora ha ricevuto solo le ricevute non le mappe",
+          "expectedMutations": 0
         },
         {
           "kind": "negative",

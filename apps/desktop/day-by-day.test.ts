@@ -126,4 +126,3 @@ it("revalidates a person choice and consumes a typed confirmation across restart
   assert.equal(replay.ack, null);
   assert.equal(replay.tasks[0].done, false);
 });
-

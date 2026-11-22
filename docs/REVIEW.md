@@ -227,3 +227,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R209 (N-04): Remove the response instance and turn referrer checks separately and verify that their negative tests fail.
 - R210 (N-04): Record critical errors with graded denominators for both arms and keep live generation HELD until the N-06 factual gate passes.
 - R212 (2026-11-22, N-05): Bind daily recognizer results to the visible list revision even when listening continues through a task edit. Check: deliver an idle audio block, save a task, replay a final from the old revision and report progress on the new one. Count one confirmation and one durable tick.
+- R213 (2026-11-22, N-05): Check the object phrase of a daily delivery report for a denial before offering completion. Check: replay a negative possession report and a different object followed by a denial, then confirm an ordinary delivery and its explicit correction in both languages.

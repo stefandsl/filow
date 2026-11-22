@@ -26,6 +26,7 @@ function interpret(input, tasks, { speech = false } = {}) {
   const report = /^(.+?)\s+(has(?:n't| not)? received|hasn't got|has not got|received|got|has|didn't receive|did not receive|non (?:l[ei] )?ha ricevut[oaie]|ha ricevut[oaie])(?:\s+(.+))?$/u.exec(phrase);
   if (report) {
     const [, person, verb, object = ""] = report;
+    if (/\b(?:never|no|not|neither|non|mai|nessun[oa]?)\b/u.test(object)) return null;
     const negative = /n't| not |^non /.test(verb + " ");
     if (negative !== repair || /[,;.!]|\b(?:if|unless|but|or|maybe|forse|ma|oppure|se)\b/u.test(object)) return null;
     const pronoun = /^(?:he|she|they|lui|lei|loro)$/u.test(person);
