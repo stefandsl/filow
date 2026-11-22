@@ -207,6 +207,15 @@ function createOkFilow(deps) {
   /** True while the talk chord is held: the overlays take the mouse for the highlighter. */
   let mouseCaught = false;
   let panel = null;
+  const lessonDraft = require("./okfilow-lesson").createLessonDraft();
+  function clearLessonDraft() {
+    if (!lessonDraft.turn) return;
+    lessonDraft.clear();
+    sendPanel("okfilow:lessonEnd");
+  }
+  ipcMain.handle("okfilow:lessonDraft", (event, turn, words) => lessonDraft.submit(
+    ourSender(event) && event.sender === panel?.webContents && panel.isFocused() && panel.isVisible()
+      && new URL(event.senderFrame.url).pathname === "/okfilow/panel", turn, words));
   let tray = null;
   let mode = "idle"; // idle | listening | thinking | speaking | error
   /** The question being answered took the screen with it (the eye on the pill next to the pointer). */
@@ -523,6 +532,7 @@ function createOkFilow(deps) {
     if (ourSender(e) && e.sender === panel?.webContents) {
       panelReady = true;
       e.sender.send("okfilow:outbound", outbound.snapshot());
+      if (lessonDraft.turn) e.sender.send("okfilow:lessonEntry", lessonDraft.turn);
       if (quickAskWaiting) { quickAskWaiting = false; e.sender.send("okfilow:quickAsk", null); }
     }
   });
@@ -865,10 +875,10 @@ function createOkFilow(deps) {
     });
     panel.setContentProtection(hidden());
     panel.on("blur", () => panel && !panel.isDestroyed() && !noticeOpen && panel.hide());
-    panel.on("hide", () => { panelQuestion = false; });
-    panel.on("closed", () => { panelQuestion = false; panel = null; noticeOpen = false; outbound.clear("web:"); });
+    panel.on("hide", () => { panelQuestion = false; clearLessonDraft(); });
+    panel.on("closed", () => { lessonDraft.clear(); panelReady = false; panelQuestion = false; panel = null; noticeOpen = false; outbound.clear("web:"); });
     // A panel that crashed or reloaded can no longer end its sends: they are over.
-    panel.webContents.on("render-process-gone", () => { panelQuestion = false; noticeOpen = false; outbound.clear("web:"); });
+    panel.webContents.on("render-process-gone", () => { lessonDraft.clear(); panelReady = false; panelQuestion = false; noticeOpen = false; outbound.clear("web:"); });
     panel.webContents.on("did-start-loading", () => { panelQuestion = false; noticeOpen = false; outbound.clear("web:"); });
     panel.webContents.on("console-message", (e) => { if (e.level === "warning" || e.level === "error") logLine(`okfilow panel ${e.level}: ${String(e.message).slice(0, 300)}`); });
     lockDown(panel);
@@ -1229,8 +1239,21 @@ function createOkFilow(deps) {
    */
   function openAsk(at) {
     if (!cfg().enabled) return "off";
+    clearLessonDraft();
     openQuickAsk(at);
     return "open";
+  }
+  function openLessonAsk(turn, receive) {
+    if (!cfg().enabled || held || !["idle", "error"].includes(mode)) return false;
+    clearLessonDraft();
+    lessonDraft.begin(turn, words => {
+      sendPanel("okfilow:lessonEnd");
+      panel?.hide();
+      receive(words);
+    });
+    openQuickAsk();
+    if (panelReady) sendPanel("okfilow:lessonEntry", turn);
+    return true;
   }
   /**
    * A question typed on a paired phone the presenter allowed to ask (okfilow-phone.js has the inbox).
@@ -1928,7 +1951,7 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, phoneAskers, publishPhoneCount, micReport: () => micOpens.report(), wakeAction, wakeReconcile: () => wake.reconcile(), outboundSignal };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, openLessonAsk, clearLessonDraft, askFromPhone, phoneAskers, publishPhoneCount, micReport: () => micOpens.report(), wakeAction, wakeReconcile: () => wake.reconcile(), outboundSignal };
 }
 
 /**

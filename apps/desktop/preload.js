@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld("filow", {
       ipcRenderer.on("lesson:stopped", listener);
       return () => ipcRenderer.removeListener("lesson:stopped", listener);
     },
+    onDraft: fn => {
+      const listener = (_event, turn, words) => fn(turn, words);
+      ipcRenderer.on("lesson:draft", listener);
+      return () => ipcRenderer.removeListener("lesson:draft", listener);
+    },
   },
   account: {
     status: () => ipcRenderer.invoke("account:status"),

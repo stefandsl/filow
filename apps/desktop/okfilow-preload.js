@@ -139,6 +139,9 @@ contextBridge.exposeInMainWorld("okFilow", {
   onStrokes: on("okfilow:strokes"),
   onHandsFree: on("okfilow:handsfree"),
   onQuickAsk: on("okfilow:quickAsk"),
+  lessonDraft: (turn, words) => ipcRenderer.invoke("okfilow:lessonDraft", turn, words),
+  onLessonEntry: on("okfilow:lessonEntry"),
+  onLessonEnd: on("okfilow:lessonEnd"),
   onWelcome: on("okfilow:welcome"),
   stt: {
     status: () => ipcRenderer.invoke("okfilow:stt:status"),

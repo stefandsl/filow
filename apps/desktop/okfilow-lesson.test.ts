@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "vitest";
-import { createLesson, LESSON_URL, arrived, cooled } from "./okfilow-lesson";
+import { createLesson, createLessonDraft, LESSON_URL, arrived, cooled } from "./okfilow-lesson";
 
 function trial() {
   const origin = { browser: "edge-1", window: 38, tab: "tab-1", frame: "f", loader: "before", url: "about:blank#class", entry: 1 };
@@ -23,6 +23,20 @@ function trial() {
   }
   return { lesson, proposal, owner, effects, saved, changeTarget: () => { current = { ...origin, tab: "elsewhere" }; }, blur: () => { foreground = false; } };
 }
+
+it("accepts only the current visible lesson panel's one draft and drops delayed speech after Stop", () => {
+  const drafts: string[] = [];
+  const form = createLessonDraft();
+  form.begin("turnA", (text: string) => drafts.push(text));
+  assert.equal(form.submit(false, "turnA", "open Cloud Lab"), false);
+  assert.equal(form.submit(true, "turnB", "open Cloud Lab"), false);
+  form.clear();
+  assert.equal(form.submit(true, "turnA", "open Cloud Lab"), false);
+  form.begin("turnB", (text: string) => drafts.push(text));
+  assert.equal(form.submit(true, "turnB", "apri Cloud Lab"), true);
+  assert.equal(form.submit(true, "turnB", "apri Cloud Lab"), false);
+  assert.deepEqual(drafts, ["apri Cloud Lab"]);
+});
 
 it("consumes one exact local decision even with concurrent approvals", async () => {
   const x = trial();

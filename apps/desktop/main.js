@@ -2595,6 +2595,7 @@ async function main() {
   let lesson, lessonOwner, lessonKeyBound = false;
   const lessonStopKey = "Control+Shift+F12";
   const interruptLesson = () => {
+    okFilow?.clearLessonDraft?.();
     lesson?.interrupt();
     if (lessonKeyBound) globalShortcut.unregister(lessonStopKey);
     lessonKeyBound = false;
@@ -2625,6 +2626,14 @@ async function main() {
     }
     if (!lesson || owner !== lessonOwner) return { phase: "idle" };
     if (action === "state") return lesson.view();
+    if (action === "talk" && win.isFocused() && lesson.view().phase === "ready" && lesson.view().turn === turn) {
+      const opened = okFilow?.openLessonAsk(turn, words => {
+        if (win.isDestroyed() || lesson?.view().phase !== "ready" || lesson.view().turn !== turn) return;
+        win.webContents.send("lesson:draft", turn, words);
+        if (showWindow(win, "main window")) win.focus();
+      });
+      return opened ? lesson.view() : { ...lesson.view(), micUnavailable: true };
+    }
     if (action === "observe") return lesson.observe(owner, turn);
     if (action === "reconcile") return lesson.reconcile(owner, turn);
     if (action === "stop" && (!turn || lesson.view().turn === turn)) { stopLesson(); return { phase: "idle" }; }

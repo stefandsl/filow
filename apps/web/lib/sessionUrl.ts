@@ -7,12 +7,13 @@
 export type LessonDecision = { teacher: string; turn: string; window: number; tab: string; action: "open"; url: string };
 export type LessonView = {
   phase: "idle" | "preparing" | "ready" | "approval" | "checking" | "dispatched" | "guiding" | "explained" | "interrupted" | "held";
-  turn?: string; decision?: LessonDecision; reading?: { temperature: number; dew: number };
+  turn?: string; decision?: LessonDecision; reading?: { temperature: number; dew: number }; micUnavailable?: boolean;
 };
 export type DesktopBridge = {
   lesson?: {
-    control(action: "prepare" | "request" | "approve" | "reconcile" | "observe" | "state" | "stop", turn?: string, payload?: string | LessonDecision): Promise<LessonView>;
+    control(action: "prepare" | "talk" | "request" | "approve" | "reconcile" | "observe" | "state" | "stop", turn?: string, payload?: string | LessonDecision): Promise<LessonView>;
     onStop(fn: () => void): () => void;
+    onDraft(fn: (turn: string, words: string) => void): () => void;
   };
   relayIdentity?: {
     remember(url: string, identity: { id: string; engineToken: string }): Promise<void>;

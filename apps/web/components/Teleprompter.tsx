@@ -56,7 +56,7 @@ import { useReanchor } from "./prompter/useReanchor";
 import { ReanchorNotice } from "./prompter/ReanchorNotice";
 import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useCodesForWindows, useDisplayPrefs, useEyeline, usePointsWindow } from "./prompter/DisplayPanel";
 import { openWhiteboard } from "@/lib/whiteboard/open";
-import { waterCycle } from "@/lib/whiteboard/water-cycle";
+import { lessonText, type LessonTextKey, waterCycle } from "@/lib/whiteboard/water-cycle";
 import { anchorOf, canAskOkFilow, openOkFilow } from "@/lib/buddy/openAsk";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
 import { refocusIfLost } from "@/lib/focusHandoff";
@@ -615,7 +615,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
             setStartDialog(false);
             cancelStart("interruption");
             setLessonOpen(true);
-          }}><Icon name="board" /><span className="action-label">{t("lesson.prepared")}</span></button>}
+          }}><Icon name="board" /><span className="action-label">{lessonText("lesson.prepared", lang)}</span></button>}
           {okfHere && <button type="button" className="btn okfilow-link" onClick={(e) => { setOkfDown(false); void openOkFilow(anchorOf(e.currentTarget)).then((went) => setOkfDown(went === "unavailable")); }} aria-label={t("ctl.okfilow")} title={t("ctl.okfilowTitle")}><Icon name="ask" /><span className="action-label">{t("ctl.okfilow")}</span></button>}
           <button type="button" className="btn display-link" onClick={() => setDisplayOpen(true)} aria-label={t("display.open")} title={t("display.openTitle")} aria-haspopup="dialog"><Icon name="sliders" /><span className="action-label">{t("display.open")}</span></button>
           <button type="button" className="btn whiteboard-link" onClick={() => { setBoardDown(false); void openWhiteboard().then((went) => setBoardDown(went === "unavailable")); }} aria-label={t("ctl.whiteboard")} title={t("ctl.whiteboardTitle")}><Icon name="board" /><span className="action-label">{t("ctl.whiteboard")}</span></button>
@@ -1025,11 +1025,14 @@ export function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; on
 }
 
 export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
-  const t = useT();
   const bridge = desktopBridge()?.lesson;
   const lang = useLang();
+  const t = (key: LessonTextKey, vars?: Record<string, string | number>) => lessonText(key, lang, vars);
   const [view, setView] = useState<LessonView>({ phase: "idle" });
   const [words, setWords] = useState("");
+  useEffect(() => bridge?.onDraft((turn, draft) => {
+    if (turn === view.turn && view.phase === "ready") setWords(draft);
+  }), [bridge, view.phase, view.turn]);
   const generation = useRef(0);
   const nextRequest = useCallback(() => ++generation.current, []);
   const usingBrowser = useRef(false);
@@ -1073,7 +1076,7 @@ export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
     speech.speak(utterance);
     return () => speech.cancel();
   }, [lang, narration]);
-  const control = async (action: "prepare" | "request" | "approve" | "reconcile" | "stop") => {
+  const control = async (action: "prepare" | "talk" | "request" | "approve" | "reconcile" | "stop") => {
     if (!bridge) return;
     const id = nextRequest();
     usingBrowser.current = true;
@@ -1102,6 +1105,8 @@ export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
     {bridge && <section aria-live="polite">
       {view.phase === "idle" && <button className="btn" onClick={() => void control("prepare")}>{t("lesson.browser")}</button>}
       {view.phase === "ready" && <form onSubmit={e => { e.preventDefault(); void control("request"); }}>
+        <button type="button" className="btn" onClick={() => void control("talk")}>{t("ctl.okfilow")}</button>
+        {view.micUnavailable && <p>{t("ctl.okfilowDown")}</p>}
         <label>{t("lesson.request")} <input value={words} placeholder={t("lesson.command")} onChange={e => setWords(e.target.value)} /></label>
         <button className="btn" disabled={!words.trim()}>{t("lesson.review")}</button>
       </form>}

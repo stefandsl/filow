@@ -25,6 +25,22 @@ function cooled(first, next) {
     && next.dew === first.dew && first.temperature > first.dew && next.temperature <= next.dew);
 }
 
+function createLessonDraft() {
+  let entry = null;
+  return {
+    begin(turn, receive) { entry = { turn, receive }; },
+    get turn() { return entry?.turn ?? null; },
+    clear() { entry = null; },
+    submit(local, turn, words) {
+      if (!entry || !local || turn !== entry.turn || typeof words !== "string" || !words.trim() || words.length > 300) return false;
+      const { receive } = entry;
+      entry = null;
+      receive(words.trim());
+      return true;
+    },
+  };
+}
+
 function createLesson({ driver, focused, journal }) {
   let active = null;
   const view = () => active ? { phase: active.phase, turn: active.turn, decision: active.decision, reading: active.reading } : { phase: "idle" };
@@ -335,4 +351,4 @@ function edgeDriver(userData) {
   }
   return { prepare, current, open, observe, attach, point, close, show: () => page("Page.bringToFront") };
 }
-module.exports = { LESSON_URL, createLesson, lessonJournal, edgeDriver, arrived, cooled };
+module.exports = { LESSON_URL, createLesson, createLessonDraft, lessonJournal, edgeDriver, arrived, cooled };

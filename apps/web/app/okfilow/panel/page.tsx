@@ -44,6 +44,7 @@ import { MAX_GALLERY, ownMedia, type MediaItem, type MediaShow } from "@/lib/bud
 import { lookUpMedia } from "@/lib/buddy/mediaClient";
 import { AnswerControls, KeyChoice, SeeScreenSwitch } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
+import { lessonText } from "@/lib/whiteboard/water-cycle";
 import { askPlan, askTextQuestion, lastPresenterAnswer, phoneCount, phoneLabel, phoneNoticeFree, phonePrompt, phoneTurns, presenterHistory, questionForModel, wordsOnly, type AskSource } from "@/lib/buddy/phoneAsk";
 import "../okfilow.css";
 
@@ -138,6 +139,9 @@ export default function OkFilowPanel() {
   const partial = useRef("");
   const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: ReturnType<typeof floatMicNode> } | null>(null);
   const panelMic = useRef(false);
+  const lessonTurn = useRef<string | null>(null);
+  const [lessonEntry, setLessonEntry] = useState(false);
+  const lessonCapture = useRef<{ turn: string; session: number; send: boolean } | null>(null);
   /** The microphone being opened right now (lib/buddy/micOpen.ts), and how long this recording's took to open. */
   const micOpening = useRef<MicOpening<MediaStream> | null>(null);
   const micOpenMs = useRef<number | null>(null);
@@ -540,6 +544,7 @@ export default function OkFilowPanel() {
    * start of it the user already heard, which the voice does not say again.
    */
   const ask = useCallback(async (question: string, opts: { typed?: boolean; resume?: { shown: string; said?: string }; phone?: { device: string; yesFor: string } } = {}) => {
+    if (lessonTurn.current) return;
     setRecovery(null);
     const b = okFilowBridge();
     if (!b) return;
@@ -1070,6 +1075,7 @@ export default function OkFilowPanel() {
   const startListening = useCallback(async (why: Purpose = "talk", carry?: Float32Array) => {
     const b = okFilowBridge();
     if (!b) return;
+    if (lessonTurn.current && (why !== "talk" || !panelMic.current || carry)) return;
     if (audio.current || starting.current || stopping.current) {
       // The last recording is still finishing (its words not typed yet): start right after it, so two
       // dictations close together neither merge nor lose words.
@@ -1081,6 +1087,7 @@ export default function OkFilowPanel() {
     starting.current = true;
     pendingStop.current = null;
     session.current++;
+    lessonCapture.current = lessonTurn.current ? { turn: lessonTurn.current, session: session.current, send: false } : null;
     purpose.current = why;
     // The speed baseline: a new question's marks start clean.
     if (why !== "dictate") pendingMarks.current = null;
@@ -1289,6 +1296,7 @@ export default function OkFilowPanel() {
     try {
     const why = purpose.current;
     const sid = session.current;
+    const draft = lessonCapture.current;
     /** This recording's microphone was slow to open: what to say if it gave no words. */
     const slowMic = emptyRecordingNote(micOpenMs.current);
     const finishCapture = async () => {
@@ -1304,6 +1312,13 @@ export default function OkFilowPanel() {
     // A new recording started meanwhile (a press during hands-free): leave its state alone.
     if (session.current !== sid) return;
     const question = joinTranscript(committed.current, partial.current);
+    if (draft) {
+      if (send && draft.send && draft.session === sid && draft.turn === lessonTurn.current && question) {
+        await b.lessonDraft?.(draft.turn, question);
+      }
+      b.text("");
+      return setMode("idle");
+    }
     const dict = statusRef.current?.dictationStatus;
     if (why === "dictate" && (dict?.sound || dict?.screenReader)) playCue(false);
     if (!send) { typingRun.current++; b.text(""); return setMode("idle"); }
@@ -1526,6 +1541,7 @@ export default function OkFilowPanel() {
         if (live || !flow.current) b.text(live);
       }),
       b.onPress((p) => {
+        if (lessonTurn.current) return;
         if (p?.upgrade) {
           // The second brief press of a pair: the dictation that just started goes on hands-free.
           dictHandsFree.current = true;
@@ -1549,6 +1565,7 @@ export default function OkFilowPanel() {
         void startListening(p?.purpose === "dictate" ? "dictate" : "talk");
       }),
       b.onRelease((p) => {
+        if (lessonTurn.current) return;
         if (!shouldStopOnRelease(p?.phase, !queuedStart.current && audio.current?.node.connected === true)) return;
         // The speed baseline's t0 for a spoken question: when the keys went up, on main's clock.
         if (p?.purpose === "talk" && typeof p.at === "number") pendingMarks.current = { ...(pendingMarks.current ?? {}), release: p.at };
@@ -1561,6 +1578,16 @@ export default function OkFilowPanel() {
       b.onControl?.((p) => { if (p && (p.action === "eye" || p.action === "pause" || p.action === "resume")) control(p.action); }) ?? (() => {}),
       b.onHandsFree((on) => setHandsFree(Boolean(on))),
       b.onQuickAsk(() => setTimeout(() => typeBox.current?.focus(), 30)),
+      b.onLessonEntry?.((turn) => {
+        lessonTurn.current = turn;
+        setLessonEntry(true);
+        setTyped("");
+      }) ?? (() => {}),
+      b.onLessonEnd?.(() => {
+        lessonTurn.current = null;
+        setLessonEntry(false);
+        if (lessonCapture.current) void stopListening(false);
+      }) ?? (() => {}),
       // A part clicked in the 3D model window: ask about it, like a spoken question.
       b.onAskText((text) => { const q = askTextQuestion(text); if (q) void ask(q); }),
       b.agents.onChange(setJobs),
@@ -1716,15 +1743,27 @@ export default function OkFilowPanel() {
       {sttReady === false && <p className="okf-warn">{t("noStt")} <a href="/settings/local" target="_blank" rel="noreferrer">{t("openSettings")}</a></p>}
 
       <div className="okf-controls">
+        {lessonEntry && <p>{lessonText("lesson.prepared", lang)}</p>}
         {capturing ? <>
-          {mode === "listening" && purpose.current === "talk" && <button type="button" data-testid="send-spoken" onClick={() => { panelMic.current = false; void stopListening(true); }}>{coreText("tour.sendSpoken", lang)}</button>}
+          {mode === "listening" && purpose.current === "talk" && <button type="button" data-testid="send-spoken" onClick={() => {
+            if (lessonCapture.current && panelMic.current) lessonCapture.current.send = true;
+            panelMic.current = false; void stopListening(true);
+          }}>{coreText("tour.sendSpoken", lang)}</button>}
           <button type="button" data-testid="stop-mic" onClick={() => { panelMic.current = false; void stopListening(false); }}>{coreText("tour.stopMic", lang)}</button>
         </> : <button type="button" data-testid="start-mic" disabled={sttReady !== true || answering || !!notice} onClick={() => {
           panelMic.current = true;
           void startListening("talk").then(() => { if (!audio.current) panelMic.current = false; });
         }}>{coreText("tour.speak", lang)}</button>}
       </div>
-      <form className="okf-type" onSubmit={(e) => { e.preventDefault(); const q = typed.trim(); if (q && !capturing) { setTyped(""); bridge.hidePanel(); void ask(q, { typed: true }); } }}>
+      <form className="okf-type" onSubmit={(e) => {
+        e.preventDefault();
+        const q = typed.trim();
+        if (q && !capturing) {
+          setTyped("");
+          if (lessonTurn.current) { void bridge.lessonDraft?.(lessonTurn.current, q); return; }
+          bridge.hidePanel(); void ask(q, { typed: true });
+        }
+      }}>
         <input ref={typeBox} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t("typePlaceholder")} aria-label={t("typePlaceholder")} />
         <button type="submit" disabled={!typed.trim() || capturing}>{t("ask")}</button>
       </form>

@@ -727,6 +727,8 @@ rerun the comparison: `docs/gauntlet/BASELINE.md`.
 
 ## OK Filow, the screen helper
 
+To speak the Cloud Lab request, choose **Talk or type** on the prepared board after the lesson window is ready. Choose **Speak**, say “Open Cloud Lab”, then send the spoken words. Check the draft back on the board before approving. Typing in the board also works when the microphone is unavailable.
+
 On the desktop prompter, select **Prepared water-cycle board** to pause tracking at your current point. Choose a local cloud photograph and follow the four arrows with your class. **Return to my point** closes the board. Start listening again when you are ready. The photo stays on this computer.
 
 For the Windows Cloud Lab exercise, the teacher starts the local lesson page server with `node tools/autoloop/e2e/n04-windows.mjs`. Select **Prepare an Edge lesson window**, switch back to Filow, and enter **Open Cloud Lab**. Review the window, turn and exact address before choosing **Open once**. The learner moves the highlighted air-temperature slider. Filow reads the temperature and dew point from the page and explains the change. Select **Stop lesson** or press Ctrl+Shift+F12 to interrupt. After a crash, reopen the board and check the interrupted action. A missing observation leaves the exercise paused.
