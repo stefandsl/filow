@@ -1161,6 +1161,8 @@ export const ja: Dictionary = {
   "menu.updateFailed": "アップデートを確認できませんでした。",
   "menu.updateOffline": "オフラインモードがオンです。アップデートにはインターネット接続が必要です。",
   "menu.updateInstalledOnly": "アップデートは、インストールしたアプリでのみ使えます。",
+  "menu.updateRecalled": "アップデート{version}は現在利用できないため、削除されました。",
+  "menu.updateUnconfirmed": "アップデートサーバーでアップデート{version}を確認できなかったため、インストールされませんでした。",
   "menu.tunnelDownload": "ダウンロード",
   "menu.tunnelTitle": "別のネットワークのスマートフォンに共有",
   "menu.tunnelConsent": "リンクを知っている人は誰でもミラーページを開けます。有効なコードを持つスマートフォンは参加を申請できます。この PC でその端末を承認すると、台本、文字起こし、スライドの状態が Cloudflare を経由して端末に届きます。両方の接続を停止するには、ペアリング画面または Filow メニューで公開リンクをオフにしてください。",

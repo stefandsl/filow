@@ -21,7 +21,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   const env = { ...initialEnv };
   // single instance: the order of profile and lock calls, the app's event handlers, exit and start
   const calls: string[] = [], appHandlers: Record<string, (...args: any[]) => void> = {};
-  const appExit = vi.fn(), whenReady = vi.fn(() => ({ then() {} })), processExit = vi.fn((code: number) => { calls.push(`process.exit ${code}`); });
+  const appExit = vi.fn(), appQuit = vi.fn(), whenReady = vi.fn(() => ({ then() {} })), processExit = vi.fn((code: number) => { calls.push(`process.exit ${code}`); });
   // windows main.js (and about.js) create, and the ipcMain.handle channels they register
   const windows: any[] = [], ipcHandlers: Record<string, (event: unknown, ...args: unknown[]) => unknown> = {};
   const ipcListeners: Record<string, (event: unknown, ...args: unknown[]) => void> = {};
@@ -36,11 +36,11 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   let requestFilter!: (details: { url: string }, cb: (r: unknown) => void) => void;
   const outbound = vi.fn(() => { throw new Error("fake network boundary: no bytes sent"); });
   const menu = vi.fn();
-  const quitAndInstall = vi.fn(), updaterLoad = vi.fn();
-  const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
+  const quitAndInstall = vi.fn(), updaterLoad = vi.fn(), clearDownloadedCache = vi.fn(async () => {});
+  const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null);
   const registerShortcut = vi.fn(() => true);
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
-  const updaterHandlers: Record<string, (info: { version: string }) => void> = {}, notificationShow = vi.fn();
+  const updaterHandlers: Record<string, (info: any) => void> = {}, notificationShow = vi.fn();
   const writeFileSync = vi.fn(), renameSync = vi.fn(), appendFileSync = vi.fn(), rmSync = vi.fn(), fsRead = vi.fn((..._args: unknown[]) => "FILOW_OFFLINE=1");
   const modules: Record<string, any> = {
     electron: {
@@ -50,7 +50,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
           return "G:/fake";
         }, setPath: (name: string, value: string) => { calls.push(`setPath ${name} ${value}`); },
         on: (event: string, fn: (...args: any[]) => void) => { appHandlers[event] = fn; }, setAppUserModelId() {},
-        requestSingleInstanceLock: () => { calls.push("lock"); return !lockHeld; }, exit: appExit,
+        requestSingleInstanceLock: () => { calls.push("lock"); return !lockHeld; }, exit: appExit, quit: appQuit,
         whenReady, getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}), commandLine: { appendSwitch: (...a: string[]) => { calls.push(`switch ${a.join(" ")}`); } } },
       ipcMain: { on: (channel: string, fn: (event: unknown, ...args: unknown[]) => void) => { ipcListeners[channel] = fn; }, handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => { ipcHandlers[channel] = fn; } }, BrowserWindow: FakeBrowserWindow,
       session: { defaultSession: { setDisplayMediaRequestHandler() {}, webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
@@ -88,6 +88,8 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   }
   // the pure tunnel rules, as main.js asks for them
   modules["./tunnels.js"] = createRequire(import.meta.url)("./tunnels.js");
+  // the shared updater policy and install recheck guard
+  modules["./updater-policy.js"] = createRequire(import.meta.url)("./updater-policy.js");
   // the old seeded model ids loadEnv reads as unset
   modules["./env-defaults.js"] = createRequire(import.meta.url)("./env-defaults.js");
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
@@ -100,15 +102,15 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
        onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; }, buildMenu, st,
        setLocalAiHardware: hw => { localAiHardware = Promise.resolve(hw); } });`, {
     require: (id: string) => {
-      if (id.endsWith("electron-updater.js")) { updaterLoad(); return { autoUpdater: { on(event: string, fn: (info: { version: string }) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall } }; }
+      if (id.endsWith("electron-updater.js")) { updaterLoad(); return { autoUpdater: { on(event: string, fn: (info: any) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall, downloadedUpdateHelper: { clear: clearDownloadedCache } } }; }
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
       return modules[id];
     },
     __dirname: "G:/fake", process: { env, platform, execPath: "D:/private/Filow.exe", arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {}, exit: processExit },
     URL, URLSearchParams, console, setTimeout, clearTimeout, setInterval: () => ({ unref() {} }), clearInterval, AbortController,
   });
-  return { api, env, menu, quitAndInstall, updaterLoad, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, renameSync, appendFileSync, rmSync, fsReads: fsRead,
-    calls, appHandlers, appExit, processExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
+  return { api, env, menu, quitAndInstall, updaterLoad, clearDownloadedCache, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, renameSync, appendFileSync, rmSync, fsReads: fsRead,
+    calls, appHandlers, appExit, appQuit, processExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
     ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
     ipcHandlers, ipcListeners,
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
@@ -924,10 +926,119 @@ describe("pilot update isolation", () => {
     const f = fixture({}, { updateFeed: true, updates });
     await f.api.checkForUpdates({ manual: true });
     expect(f.checkForUpdates).toHaveBeenCalledOnce();
-    expect(f.api.loadUpdater().autoInstallOnAppQuit).toBe(true);
-    f.api.setUpdateState({ status: "downloaded", version: "future" });
-    f.api.installUpdate();
+    expect(f.api.loadUpdater().autoInstallOnAppQuit).toBe(false);
+    f.updaterHandlers["update-downloaded"]({ version: "1.2.2", sha512: "sha-122" });
+    f.checkForUpdates.mockResolvedValueOnce({ isUpdateAvailable: true, updateInfo: { version: "1.2.2", sha512: "sha-122" } });
+    await f.api.installUpdate();
     expect(f.quitAndInstall).toHaveBeenCalledOnce();
+  });
+});
+
+describe("N-09 recalled downloaded update guard", () => {
+  const downloaded = { version: "1.2.2", sha512: "sha-bad", downloadedFile: path.join("fake-cache", "pending", "Filow-1.2.2-win-x64.exe") };
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  it("rechecks before quit and skips install, discards cache, and quits when the feed recalled BAD to GOOD", async () => {
+    const f = fixture({}, { updateFeed: true });
+    const u = f.api.loadUpdater();
+    expect(u.autoInstallOnAppQuit).toBe(false);
+    f.updaterHandlers["update-downloaded"](downloaded);
+    f.checkForUpdates.mockResolvedValueOnce({ isUpdateAvailable: false, updateInfo: { version: "1.2.1", sha512: "sha-good" } });
+    const event = { preventDefault: vi.fn() };
+    f.appHandlers["before-quit"](event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    await flush();
+    expect(f.checkForUpdates).toHaveBeenCalledOnce();
+    expect(f.quitAndInstall).not.toHaveBeenCalled();
+    expect(f.clearDownloadedCache).toHaveBeenCalledOnce();
+    expect(f.appQuit).toHaveBeenCalledOnce();
+    const secondQuit = { preventDefault: vi.fn() };
+    f.appHandlers["before-quit"](secondQuit);
+    expect(secondQuit.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("rechecks on Restart and discards the recalled update and tells the user instead of installing", async () => {
+    const f = fixture({}, { updateFeed: true });
+    const win = { webContents: { send: vi.fn(), isDestroyed: () => false }, isDestroyed: () => false };
+    f.api.setMainWin(win);
+    f.api.loadUpdater();
+    f.updaterHandlers["update-downloaded"](downloaded);
+    f.showMessageBox.mockClear();
+    f.checkForUpdates.mockResolvedValueOnce({ isUpdateAvailable: false, updateInfo: { version: "1.2.1", sha512: "sha-good" } });
+    await f.api.installUpdate();
+    expect(f.checkForUpdates).toHaveBeenCalledOnce();
+    expect(f.quitAndInstall).not.toHaveBeenCalled();
+    expect(f.clearDownloadedCache).toHaveBeenCalledOnce();
+    expect(f.showMessageBox).toHaveBeenCalledWith(win, expect.objectContaining({ message: expect.stringContaining("1.2.2") }));
+    expect(win.webContents.send).toHaveBeenLastCalledWith("update:status", expect.objectContaining({ status: "none", version: "" }));
+  });
+
+  it("installs silently on quit when the feed still offers the same version and sha512", async () => {
+    const f = fixture({}, { updateFeed: true });
+    f.api.loadUpdater();
+    f.updaterHandlers["update-downloaded"](downloaded);
+    f.checkForUpdates.mockResolvedValueOnce({
+      isUpdateAvailable: true,
+      updateInfo: { version: "1.2.2", sha512: "sha-bad", files: [{ url: "Filow-1.2.2-win-x64.exe", sha512: "sha-bad" }] },
+    });
+    const event = { preventDefault: vi.fn() };
+    f.appHandlers["before-quit"](event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    await flush();
+    expect(f.quitAndInstall).toHaveBeenCalledWith(true, false);
+    const installQuit = { preventDefault: vi.fn() };
+    f.appHandlers["before-quit"](installQuit);
+    expect(installQuit.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("refuses to install when the feed offers the same version with a different sha512", async () => {
+    const f = fixture({}, { updateFeed: true });
+    f.api.loadUpdater();
+    f.updaterHandlers["update-downloaded"](downloaded);
+    f.checkForUpdates.mockResolvedValueOnce({
+      isUpdateAvailable: true,
+      updateInfo: { version: "1.2.2", sha512: "sha-tampered", files: [{ url: "Filow-1.2.2-win-x64.exe", sha512: "sha-tampered" }] },
+    });
+    await f.api.installUpdate();
+    expect(f.quitAndInstall).not.toHaveBeenCalled();
+    expect(f.clearDownloadedCache).toHaveBeenCalledOnce();
+  });
+
+  it("refuses to install on feed error, offline mode, or timeout", async () => {
+    const errFx = fixture({}, { updateFeed: true });
+    errFx.api.loadUpdater();
+    errFx.updaterHandlers["update-downloaded"](downloaded);
+    errFx.checkForUpdates.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+    const quitErr = { preventDefault: vi.fn() };
+    errFx.appHandlers["before-quit"](quitErr);
+    expect(quitErr.preventDefault).toHaveBeenCalledOnce();
+    await flush();
+    expect(errFx.quitAndInstall).not.toHaveBeenCalled();
+    expect(errFx.appQuit).toHaveBeenCalledOnce();
+
+    const offFx = fixture({ FILOW_OFFLINE: "1" }, { updateFeed: true });
+    offFx.api.startupOffline();
+    offFx.api.loadUpdater();
+    offFx.updaterHandlers["update-downloaded"](downloaded);
+    await offFx.api.installUpdate();
+    expect(offFx.checkForUpdates).not.toHaveBeenCalled();
+    expect(offFx.quitAndInstall).not.toHaveBeenCalled();
+
+    vi.useFakeTimers();
+    try {
+      const slowFx = fixture({}, { updateFeed: true });
+      slowFx.api.loadUpdater();
+      slowFx.updaterHandlers["update-downloaded"](downloaded);
+      slowFx.checkForUpdates.mockImplementationOnce(() => new Promise(() => {}));
+      const quitSlow = { preventDefault: vi.fn() };
+      slowFx.appHandlers["before-quit"](quitSlow);
+      expect(quitSlow.preventDefault).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(10_500);
+      expect(slowFx.quitAndInstall).not.toHaveBeenCalled();
+      expect(slowFx.appQuit).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -1370,7 +1370,9 @@ function updatesOff() {
   if (!updatesOffLogged) { logLine("update: Updates are off in this test build"); updatesOffLogged = true; }
   return true;
 }
+const updaterPolicy = require("./updater-policy.js");
 let updater = null;
+let updaterGuard = null;
 let updateState = { status: updatesEnabled ? "idle" : "disabled", version: "", error: "" };
 // An update never interrupts a talk (SIGN-04). The page reports when a take starts and stops. An
 // update that finishes downloading during a take, or while a PowerPoint slideshow runs, raises no
@@ -1404,8 +1406,11 @@ function endTakeWithPage(win) {
   win.on("closed", end);
 }
 
-function installUpdate() {
-  if (loadUpdater() && updateState.status === "downloaded") updater.quitAndInstall();
+async function installUpdate() {
+  if (!loadUpdater() || !updaterGuard || updateState.status !== "downloaded") {
+    return { installed: false, reason: "none" };
+  }
+  return updaterGuard.install({ onQuit: false });
 }
 
 function loadUpdater() {
@@ -1413,16 +1418,42 @@ function loadUpdater() {
   if (updater !== null) return updater;
   try {
     const mod = require(path.join(__dirname, "vendor", "electron-updater.js"));
-    updater = mod.autoUpdater;
+    updater = updaterPolicy.configureUpdater(mod.autoUpdater);
     updater.allowDowngrade = false;
-    updater.autoDownload = true;
-    updater.autoInstallOnAppQuit = true;
     updater.logger = null;
-    updater.on("checking-for-update", () => setUpdateState({ status: "checking" }));
-    updater.on("update-available", (info) => setUpdateState({ status: "downloading", version: info.version }));
-    updater.on("update-not-available", () => setUpdateState({ status: "none" }));
-    updater.on("error", (err) => setUpdateState({ status: "error", error: String((err && err.message) || err).slice(0, 200) }));
+    updaterGuard = updaterPolicy.createUpdaterGuard({
+      updater,
+      app,
+      isOffline: () => offline,
+      fs,
+      onLog: logLine,
+      onRecalled: (info, _offered, { onQuit }) => {
+        setUpdateState({ status: "none", version: "", error: "" });
+        if (!onQuit && mainWin && !mainWin.isDestroyed()) {
+          dialog.showMessageBox(mainWin, {
+            type: "info",
+            title: "Filow",
+            message: mt("updateRecalled", { version: info.version }),
+          });
+        }
+      },
+      onUnconfirmed: (info, reason, { onQuit }) => {
+        if (onQuit) setUpdateState({ status: "none", version: "", error: "" });
+        else if (mainWin && !mainWin.isDestroyed()) {
+          dialog.showMessageBox(mainWin, {
+            type: "warning",
+            title: "Filow",
+            message: reason === "offline" ? mt("updateOffline") : mt("updateUnconfirmed", { version: info.version }),
+          });
+        }
+      },
+    });
+    updater.on("checking-for-update", () => { if (!updaterGuard.isRechecking()) setUpdateState({ status: "checking" }); });
+    updater.on("update-available", (info) => { if (!updaterGuard.isRechecking()) setUpdateState({ status: "downloading", version: info.version }); });
+    updater.on("update-not-available", () => { if (!updaterGuard.isRechecking()) setUpdateState({ status: "none" }); });
+    updater.on("error", (err) => { if (!updaterGuard.isRechecking()) setUpdateState({ status: "error", error: String((err && err.message) || err).slice(0, 200) }); });
     updater.on("update-downloaded", (info) => {
+      updaterGuard.recordDownloaded(info);
       setUpdateState({ status: "downloaded", version: info.version });
       if (takeLive || slideShow.running) {
         logLine("update: ready, no prompt (a take or a slideshow is live)");
@@ -1451,12 +1482,13 @@ function loadUpdater() {
             detail: mt("updateReadyDetail"),
           })
           .then(({ response }) => {
-            if (response === 0) installUpdate();
+            if (response === 0) void installUpdate();
           });
       }
     });
   } catch (err) {
     updater = false;
+    updaterGuard = null;
     setUpdateState({ status: "error", error: String(err.message || err) });
   }
   return updater;
@@ -2847,7 +2879,12 @@ function failStartup(err) {
 app.setAppUserModelId(privateAppId || "com.intelliprompter.app");
 if (firstInstance) app.whenReady().then(main);
 app.on("window-all-closed", () => { if (!startupTransition) app.quit(); });
-app.on("before-quit", () => { quitting = true; uiPreferences?.dispose(); okFilow?.dispose(); });
+app.on("before-quit", (event) => {
+  if (updaterGuard && updaterGuard.handleBeforeQuit(event)) return;
+  quitting = true;
+  uiPreferences?.dispose();
+  okFilow?.dispose();
+});
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   stopTunnels({ wait: true });

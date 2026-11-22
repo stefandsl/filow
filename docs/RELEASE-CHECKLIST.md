@@ -72,8 +72,11 @@ installer; macOS/Linux bytes are hash-checked but their embedded metadata is not
    preserving evidence). Recheck the feed pointer. Source releases and feed releases are
    separate: recalling only the source release does not recall the feed.
 5. With `allowDowngrade: false`, clients already running BAD do not downgrade automatically.
-   Clients that have not downloaded BAD see GOOD on the next check; an already downloaded
-   update may still install on quit. Recall cannot erase local downloads or installed copies.
+   Clients that have not downloaded BAD see GOOD on the next check. Clients that already
+   downloaded BAD recheck the feed before installing on Restart or on quit (10-second timeout);
+   if the downloaded version and SHA512 no longer match the live feed, or if the feed cannot be
+   reached, Filow does not install it, discards a recalled download, and tells the user on
+   Restart. Recall cannot erase already installed copies.
    Publish a fixed version strictly above BAD for recovery; arrange manual reinstall/support
    for affected clients, and test data compatibility before suggesting any manual downgrade.
 

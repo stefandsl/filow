@@ -12,18 +12,31 @@ const scratch = fs.mkdtempSync(path.join(temp, 'release-source-'));
 const sha = 'a'.repeat(40);
 afterAll(() => fs.rmSync(scratch, { recursive: true, force: true }));
 
-function runStage(work: string, version = '1.2.3', mockGit = '', stage = 'tag', failWelcome = false) {
+function runStage(
+  work: string,
+  version = '1.2.3',
+  mockGit = '',
+  stage = 'tag',
+  failWelcome = false,
+  { expectedSha = sha as string | null, shell = 'pwsh', originUrl = 'https://github.com/stefandsl/filow.git' } = {},
+) {
   const checkout = path.join(work, 'checkout');
   const fixtureScript = path.join(checkout, 'tools/release/release.ps1');
   fs.mkdirSync(path.dirname(fixtureScript), { recursive: true });
   fs.copyFileSync(script, fixtureScript);
   fs.mkdirSync(path.join(checkout, 'apps/desktop/vendor'), { recursive: true });
   fs.copyFileSync(desktopPackage, path.join(checkout, 'apps/desktop/package.json'));
+  const shaArg = expectedSha === null ? '' : '-ExpectedSha $env:TEST_EXPECTED_SHA';
   // Shadow Git in the child process. Even an unexpected Git command cannot touch a ref.
   const command = `
     $ErrorActionPreference = 'Stop'
     $global:resolved = $false
-    function git { Add-Content -LiteralPath (Join-Path $env:TEST_WORK 'git.log') -Value ($args -join ' '); $global:LASTEXITCODE = 0; ${mockGit} }
+    function git {
+      Add-Content -LiteralPath (Join-Path $env:TEST_WORK 'git.log') -Value ($args -join ' ')
+      $global:LASTEXITCODE = 0
+      if ($args[0] -eq 'remote' -and $args[1] -eq 'get-url' -and $args[2] -eq 'origin') { $env:TEST_ORIGIN_URL; return }
+      ${mockGit}
+    }
     function npm {
       if (($args -join ' ') -eq 'run build:welcome -w apps/desktop' -and $env:TEST_FAIL_WELCOME -eq '1') {
         $global:LASTEXITCODE = 1
@@ -39,14 +52,14 @@ function runStage(work: string, version = '1.2.3', mockGit = '', stage = 'tag', 
       if (Test-Path apps/desktop/vendor/i18n.js) { throw 'CI runs Vitest without the generated dictionary' }
       $global:LASTEXITCODE = 0
     }
-    & $env:TEST_SCRIPT -Stage $env:TEST_STAGE -Version $env:TEST_VERSION -Work $env:TEST_WORK
+    & $env:TEST_SCRIPT -Stage $env:TEST_STAGE -Version $env:TEST_VERSION -Work $env:TEST_WORK ${shaArg}
     exit $LASTEXITCODE
   `;
-  const result = spawnSync(process.platform === 'win32' ? 'powershell.exe' : 'pwsh',
+  const result = spawnSync(shell,
     ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command], {
       encoding: 'utf8', timeout: 20000,
       env: { ...process.env, TEST_WORK: work, TEST_SCRIPT: fixtureScript, TEST_STAGE: stage, TEST_VERSION: version,
-        TEST_FAIL_WELCOME: failWelcome ? '1' : '0' },
+        TEST_FAIL_WELCOME: failWelcome ? '1' : '0', TEST_EXPECTED_SHA: expectedSha ?? '', TEST_ORIGIN_URL: originUrl },
     });
   if (result.error) throw result.error;
   const log = path.join(work, 'git.log');
@@ -127,3 +140,49 @@ it.each(['clean', 'integration', 'detached', 'different-main', 'switched', 'move
     expect(fs.existsSync(path.join(work, 'verified.json'))).toBe(false);
   }
 });
+
+it.each(['verify-main', 'preflight', 'tag'] as const)('requires a full 40-char ExpectedSha for %s before invoking Git', stage => {
+  const version = JSON.parse(fs.readFileSync(desktopPackage, 'utf8')).version;
+  for (const badSha of [null, '', 'abcd', 'A'.repeat(40)]) {
+    const work = fs.mkdtempSync(path.join(scratch, `sha-${stage}-`));
+    const record = JSON.stringify({ version, tagSha: sha });
+    fs.writeFileSync(path.join(work, 'verified.json'), record);
+    fs.writeFileSync(path.join(work, 'preflight.json'), record);
+    const result = runStage(work, version, '', stage, false, { expectedSha: badSha });
+    expect(result.status, `${stage} with ${String(badSha)}`).toBe(1);
+    expect(result.calls).toEqual([]);
+  }
+});
+
+it.each(['verify-main', 'tag'] as const)('refuses an origin remote other than stefandsl/filow in %s', stage => {
+  const work = fs.mkdtempSync(path.join(scratch, `origin-${stage}-`));
+  const version = JSON.parse(fs.readFileSync(desktopPackage, 'utf8')).version;
+  if (stage === 'tag') {
+    const record = JSON.stringify({ version, tagSha: sha });
+    fs.writeFileSync(path.join(work, 'verified.json'), record);
+    fs.writeFileSync(path.join(work, 'preflight.json'), record);
+  }
+  const mockGit = `
+    if ($args[0] -eq 'symbolic-ref') { 'refs/heads/main'; return }
+    if ($args[0] -eq 'rev-parse') { '${sha}'; return }
+    if ($args[0] -eq 'ls-remote') { "${sha}$([char]9)refs/heads/main"; return }
+  `;
+  const result = runStage(work, version, mockGit, stage, false, { originUrl: 'https://github.com/other/filow.git' });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toMatch(/stefandsl\/filow/);
+  expect(result.calls.filter(call => call.startsWith('push '))).toEqual([]);
+});
+
+if (process.platform === 'win32') {
+  it.each(['verify-main', 'tag'] as const)('refuses Windows PowerShell 5.1 for %s before invoking Git', stage => {
+    const work = fs.mkdtempSync(path.join(scratch, `ps51-${stage}-`));
+    const version = JSON.parse(fs.readFileSync(desktopPackage, 'utf8')).version;
+    const record = JSON.stringify({ version, tagSha: sha });
+    fs.writeFileSync(path.join(work, 'verified.json'), record);
+    fs.writeFileSync(path.join(work, 'preflight.json'), record);
+    const result = runStage(work, version, '', stage, false, { shell: 'powershell.exe' });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/PowerShell 7/);
+    expect(result.calls).toEqual([]);
+  });
+}

@@ -1161,6 +1161,8 @@ export const en = {
   "menu.updateFailed": "Could not check for updates.",
   "menu.updateOffline": "Offline mode is on; updates need an internet connection.",
   "menu.updateInstalledOnly": "Updates only work in the installed app.",
+  "menu.updateRecalled": "Update {version} is no longer available and was removed.",
+  "menu.updateUnconfirmed": "Could not verify update {version} with the update server, so it was not installed.",
   "menu.tunnelDownload": "Download",
   "menu.tunnelTitle": "Share to a phone on another network",
   "menu.tunnelConsent": "Anyone with the link can open the mirror page. A phone with a current code can ask to join. Once you approve the phone on this PC, your script, transcript and slide state can pass through Cloudflare to that phone. Turn off the public link in the pairing panel or Filow menu to stop both connections.",

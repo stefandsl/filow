@@ -91,6 +91,8 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   }
   // the pure tunnel rules, as main.js asks for them
   modules["./tunnels.js"] = createRequire(import.meta.url)("./tunnels.js");
+  // the shared updater policy and install recheck guard
+  modules["./updater-policy.js"] = createRequire(import.meta.url)("./updater-policy.js");
   // the old seeded model ids loadEnv reads as unset
   modules["./env-defaults.js"] = createRequire(import.meta.url)("./env-defaults.js");
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `

@@ -4,9 +4,17 @@ param([Parameter(Mandatory)][string]$Version,
       [Parameter(Mandatory)][ValidateSet('verify-main','preflight','tag','draft','publish')][string]$Stage,
       [Parameter(Mandatory)][string]$Work,
       [string]$Notes,
-      [ValidatePattern('\A[0-9a-f]{40}\z')][string]$ExpectedSha)
+      [string]$ExpectedSha)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Use PowerShell 7 (pwsh)' }
+if ($Stage -in 'verify-main','preflight','tag') {
+  if (-not $ExpectedSha -or $ExpectedSha -cnotmatch '\A[0-9a-f]{40}\z') {
+    throw 'ExpectedSha must be a full 40-character lowercase hex SHA for verify-main, preflight and tag'
+  }
+} elseif ($ExpectedSha -and $ExpectedSha -cnotmatch '\A[0-9a-f]{40}\z') {
+  throw 'ExpectedSha must be a full 40-character lowercase hex SHA'
+}
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $verify = Join-Path $PSScriptRoot 'release-verify.mjs'
 if ($Version -notmatch '\A(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\z') { throw 'Expected a stable version' }
@@ -48,6 +56,18 @@ function Read-Evidence([string]$Path) {
   if ($ExpectedSha -and $ExpectedSha -cne $evidence.tagSha) { throw 'Release evidence differs from the approved SHA' }
   return $evidence
 }
+function Assert-OriginRemote {
+  $url = git remote get-url origin
+  if ($LASTEXITCODE -ne 0 -or $url -isnot [string]) { throw 'Cannot read origin remote URL' }
+  $url = $url.Trim()
+  if ($env:FILOW_RELEASE_TEST_ORIGIN) {
+    if ($url -cne $env:FILOW_RELEASE_TEST_ORIGIN) { throw "Unexpected origin remote: $url" }
+    return
+  }
+  if ($url -cnotmatch '\A(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)stefandsl/filow(?:\.git)?\z') {
+    throw "Origin remote must point to stefandsl/filow, got $url"
+  }
+}
 function Assert-RemoteMain([string]$Sha) {
   $ref = git ls-remote --exit-code --refs origin refs/heads/main
   if ($LASTEXITCODE -ne 0 -or $ref -cne "$Sha`trefs/heads/main") { throw 'Remote main differs from the verified SHA' }
@@ -66,8 +86,9 @@ function Get-CleanMainCommit {
   return $sha
 }
 if ($Stage -eq 'verify-main') {
+  Assert-OriginRemote
   $sha = Get-CleanMainCommit
-  if ($ExpectedSha -and $sha -cne $ExpectedSha) { throw 'Local main differs from the approved SHA' }
+  if ($sha -cne $ExpectedSha) { throw 'Local main differs from the approved SHA' }
   $pkg = Get-Content -LiteralPath 'apps/desktop/package.json' -Raw | ConvertFrom-Json
   if ($pkg.version -cne $Version) { throw 'Commit the requested version bump before verification' }
 
@@ -96,6 +117,7 @@ if ($Stage -eq 'tag') {
   $saved = Read-Evidence $state
   $local = Read-Evidence $verified
   if ($saved.tagSha -cne $local.tagSha) { throw 'Preflight differs from the locally verified commit' }
+  Assert-OriginRemote
   $tag = "v$Version"
   $existing = git tag --list $tag
   if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect local tags' }
@@ -109,13 +131,13 @@ if ($Stage -eq 'tag') {
   if ($LASTEXITCODE -ne 0) { throw 'Tag push failed' }
   exit 0
 }
-if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Use PowerShell 7 (pwsh)' }
 # Force the owner's stored gh login; do not accept a CI/token override accidentally.
 if ($env:GH_TOKEN -or $env:GITHUB_TOKEN) { throw 'Unset GH_TOKEN/GITHUB_TOKEN; use the owner gh login' }
 $login = (Invoke-Bounded 'gh' @('api','user','--jq','.login')).Trim()
 if ($login -ne 'stefandsl') { throw "Expected owner gh login stefandsl, got $login" }
 if ($Stage -eq 'preflight') {
   $local = Read-Evidence $verified
+  Assert-OriginRemote
   if ((Get-CleanMainCommit) -cne $local.tagSha) { throw 'Local main differs from the verified SHA' }
   Assert-RemoteMain $local.tagSha
   Invoke-Bounded 'node' @($verify,'preflight','--version',$Version,'--commit',$local.tagSha,'--state',$state)

@@ -1151,6 +1151,8 @@ export const ro: Dictionary = {
   "menu.updateFailed": "Nu s-au putut căuta actualizări.",
   "menu.updateOffline": "Modul offline este activat; actualizările au nevoie de o conexiune la internet.",
   "menu.updateInstalledOnly": "Actualizările funcționează doar în aplicația instalată.",
+  "menu.updateRecalled": "Actualizarea {version} nu mai este disponibilă și a fost ștearsă.",
+  "menu.updateUnconfirmed": "Actualizarea {version} nu a putut fi verificată pe serverul de actualizări, așa că nu a fost instalată.",
   "menu.tunnelDownload": "Descarcă",
   "menu.tunnelTitle": "Acces de pe un telefon din altă rețea",
   "menu.tunnelConsent": "Oricine are linkul poate deschide pagina de oglindire. Un telefon cu un cod valid poate cere acces. După ce aprobi telefonul pe acest PC, textul prezentării, transcrierea și starea diapozitivelor pot ajunge la telefon prin Cloudflare. Dezactivează linkul public din panoul de asociere sau din meniul Filow pentru a opri ambele conexiuni.",

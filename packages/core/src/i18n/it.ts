@@ -1151,6 +1151,8 @@ export const it: Dictionary = {
   "menu.updateFailed": "Impossibile controllare gli aggiornamenti.",
   "menu.updateOffline": "La modalità offline è attiva; gli aggiornamenti richiedono internet.",
   "menu.updateInstalledOnly": "Gli aggiornamenti funzionano solo nell'app installata.",
+  "menu.updateRecalled": "L'aggiornamento {version} non è più disponibile ed è stato rimosso.",
+  "menu.updateUnconfirmed": "Impossibile verificare l'aggiornamento {version} sul server degli aggiornamenti, quindi non è stato installato.",
   "menu.tunnelDownload": "Scarica",
   "menu.tunnelTitle": "Condividi con un telefono su un'altra rete",
   "menu.tunnelConsent": "Chiunque abbia il link può aprire la pagina mirror. Un telefono con un codice valido può chiedere di partecipare. Dopo che approvi il telefono su questo PC, copione, trascrizione e stato delle slide possono passare attraverso Cloudflare e raggiungere il telefono. Disattiva il link pubblico nel pannello di abbinamento o nel menu Filow per chiudere entrambe le connessioni.",
