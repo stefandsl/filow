@@ -14,7 +14,8 @@ for (const [lang, suite] of Object.entries<any>(languages)) {
       if (c.kind === "draft") { assert.ok(review.dueTomorrow && review.text); continue; }
       assert.equal(review.type, c.kind === "correction" ? "reopen" : "complete");
       assert.equal(review.which, Boolean(c.expectPersonQuestion));
-      assert.deepEqual(review.targets.map((r: any) => [r.id, r.rev]), c.expectPersonQuestion ? [["0", 2], ["1", 3]] : [["0", 2]]);
+      const expected = c.expectPersonQuestion ? [["0", 2], ["1", 3]] : [[String(c.target), c.target + 2]];
+      assert.deepEqual(review.targets.map((r: any) => [r.id, r.rev]), expected);
     }
   });
 }

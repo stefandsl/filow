@@ -68,6 +68,26 @@
           "interaction": "saveDraft",
           "utterance": "Tomorrow file the invoices",
           "expectedMutations": 1
+        },
+        {
+          "kind": "positive",
+          "utterance": "I printed the labels",
+          "expectedMutations": 1,
+          "target": 2
+        },
+        {
+          "kind": "correction",
+          "utterance": "Correction I did not print the labels",
+          "expectedMutations": 1,
+          "target": 2,
+          "completed": [
+            2
+          ]
+        },
+        {
+          "kind": "negative",
+          "utterance": "I printed a receipt",
+          "expectedMutations": 0
         }
       ]
     },
@@ -139,6 +159,26 @@
           "interaction": "saveDraft",
           "utterance": "Domani archiviare le fatture",
           "expectedMutations": 1
+        },
+        {
+          "kind": "positive",
+          "utterance": "Ho preparato le etichette",
+          "expectedMutations": 1,
+          "target": 2
+        },
+        {
+          "kind": "correction",
+          "utterance": "Mi correggo non ho preparato le etichette",
+          "expectedMutations": 1,
+          "target": 2,
+          "completed": [
+            2
+          ]
+        },
+        {
+          "kind": "negative",
+          "utterance": "Ho preparato le mappe",
+          "expectedMutations": 0
         }
       ]
     }

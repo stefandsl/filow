@@ -15,6 +15,31 @@ function destination(task) {
   return leading ? { person: leading[1], object: leading[2] } : null;
 }
 
+
+function completedAction(phrase, tasks, repair, words) {
+  // Compare a first-person action with the task's own verb and object. This also works
+  // for new task vocabulary that has never occurred in the development sentences.
+  const statement = /^(i did not|i didn't|i have not|i haven't|(?:io )?non ho|i(?: have|'ve)?|(?:io )?ho)\s+(\p{L}+)\s+(.+)$/u.exec(phrase);
+  if (!statement) return null;
+  const [, subject, verb, object] = statement;
+  const italian = subject.endsWith("ho");
+  const denied = /non|not|n't/.test(subject);
+  if (denied !== repair || /[,;.!]|\b(?:or|but|if|never|not|non|mai|ma|se|oppure)\b/u.test(object)) return null;
+  const objectKey = terms(object).join(" ");
+  if (!objectKey) return null;
+  const targets = tasks.filter(row => {
+    if (row.done !== repair) return false;
+    const action = /^(\p{L}+)\s+(.+)$/u.exec(normal(row.text).replace(/[.!]$/, ""));
+    if (!action || terms(action[2]).join(" ") !== objectKey) return false;
+    const stem = action[1];
+    if (italian) return /[aei]re$/.test(stem) && verb === stem.slice(0,-3) + ({ a:"ato", e:"uto", i:"ito" })[stem.at(-3)];
+    if (denied && /did/.test(subject)) return verb === stem;
+    const past = stem.endsWith("e") ? stem + "d" : /[^aeiou]y$/.test(stem) ? stem.slice(0,-1) + "ied" : stem + "ed";
+    return verb === past;
+  }).map(({ id, rev, text }) => ({ id, rev, text }));
+  return targets.length ? { type: repair ? "reopen" : "complete", words, which:false, targets } : null;
+}
+
 // Unqualified recognition can suggest a task. Only the confirmation path writes a revision.
 function interpret(input, tasks, { speech = false } = {}) {
   const words = cleanText(input);
@@ -45,6 +70,8 @@ function interpret(input, tasks, { speech = false } = {}) {
       which: new Set(choices.map(c => c.person)).size > 1,
       targets: choices.map(({ task }) => ({ id: task.id, rev: task.rev, text: task.text })) };
   }
+  const action = completedAction(phrase, tasks, repair, words);
+  if (action) return action;
   if (!speech || repair || /[;.!]/u.test(phrase)) return null;
   const tomorrow = /^(?:for tomorrow|tomorrow|per domani|domani)\b[,:]?\s*/u;
   const dueTomorrow = tomorrow.test(phrase);
