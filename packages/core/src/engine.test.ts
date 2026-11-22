@@ -187,7 +187,7 @@ describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries",
     await e.tick();
     const saved = e.getState().points.s1b1;
     expect(saved.status).toBe("started");
-    expect(saved.evidence?.quote).toContain(retention);
+    expect(saved.evidence).toMatchObject({ source: "model", quote: expect.stringContaining(retention) });
     e.feed({ committed: correction });
     await e.tick();
     expect(e.getState().points.s1b1).toEqual(saved);
