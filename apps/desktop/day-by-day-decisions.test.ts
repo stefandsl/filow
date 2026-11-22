@@ -56,3 +56,20 @@ for (const [text, report] of [["Laminate the badge", "I laminated the badge"], [
     assert.equal(interpret(report, [{ id: "a", rev: 1, text, done: false }], { speech: true })?.type, "complete");
   });
 }
+
+for (const [text, report] of [
+  ["Shake the bottle", "I already shook the bottle"],
+  ["Dipingi il cancello", "Il cancello è stato dipinto"],
+  ["Riporre le chiavi", "Le chiavi le ho riposte"],
+  ["Repair the radio", "I mended the radio"],
+  ["Riparare la radio", "Ho aggiustato la radio"],
+]) it("grounds an offline report through its action and object: " + text, () => {
+  const task = { text, id: "row", rev: 4, done: false };
+  assert.deepEqual(interpret(report, [task])?.targets, [{ id: "row", rev: 4, text }]);
+});
+it("keeps every plausible contact when a determiner introduces an unfamiliar role", () => {
+  const tasks = ["Visit Toni", "Visit Robin"].map((text, id) => ({ text, id, rev: 1, done: false }));
+  const review = interpret("I visited our instructor", tasks);
+  assert.equal(review?.which, true);
+  assert.deepEqual(review.targets.map((r: any) => r.id), [0, 1]);
+});
