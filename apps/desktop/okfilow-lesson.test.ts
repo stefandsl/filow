@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { runInNewContext } from "node:vm";
-import { it } from "vitest";
+import { it, vi } from "vitest";
 import { createLesson, createLessonDraft, LESSON_URL, arrived, cooled } from "./okfilow-lesson";
 
 // Exercise edgeDriver.prepare with Edge ignoring its startup URL. Only the OS
@@ -111,7 +111,7 @@ it("withholds readiness on mismatched or uncertain creation and stops pending pr
   }
 });
 
-function trial() {
+function trial(speakerAvailable = () => true) {
   const origin = { browser: "edge-1", window: 38, tab: "tab-1", frame: "f", loader: "before", url: "about:blank#class", entry: 1, selected: true };
   const effects: string[] = [];
   const saved: unknown[] = [];
@@ -122,7 +122,7 @@ function trial() {
     open: async (url: string) => { effects.push(url); },
     close: () => {},
   };
-  const lesson = createLesson({ driver, focused: () => foreground, journal: { read: () => null, write: (value: unknown) => saved.push(value) } });
+  const lesson = createLesson({ driver, speakerAvailable, focused: () => foreground, journal: { read: () => null, write: (value: unknown) => saved.push(value) } });
   const owner = "main:1";
   async function proposal(words = "Open Cloud Lab") {
     const { turn } = await lesson.prepare(owner);
@@ -266,4 +266,55 @@ it("unrelated words create no decision and the exact command requires a fresh sp
   assert.equal(wrong.unmatched, true);
   assert.equal(wrong.decision, undefined);
   assert.equal(x.lesson.request(x.owner, turn, "Open Cloud Lab").phase, "speaker");
+});
+
+it.each(["never enrolled", "wake off"])("uses a focused presenter confirmation when %s", async () => {
+  const x = trial(() => false);
+  const { turn } = await x.lesson.prepare(x.owner);
+  assert.equal(x.lesson.request(x.owner, turn, "Open Cloud Lab").phase, "presenter");
+  assert.equal(x.lesson.challenge(), null);
+  assert.equal(x.lesson.confirmPresenter("other", turn).phase, "held");
+  const { decision } = x.lesson.confirmPresenter(x.owner, turn);
+  assert.equal(decision.teacher, "presenter-click");
+  await x.lesson.approve(x.owner, decision);
+  assert.deepEqual(x.effects, [LESSON_URL]);
+});
+
+it("expires the speaker step at 120 seconds and requires a new review", async () => {
+  const x = trial();
+  const { turn } = await x.lesson.prepare(x.owner);
+  const now = Date.now();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+  try {
+    x.lesson.request(x.owner, turn, "Open Cloud Lab");
+    const stale = x.lesson.challenge();
+    clock.mockReturnValue(now + 120000);
+    assert.equal(x.lesson.view().phase, "ready");
+    assert.equal(x.lesson.confirmSpeaker(stale).phase, "held");
+    assert.deepEqual(x.effects, []);
+    x.lesson.request(x.owner, turn, "Open Cloud Lab");
+    assert.notEqual(x.lesson.challenge(), stale);
+  } finally { clock.mockRestore(); }
+});
+
+it("rejects missing and foreign instance headers at response interception", async () => {
+  const { checkLessonResponse } = await import("./okfilow-lesson");
+  for (const value of [undefined, "foreign", "mine"]) {
+    const calls: string[] = [];
+    await checkLessonResponse({ requestId: "r", frameId: "f", request: { url: LESSON_URL },
+      responseStatusCode: 200, responseHeaders: value ? [{ name: "X-Filow-Instance", value }] : [] },
+      "f", "mine", async (method: string) => { calls.push(method); });
+    assert.deepEqual(calls, [value === "mine" ? "Fetch.continueRequest" : "Fetch.failRequest"]);
+  }
+});
+
+it("serves only requests with this turn's referer", async () => {
+  const { serveCloudLab } = await import("./cloud-lab");
+  const service = await serveCloudLab("mine", new AbortController().signal);
+  try {
+    for (const turn of ["", "foreign", "mine"]) {
+      const response = await fetch(LESSON_URL, { headers: turn ? { referer: new URL("/filow-turn/" + turn, LESSON_URL).href } : {} });
+      assert.equal(response.status, turn === "mine" ? 200 : 404);
+    }
+  } finally { service.close(); }
 });
