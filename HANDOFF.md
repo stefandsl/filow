@@ -56,16 +56,16 @@ On packaged preview `3b6c51f21e32d6b71e04c06427020770d56a9416`, the corrected da
 
 The expanded paced-audio set exercised four positive aliases, four ambiguous remarks, four near phrases and three 20-second noise clips per language and build. The paired rows agreed on all 15 observations in each run. The table counts correct target ticks for aliases and wrong ticks for each negative class.
 
-| Class | Main EN | Preview EN | Main IT | Preview IT |
-|---|---|---|---|---|
-| Positive aliases | 1/4 | 1/4 | 4/4 | 4/4 |
-| Ambiguous remarks | 0/4 | 0/4 | 0/4 | 0/4 |
-| Near phrases | 2/4 | 1/4 | 2/4 | 1/4 |
-| Noise | 0/3, 0/min | 0/3, 0/min | 0/3, 0/min | 0/3, 0/min |
+| Class | Main EN | 3b6c51f2 EN | e05c8435 EN | Main IT | 3b6c51f2 IT | e05c8435 IT |
+|---|---|---|---|---|---|---|
+| Positive aliases | 1/4 | 1/4 | 1/4 | 4/4 | 4/4 | 4/4 |
+| Ambiguous remarks | 0/4 | 0/4 | 0/4 | 0/4 | 0/4 | 0/4 |
+| Near phrases | 2/4 | 1/4 | 0/4 | 2/4 | 1/4 | 0/4 |
+| Noise | 0/3, 0/min | 0/3, 0/min | 0/3, 0/min | 0/3, 0/min | 0/3, 0/min | 0/3, 0/min |
 
-The English recognizer changed the name in three expanded alias clips. The preview also accepted an unset launch date in English and a Tuesday launch explicitly excluding Monday in Italian. R170 and R171 reproduce both date failures with the recognized words and check confirmed dates and unrelated denials. These two changes await packaged replay.
+The English recognizer changed the name in three expanded alias clips. Preview `3b6c51f2` accepted an unset launch date in English and a Tuesday launch explicitly excluding Monday in Italian. With R170 and R171, packaged revision `e05c843569d3568c511551f987f9e018516947b3` kept the wrong points open on all eight near phrases. Desktop and phone agreed on all 30 observations. Each noise minute comprised three clips with zero recognized finals.
 
-The same preview ran one trial per fault. Times are milliseconds from the interruption.
+Preview `3b6c51f2` ran one trial per fault. Times are milliseconds from the interruption.
 
 | Fault | Desktop | Phone | Deliberate continuation | Observation |
 |---|---:|---:|---:|---|
@@ -75,6 +75,8 @@ The same preview ran one trial per fault. Times are milliseconds from the interr
 | Main | 5,671 | 6,535 | 6,554 | Start control visible before continuation, one re-pair |
 
 R172 routes confirmed relay loss through Stop before a replacement session is published. The mounted-session test checks capture stops once, the presenter's reopen survives, and an ordinary reconnect keeps listening. In separate endpoint tests, the preview paused on simulated loss and resumed on the second input in 2,069 ms (EN) and 1,846 ms (IT). Physical Bluetooth, actual unplugging, exact-candidate native measurements including the thirty-minute hold, and factory gates remain pending.
+
+On `e05c8435`, separate control trials in both languages reproduced the restore failure. Both screens left the restore point waiting after a denial followed by a fresh success. After Reset the next successful final completed it. In the immediate English Next trial, the retention point had already turned green on the general backup and weekly review remarks. The focused regressions for R173 and R174 use those delivered finals and the recorded matcher score. Packaged confirmation of the subsequent speech changes is pending.
 
 ## N-01 | Working baseline, 20 November 2026
 
