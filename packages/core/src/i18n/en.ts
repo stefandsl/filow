@@ -1,6 +1,17 @@
 // English: the reference dictionary. Every other language has exactly these keys
 // (packages/core/src/i18n/i18n.test.ts and tools/autoloop/checks/i18n-parity.mjs).
 export const en = {
+  "lesson.prepared": "Prepared water-cycle board",
+  "lesson.photo": "Choose a local cloud photograph",
+  "lesson.evaporation": "Evaporation",
+  "lesson.condensation": "Condensation",
+  "lesson.precipitation": "Precipitation",
+  "lesson.runoff": "Runoff",
+  "lesson.surface": "Surface water",
+  "lesson.vapour": "Water vapour",
+  "lesson.droplets": "Cloud droplets",
+  "lesson.collection": "Collection",
+  "lesson.return": "Return to my point",
   "local.runtimeOld": "Ollama is too old for local answers. Install Ollama {v} or newer from ollama.com/download, restart Ollama, then try again. Your existing models will be kept.",
   "local.runtimeUnavailable": "Filow could not check the Ollama version. Start Ollama, check its address in Settings, then try again.",
   "local.pointerLabel": "{label}: here.",

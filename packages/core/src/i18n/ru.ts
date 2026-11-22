@@ -1,6 +1,17 @@
 import type { Dictionary } from "./en";
 
 export const ru: Dictionary = {
+  "lesson.prepared": "Подготовленная схема круговорота воды",
+  "lesson.photo": "Выберите фотографию облаков на компьютере",
+  "lesson.evaporation": "Испарение",
+  "lesson.condensation": "Конденсация",
+  "lesson.precipitation": "Осадки",
+  "lesson.runoff": "Поверхностный сток",
+  "lesson.surface": "Поверхностная вода",
+  "lesson.vapour": "Водяной пар",
+  "lesson.droplets": "Капли в облаке",
+  "lesson.collection": "Водосбор",
+  "lesson.return": "Вернуться к моему пункту",
   "local.runtimeOld": "Версия Ollama устарела для локальных ответов. Установите Ollama {v} или новее с ollama.com/download, перезапустите Ollama и повторите попытку. Существующие модели будут сохранены.",
   "local.runtimeUnavailable": "Filow не удалось проверить версию Ollama. Запустите Ollama, проверьте адрес в настройках и повторите попытку.",
   "local.pointerLabel": "{label}: здесь.",

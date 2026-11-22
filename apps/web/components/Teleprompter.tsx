@@ -56,6 +56,7 @@ import { useReanchor } from "./prompter/useReanchor";
 import { ReanchorNotice } from "./prompter/ReanchorNotice";
 import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useCodesForWindows, useDisplayPrefs, useEyeline, usePointsWindow } from "./prompter/DisplayPanel";
 import { openWhiteboard } from "@/lib/whiteboard/open";
+import { waterCycle } from "@/lib/whiteboard/water-cycle";
 import { anchorOf, canAskOkFilow, openOkFilow } from "@/lib/buddy/openAsk";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
 import { refocusIfLost } from "@/lib/focusHandoff";
@@ -110,6 +111,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
   const [importError, setImportError] = useState<string | null>(null);
   // The Whiteboard button found OK Filow not running in the desktop app (lib/whiteboard/open.ts): said in words, never a dead button.
   const [boardDown, setBoardDown] = useState(false);
+  const [lessonOpen, setLessonOpen] = useState(false);
   // The OK Filow button (lib/buddy/openAsk.ts): drawn in the desktop app only, and says in words when OK Filow is not running.
   const [okfHere, setOkfHere] = useState(false);
   const [okfDown, setOkfDown] = useState(false);
@@ -559,7 +561,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     setStarting(false);
   };
   useEffect(() => engine.onTakeControl({
-    start: () => { if (!engine.getState().engine.recording && !starting && !startDialog) void requestStart(); },
+    start: () => { if (!lessonOpen && !engine.getState().engine.recording && !starting && !startDialog) void requestStart(); },
     stop: reason => { setStartDialog(false); cancelStart(reason); },
   }));
 
@@ -609,6 +611,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       </header>
       <SectionNav sections={script.sections} current={sectionIdx} onSelect={reanchor.toSection}
         toolActions={<>
+          {okfHere && <button type="button" className="btn" aria-haspopup="dialog" onClick={() => {
+            setStartDialog(false);
+            cancelStart("interruption");
+            setLessonOpen(true);
+          }}><Icon name="board" /><span className="action-label">{t("lesson.prepared")}</span></button>}
           {okfHere && <button type="button" className="btn okfilow-link" onClick={(e) => { setOkfDown(false); void openOkFilow(anchorOf(e.currentTarget)).then((went) => setOkfDown(went === "unavailable")); }} aria-label={t("ctl.okfilow")} title={t("ctl.okfilowTitle")}><Icon name="ask" /><span className="action-label">{t("ctl.okfilow")}</span></button>}
           <button type="button" className="btn display-link" onClick={() => setDisplayOpen(true)} aria-label={t("display.open")} title={t("display.openTitle")} aria-haspopup="dialog"><Icon name="sliders" /><span className="action-label">{t("display.open")}</span></button>
           <button type="button" className="btn whiteboard-link" onClick={() => { setBoardDown(false); void openWhiteboard().then((went) => setBoardDown(went === "unavailable")); }} aria-label={t("ctl.whiteboard")} title={t("ctl.whiteboardTitle")}><Icon name="board" /><span className="action-label">{t("ctl.whiteboard")}</span></button>
@@ -624,6 +631,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         />
 
       <PageOutboundNotice />
+      {lessonOpen && <PreparedWaterCycle onClose={() => setLessonOpen(false)} />}
       <div className="prompter-content" ref={readingRef}>
       <main className="prompter-main">
       <ReanchorNotice notice={reanchor.notice} onUndo={reanchor.undo} onDismiss={reanchor.dismiss} />
@@ -1014,6 +1022,27 @@ export function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; on
         </div>
     </Dialog>
   );
+}
+
+export function PreparedWaterCycle({ onClose }: { onClose(): void }) {
+  const t = useT();
+  const [photo, setPhoto] = useState<{ name: string; url: string } | null>(null);
+  useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.url); }, [photo]);
+  return <Dialog title={t("lesson.prepared")} onClose={onClose} heading>
+    <label>{t("lesson.photo")} <input type="file" accept="image/png,image/jpeg,image/webp" onChange={event => {
+      const file = event.currentTarget.files?.[0];
+      if (file && ["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+        setPhoto({ name: file.name, url: URL.createObjectURL(file) });
+      }
+    }} /></label>
+    {photo && <figure><img src={photo.url} alt={photo.name} style={{ maxWidth: "100%", maxHeight: "32vh", objectFit: "contain" }} /><figcaption>{photo.name}</figcaption></figure>}
+    <table aria-label={t("lesson.prepared")}><tbody>
+      {waterCycle.map(([process, from, to]) => <tr key={process}>
+        <th scope="row">{t(process)}</th><td>{t(from)}</td><td aria-hidden="true">→</td><td>{t(to)}</td>
+      </tr>)}
+    </tbody></table>
+    <div className="controls"><button type="button" className="btn" onClick={onClose}>{t("lesson.return")}</button></div>
+  </Dialog>;
 }
 
 export function ScriptEditor({

@@ -1,6 +1,17 @@
 import type { Dictionary } from "./en";
 
 export const it: Dictionary = {
+  "lesson.prepared": "Lavagna preparata sul ciclo dell’acqua",
+  "lesson.photo": "Scegli una fotografia locale delle nuvole",
+  "lesson.evaporation": "Evaporazione",
+  "lesson.condensation": "Condensazione",
+  "lesson.precipitation": "Precipitazioni",
+  "lesson.runoff": "Ruscellamento",
+  "lesson.surface": "Acqua in superficie",
+  "lesson.vapour": "Vapore acqueo",
+  "lesson.droplets": "Goccioline nella nube",
+  "lesson.collection": "Raccolta",
+  "lesson.return": "Torna al mio punto",
   "local.runtimeOld": "Ollama è troppo vecchio per le risposte locali. Installa Ollama {v} o successivo da ollama.com/download, riavvia Ollama e riprova. I modelli esistenti saranno conservati.",
   "local.runtimeUnavailable": "Filow non ha potuto verificare la versione di Ollama. Avvia Ollama, controlla il suo indirizzo nelle Impostazioni e riprova.",
   "local.pointerLabel": "{label}: qui.",

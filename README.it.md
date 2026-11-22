@@ -736,6 +736,8 @@ ripetere il confronto: `docs/gauntlet/BASELINE.md`.
 
 ## OK Filow, l'aiutante sullo schermo
 
+Nel suggeritore desktop, scegli **Lavagna preparata sul ciclo dell’acqua** per sospendere l’ascolto al punto corrente. Scegli una fotografia locale delle nuvole e segui le quattro frecce con la classe. **Torna al mio punto** chiude la lavagna. Riavvia l’ascolto quando vuoi riprendere. La foto resta sul computer.
+
 Trascina l'angolo di un elemento per ridimensionarlo in tempo reale: vista 3D,
 schede con immagini, galleria, video, slide e fumetto della risposta seguono il
 puntatore prima del rilascio. La maniglia a puntini sposta l'elemento.

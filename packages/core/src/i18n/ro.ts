@@ -1,6 +1,17 @@
 import type { Dictionary } from "./en";
 
 export const ro: Dictionary = {
+  "lesson.prepared": "Schema pregătită a circuitului apei",
+  "lesson.photo": "Alege o fotografie locală cu nori",
+  "lesson.evaporation": "Evaporare",
+  "lesson.condensation": "Condensare",
+  "lesson.precipitation": "Precipitații",
+  "lesson.runoff": "Scurgere de suprafață",
+  "lesson.surface": "Apă de suprafață",
+  "lesson.vapour": "Vapori de apă",
+  "lesson.droplets": "Picături din nor",
+  "lesson.collection": "Acumulare",
+  "lesson.return": "Revino la punctul meu",
   "local.runtimeOld": "Ollama este prea vechi pentru răspunsuri locale. Instalează Ollama {v} sau mai nou de pe ollama.com/download, repornește Ollama și încearcă din nou. Modelele existente vor fi păstrate.",
   "local.runtimeUnavailable": "Filow nu a putut verifica versiunea Ollama. Pornește Ollama, verifică adresa în Setări și încearcă din nou.",
   "local.pointerLabel": "{label}: aici.",

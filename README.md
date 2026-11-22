@@ -727,6 +727,8 @@ rerun the comparison: `docs/gauntlet/BASELINE.md`.
 
 ## OK Filow, the screen helper
 
+On the desktop prompter, select **Prepared water-cycle board** to pause tracking at your current point. Choose a local cloud photograph and follow the four arrows with your class. **Return to my point** closes the board. Start listening again when you are ready. The photo stays on this computer.
+
 Drag an item's corner to resize it live: the 3D view, picture cards, gallery,
 video, slide and answer bubble follow the pointer before release. The dotted
 handle moves the item. A gallery's minimum height leaves room for each picture,

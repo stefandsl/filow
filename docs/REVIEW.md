@@ -200,3 +200,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 
 - R184 (2026-11-22, N-03): recognize speaker, optional modal and repair verb as grammatical roles. Check: retract an accepted event with a first-person modal amendment and keep evaluation prompts out of the cue list.
 - R185 (2026-11-22, N-03): Preserve the committed place when capture stops automatically. Check: end the microphone track after a speech mark, kill the packaged main process and verify the same mark returns with capture off. Repeat with presenter Stop and verify a fresh place.
+- R186 (2026-11-22, N-04): Label the prepared lesson and show the direction of each water-cycle process. Check: render the EN and IT boards, read each source and destination, and select the local photograph before returning to the point.

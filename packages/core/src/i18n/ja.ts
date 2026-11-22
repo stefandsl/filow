@@ -1,6 +1,17 @@
 import type { Dictionary } from "./en";
 
 export const ja: Dictionary = {
+  "lesson.prepared": "準備済みの水循環図",
+  "lesson.photo": "端末から雲の写真を選ぶ",
+  "lesson.evaporation": "蒸発",
+  "lesson.condensation": "凝結",
+  "lesson.precipitation": "降水",
+  "lesson.runoff": "表面流出",
+  "lesson.surface": "地表の水",
+  "lesson.vapour": "水蒸気",
+  "lesson.droplets": "雲粒",
+  "lesson.collection": "集水",
+  "lesson.return": "元の項目に戻る",
   "local.runtimeOld": "Ollamaが古いためローカル回答を利用できません。ollama.com/downloadからOllama {v}以降をインストールし、Ollamaを再起動してからもう一度お試しください。既存のモデルは保持されます。",
   "local.runtimeUnavailable": "Ollamaのバージョンを確認できませんでした。Ollamaを起動し、設定でアドレスを確認してからもう一度お試しください。",
   "local.pointerLabel": "{label}：ここです。",
