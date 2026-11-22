@@ -39,3 +39,20 @@ it("asks about delivery to a role with an Italian contracted preposition", () =>
   assert.equal(review?.which, true);
   assert.deepEqual(review.targets.map((row: any) => row.id), [0, 1]);
 });
+
+for (const [names, report] of [
+  [["Call Dina", "Phone Dion"], "I called Di"],
+  [["Meet Inez", "Meet Ivy"], "I met her"],
+  [["Chiamare Dora", "Chiamare Dina"], "L'ho chiamata"],
+] as const) it("resolves contacts for " + report, () => {
+  const tasks = names.map((text, id) => ({ text, id, rev: 1, done: false }));
+  const review = interpret(report, tasks, { speech: true });
+  assert.equal(review?.type, "complete");
+  assert.equal(review.which, true);
+  assert.deepEqual(review.targets.map((row: any) => row.id), [0, 1]);
+});
+for (const [text, report] of [["Laminate the badge", "I laminated the badge"], ["Piegare il telo", "Ho piegato il telo"]]) {
+  it("preserves regular task verbs outside the synonym dictionary: " + text, () => {
+    assert.equal(interpret(report, [{ id: "a", rev: 1, text, done: false }], { speech: true })?.type, "complete");
+  });
+}

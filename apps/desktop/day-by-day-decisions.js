@@ -29,6 +29,23 @@ for (const [group, [verbs, forms]] of actions.entries()) {
   }
 }
 
+const contactGroups = new Set(["call", "meet"].map(verb => taskVerbs.get(verb)));
+
+// Resolve a regular form back to the verb on the row when it has no dictionary entry.
+function regularLemmas(verb, italian, infinitive) {
+  if (infinitive) return [verb];
+  if (italian) {
+    const suffix = /(at|ut|it)[oaie]$/.exec(verb);
+    return suffix ? [verb.slice(0, -3) + ({ at: "are", ut: "ere", it: "ire" })[suffix[1]]] : [];
+  }
+  if (!verb.endsWith("ed")) return [];
+  const base = verb.slice(0, -2);
+  const lemmas = [base, base + "e"];
+  if (verb.endsWith("ied")) lemmas.push(verb.slice(0, -3) + "y");
+  if (/(.)\1$/.test(base)) lemmas.push(base.slice(0, -1));
+  return lemmas;
+}
+
 function splitDelivery(rest) {
   const trailing = /^(.+?) (?:to|a|ad) (.+)$/.exec(rest);
   if (trailing) return { person: trailing[2], object: trailing[1] };
@@ -64,11 +81,16 @@ function parseReport(phrase, repair) {
       return group !== undefined && rest ? { group, object: rest } : { group: null, object: finish[1] };
     }
   }
+  const clitic = /^(?:(non) )?(?:l'ho|li ho|le ho) (\p{L}+)$/u.exec(phrase);
+  if (clitic && Boolean(clitic[1]) === repair && contactGroups.has(completed.get(clitic[2]))) {
+    return { group: completed.get(clitic[2]), person: "loro", object: "" };
+  }
   const statement = /^(i did not|i didn't|i have not|i haven't|(?:io )?non ho|i(?: have|'ve)?|(?:(?:gli|le) )?(?:io )?ho) (\p{L}+) (.+)$/u.exec(phrase);
   if (!statement) return;
   const [, subject, verb, object] = statement;
   if (/non|not|n't/.test(subject) !== repair) return;
   const group = /did/.test(subject) ? taskVerbs.get(verb) : completed.get(verb);
+  if (group === undefined) return { object, lemmas: regularLemmas(verb, subject.endsWith("ho"), /did/.test(subject)) };
   return group === 0 ? { group, ...splitDelivery(object) } : { group, object };
 }
 
@@ -87,7 +109,12 @@ function interpret(input, tasks, { speech = false } = {}) {
       const task = /^(\S+) (.+)$/.exec(normalize(row.text).replace(/[.!]+$/, ""));
       if (!task) return false;
       const group = taskVerbs.get(task[1]);
-      if (report.group !== null && (report.group === undefined || report.group !== group)) return false;
+      if (report.lemmas) {
+        if (group !== undefined || !report.lemmas.includes(task[1])) return false;
+      } else if (report.group !== null && (report.group === undefined || report.group !== group)) return false;
+      if (contactGroups.has(group) && report.group === group) {
+        return personMatches(report.person || report.object, task[2]);
+      }
       const dest = group === 0 ? splitDelivery(task[2]) : { object: task[2] };
       if (report.person && !personMatches(report.person, dest.person)) return false;
       return report.implicit || objectKey(report.object) === objectKey(dest.object);

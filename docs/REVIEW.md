@@ -243,3 +243,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R226 (N-05): Freeze a bilingual set containing positive completions, ambiguous recipients and negatives before implementation. Compare completion, clarification and silent edits for each arm and language.
 - R227 (N-05): Resolve Italian articulated prepositions before matching the recipient of a possession report. Check two delivery tasks against the same recipient role.
 - R228 (N-05): Confirm whole-list erasure inside the list with a separate user activation. Expand the disclosure in the packaged app, confirm, and inspect the journal.
+- R229 (N-05): Resolve names and pronouns in direct-contact tasks as well as deliveries. Check calls and meetings with two plausible contacts, including an Italian object clitic.
+- R230 (N-05): Preserve regular task vocabulary outside the synonym dictionary. Resolve a completed form back to its task verb and verify its object in both languages.
