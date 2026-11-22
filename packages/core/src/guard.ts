@@ -13,7 +13,7 @@ export type GuardConflict = {
 };
 
 export type ClaimCheck = {
-  /** false when the latest sentence that states the point's claim contradicts it */
+  /** False for a contradiction or a topic mention missing the point's defining relation. */
   ok: boolean;
   /** the sentence that supports the point (ok) or the one that contradicts it (blocked); null when nothing in the transcript is about the point's words */
   evidence: Sentence | null;
@@ -79,6 +79,20 @@ const CLAUSE_START = new Set(["while", "whereas", "mentre", "but", "ma", "invece
 const START_EVENT = /^(?:launch|rollout|kickoff|avvio|lancio|partenza)$/;
 const MEAL = /^(?:breakfast|lunch|dinner|colazione|pranzo|cena)$/;
 const WEEKDAY = /^(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica)$/;
+
+const BACKUP_COPY = /^(?:backups?|snapshots?|copy|copies|copi[ae]|salvataggio|salvataggi)$/;
+const RETENTION_TERM = /^(?:retention|conservazione)$/;
+const RETENTION_ACTION = /^(?:retain(?:s|ed)?|keep|keeps|kept|expir(?:e|es|ed|y|ation)|conserv\w*|manteniamo|mantenut[ie]|teniamo|scad\w*)$/;
+
+/** A restore test can take thirty days without saying how long a copy is kept.
+ * Only count a retention predicate in a clause about the copies themselves. */
+function retentionEvidence(sentence: string, tokens: Token[]): boolean | undefined {
+  if (!tokens.some(t => BACKUP_COPY.test(t.norm))) return undefined;
+  return clauses(sentence, tokens).some(part =>
+    part.some(t => BACKUP_COPY.test(t.norm)) &&
+    part.some(t => RETENTION_TERM.test(t.norm) || RETENTION_ACTION.test(t.norm))
+  );
+}
 
 /** "Partiamo martedì, non lunedì" names the event with a verb. Resolve the day
  * attached to that verb, even if a different event later denies the same weekday. */
@@ -369,15 +383,21 @@ const round = (x: number) => Math.round(x * 100) / 100;
  */
 export function checkClaim(point: string, transcript: string): ClaimCheck {
   const claim = claimOf(point);
-  const scored = sentences(transcript).map((s) => {
+  const retentionPoint = claim.words.some(w => RETENTION_TERM.test(w)) && claim.words.some(w => BACKUP_COPY.test(w));
+  const readings = sentences(transcript).map((s) => {
     const toks = tokenize(s.text);
     const lexical = coverage(claim.words, toks);
     const sq = quantitiesFromTokens(toks);
     const numberMatch = claim.quantities.some((q) => sq.some((x) => sameQuantity(q, x)));
     const meal = schedulesMeal(claim.words, toks);
     const day = contrastedStartDay(claim.words, toks);
-    return { s, lexical, meal, day, relevance: meal || day !== undefined ? 1 : Math.min(1, lexical + (numberMatch ? 0.5 : 0)) };
+    const retention = retentionPoint ? retentionEvidence(s.text, toks) : undefined;
+    return { s, lexical, meal, day, retention, relevance: meal || day !== undefined || retention ? 1 : Math.min(1, lexical + (numberMatch ? 0.5 : 0)) };
   });
+  const scored = readings.some(r => r.retention !== undefined) ? readings.filter(r => r.retention) : readings;
+  // A shared subject provides no evidence for retention. It does not contradict a
+  // retention policy established by an earlier statement, either.
+  if (scored.length === 0 && readings.length) return { ok: false, evidence: null, lexical: 0 };
   const relevant = scored.filter((x) => x.relevance >= MIN_RELEVANT);
   for (let i = relevant.length - 1; i >= 0; i--) {
     const x = relevant[i];

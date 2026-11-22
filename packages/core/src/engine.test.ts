@@ -154,6 +154,45 @@ describe("script-scoped place", () => {
 });
 
 describe.each(Object.entries(frozen.journeys))("%s committed speech boundaries", (_lang, journey) => {
+  it("withholds a retention tick on the shared backup topic, then preserves genuine retention evidence", async () => {
+    const [general, weekly, restore, retention, correction] = _lang === "en" ? [
+      "We do backups", "We hold a weekly review", "We passed the backup restore test",
+      "We keep each backup for thirty days", "I mean the backup restore test has not passed",
+    ] : [
+      "Facciamo dei backup", "Facciamo una revisione settimanale", "Il test di ripristino del backup è riuscito",
+      "Conserviamo ogni backup per trenta giorni", "Mi correggo, il test di ripristino del backup non è riuscito",
+    ];
+    // The packaged matcher twice scored retention at 0.74 on general backup and review words.
+    const matcher = matcherDecide(
+      async texts => texts.map(() => Float32Array.of(1, 0)),
+      () => ({ key: "retention", ids: ["s1b1"], vectors: [Float32Array.of(0.63, Math.sqrt(1 - 0.63 ** 2))] }),
+    );
+    const { e } = makeEngine([], 0, { decide: matcher });
+    e.loadScript(parseScript(journey.script));
+    e.feed({ committed: general + " " });
+    e.feed({ committed: weekly + " " });
+    e.dispatch({ type: "anchor", idx: 1, keep: "recent" });
+    await e.tick();
+    await e.tick();
+    expect(e.getState().points.s1b0.status).toBe("started");
+    expect(e.getState().points.s1b1.status).toBe("waiting");
+    expect(e.getState().points.s1b2.status).toBe("waiting");
+    e.feed({ committed: restore + " " });
+    await e.tick();
+    await e.tick();
+    expect(e.getState().points.s1b2.status).toBe("started");
+    expect(e.getState().points.s1b1.status).toBe("waiting");
+    e.feed({ committed: retention + " " });
+    await e.tick();
+    await e.tick();
+    const saved = e.getState().points.s1b1;
+    expect(saved.status).toBe("started");
+    expect(saved.evidence?.quote).toContain(retention);
+    e.feed({ committed: correction });
+    await e.tick();
+    expect(e.getState().points.s1b1).toEqual(saved);
+    expect(e.getState().points.s1b2.status).toBe("waiting");
+  });
   it.each([true, false])("credits a fresh restore assertion after an unpunctuated denial (spoken correction: %s)", async (withCorrection) => {
     const [general, weekly, correction, fresh] = _lang === "en" ? [
       "We do backups", "We hold a weekly review",

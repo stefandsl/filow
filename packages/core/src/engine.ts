@@ -312,7 +312,7 @@ export class Engine {
       const check = checkClaim(b.text, correction);
       // Another event can have the same date. It only retracts a previous event when the
       // speaker explicitly replaces it. A direct denial of the same claim needs no cue.
-      if (check.ok || (check.conflict?.kind === "subject" && !cue)) continue;
+      if (!check.conflict || (check.conflict.kind === "subject" && !cue)) continue;
       endsClaim = true;
       if (!automatic && !pending) continue;
       if (automatic) withdrawn.push(b.id);

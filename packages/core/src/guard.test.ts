@@ -355,6 +355,23 @@ it.each([
 describe.each(Object.entries(frozen.journeys))("%s affirmative and corrected claims", (lang, journey) => {
   const date = lang === "en" ? "Launch date Monday" : "Data avvio lunedì";
   const restore = lang === "en" ? "Backup restore test" : "Backup: test di ripristino";
+  it("distinguishes retaining copies from creating them, restoring them or retaining another record", () => {
+    const retention = lang === "en" ? "Backup retention policy" : "Backup: politica di conservazione";
+    const [general, testDuration, other, lifetime, explicit] = lang === "en" ? [
+      "We do backups We hold a weekly review", "The backup restore test took three days",
+      "We retain invoices for a year while the backup restore test runs",
+      "Our snapshots expire after thirty days", "The backup retention policy covers three copies",
+    ] : [
+      "Facciamo dei backup Facciamo una revisione settimanale", "Il test di ripristino del backup è durato tre giorni",
+      "Conserviamo le fatture per un anno mentre eseguiamo il test di ripristino del backup",
+      "Le copie di sicurezza scadono dopo trenta giorni", "La politica di conservazione dei backup prevede tre copie",
+    ];
+    for (const words of [general, testDuration, other]) expect(checkClaim(retention, words).ok, words).toBe(false);
+    for (const words of [lifetime, explicit]) {
+      expect(checkClaim(retention, general + ". " + words + ". " + testDuration).evidence?.text).toBe(words + ".");
+      expect(checkClaim(retention, words).ok).toBe(true);
+    }
+  });
   it("uses the stated launch day when a speaker explicitly rules out another weekday", () => {
     const [wrong, right, other] = lang === "en" ? [
       "We launch on Tuesday, not Monday.",
