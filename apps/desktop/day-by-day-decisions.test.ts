@@ -72,6 +72,7 @@ it("keeps every plausible contact when a determiner introduces an unfamiliar rol
   const review = interpret("I visited our instructor", tasks);
   assert.equal(review?.which, true);
   assert.deepEqual(review.targets.map((r: any) => r.id), [0, 1]);
+  assert.equal(interpret("I visited the museum", tasks), null);
 });
 
 it("requires a reported recipient for a directed delivery, including possessive reports", () => {

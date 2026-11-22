@@ -9,6 +9,7 @@ function lexicon() {
     dictionary = JSON.parse(gunzipSync(fs.readFileSync(path.join(__dirname, "daily-lexicon", "verbs.json.gz"))));
     dictionary.humanTarget = new Set(dictionary.humanTarget);
     dictionary.roles = new Set(dictionary.roles);
+    dictionary.nouns = new Set(dictionary.nouns);
   }
   return dictionary;
 }
@@ -55,7 +56,13 @@ const determiner = /^(?:a|an|the|my|your|his|her|their|our|this|that|one|il|lo|l
 function personMatches(reference, person) {
   if (!person) return false;
   const name = normalize(person);
-  if (pronoun.test(reference) || determiner.test(reference)) return true;
+  if (pronoun.test(reference)) return true;
+  if (determiner.test(reference)) {
+    if (/^(?:one|un[oa]) (?:of|dei|delle)\b/.test(reference)) return true;
+    const words = reference.replace(determiner, "").split(/\s+/);
+    const head = words.filter(word => lexicon().nouns.has(word)).at(-1);
+    return !head || lexicon().roles.has(head);
+  }
   return name === reference || name.split(/\s+/).some(part => part.startsWith(reference));
 }
 
@@ -99,7 +106,7 @@ function parseReport(input, repair) {
   }
 }
 
-function matchesTask(report, row) {
+function taskArguments(report, row) {
   const task = /^(\S+) (.+)$/.exec(row.text.trim().replace(/[.!]+$/, ""));
   if (!task) return false;
   const verbs = lemmas(normalize(task[1]), "imperative");
@@ -111,21 +118,40 @@ function matchesTask(report, row) {
   const nameLike = /^\p{Lu}[\p{L}'-]*(?: \p{Lu}[\p{L}'-]*)*$/u.test(dest.object);
   const humanArgument = verbs.some(v => lexicon().humanTarget.has(v)) && /^[\p{L}'-]+$/u.test(dest.object);
   const directName = !dest.person && (nameLike || humanArgument);
-  if (dest.person && !src.person) return false;
+  return { src, dest, directName };
+}
+
+function recipientConflict(report, { src, dest, directName }) {
+  if (dest.person && !src.person) return true;
+  if (src.person && !personMatches(src.person, dest.person)) {
+    return !report.article || !dest.person || !lexicon().roles.has(src.person);
+  }
+  return Boolean(directName && !src.person && !report.implicitPerson && report.verbs &&
+    objectKey(src.object) !== objectKey(normalize(dest.object)) && !personMatches(src.object, dest.object));
+}
+
+function matchesTask(report, row) {
+  const args = taskArguments(report, row);
+  if (!args || recipientConflict(report, args)) return false;
+  const { src, dest, directName } = args;
   if (report.implicitPerson) return directName;
   if (directName && !src.person && report.verbs && personMatches(src.object, dest.object)) return true;
-  if (src.person && !personMatches(src.person, dest.person)) {
-    // A contracted article marks an unresolved role unless the complement is a name.
-    if (!report.article || !dest.person || !lexicon().roles.has(src.person)) return false;
-  }
   return report.implicit || objectKey(src.object) === objectKey(normalize(dest.object));
+}
+
+const correction = /^(?:correction|i mean|let me correct that|mi correggo|rettifica)\b[, :]*\s*/u;
+
+function contradictsRecipient(words, row) {
+  const phrase = normalize(words).replace(/[.!]+$/, "");
+  const report = parseReport(phrase.replace(correction, ""), correction.test(phrase));
+  const args = report && taskArguments(report, row);
+  return Boolean(args && recipientConflict(report, args));
 }
 
 function interpret(input, tasks, { speech = false } = {}) {
   const words = cleanText(input);
   if (!words || /["“”«»?\n]/u.test(words)) return null;
   const normalized = normalize(words).replace(/[.!]+$/, "");
-  const correction = /^(?:correction|i mean|let me correct that|mi correggo|rettifica)\b[, :]*\s*/u;
   const repair = correction.test(normalized);
   const phrase = normalized.replace(correction, "");
   if (/[;:.!]/.test(phrase)) return null;
@@ -148,4 +174,4 @@ function interpret(input, tasks, { speech = false } = {}) {
   return { type: "create", words, text, dueTomorrow: tomorrow.test(words), targets: [] };
 }
 
-module.exports = { interpret };
+module.exports = { interpret, contradictsRecipient };

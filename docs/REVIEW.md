@@ -246,6 +246,6 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R229 (N-05): Resolve names and pronouns in direct-contact tasks as well as deliveries. Check calls and meetings with two plausible contacts, including an Italian object clitic.
 - R230 (N-05): Preserve regular task vocabulary outside the synonym dictionary. Resolve a completed form back to its task verb and verify its object in both languages.
 - R232 (2026-11-22, N-05): Ground offline action matching in bilingual inflection data and shared verb senses. Check irregular forms, agreement, passives and synonyms outside the development vocabulary against unrelated objects.
-- R233 (2026-11-22, N-05): Resolve pronouns and descriptive references across every plausible recipient or contact. Check unfamiliar roles and lower-case names, then omit the required recipient and check that no review appears.
+- R233 (2026-11-22, N-05): Resolve pronouns and descriptive references across every plausible recipient or contact. Check unfamiliar roles and lower-case names, then substitute an inanimate object or omit the required recipient and check that no review appears.
 - R234 (2026-11-22, N-05): Sweep the shared daily journal at startup, every 24 hours and on access. Inspect the on-disk journal across a timer tick without opening the list.
 - R235 (2026-11-22, N-05): Pin QA model probes to an explicit isolated loopback port before loading profile settings. Withhold the override and supply port 11434, then verify neither the version probe nor the welcome tags probe sends a request.

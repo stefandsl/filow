@@ -24,15 +24,20 @@ senses = defaultdict(set)
 human_target_senses = set()
 role_senses = set()
 roles = set()
+nouns = set()
 with ZipFile(inputs / "wordnet.zip") as archive:
     license_text = archive.read("wordnet/LICENSE").decode()
     (output / "wordnet-license.txt").write_text("\n".join(line.rstrip() for line in license_text.splitlines()) + "\n", encoding="utf8")
     for line in archive.read("wordnet/data.noun").decode().splitlines():
         fields = line.split()
-        if line.startswith(" ") or fields[1] != "18":
+        if line.startswith(" "):
+            continue
+        words = {w for w in fields[4:4 + 2 * int(fields[3], 16):2] if w.isalpha()}
+        nouns.update(words)
+        if fields[1] != "18" and "person" not in words:
             continue
         role_senses.add(fields[0])
-        roles.update(word for word in fields[4:4 + 2 * int(fields[3], 16):2] if word.isalpha())
+        roles.update(words)
     for line in archive.read("wordnet/data.verb").decode().splitlines():
         if line.startswith(" "):
             continue
@@ -49,8 +54,10 @@ with ZipFile(inputs / "omw.zip") as archive:
             continue
         if fields[0].endswith("-v"):
             senses[fields[2]].add(int(fields[0][:-2]))
-        elif fields[0].endswith("-n") and fields[0][:-2] in role_senses:
-            roles.add(fields[2])
+        elif fields[0].endswith("-n"):
+            nouns.add(fields[2])
+            if fields[0][:-2] in role_senses:
+                roles.add(fields[2])
 
 # Index only morphology that can express an instruction or a completed action.
 index = {key: defaultdict(set) for key in ["past", "participle", "imperative", "gerund"]}
@@ -78,6 +85,7 @@ index["senses"] = senses
 packed = {key: {k: sorted(v) for k, v in entries.items()} for key, entries in index.items()}
 packed["humanTarget"] = sorted(word for word, ids in senses.items() if ids & human_target_senses)
 packed["roles"] = sorted(roles)
+packed["nouns"] = sorted(nouns)
 data = json.dumps(packed, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 with (output / "verbs.json.gz").open("wb") as stream, gzip.GzipFile(filename="", fileobj=stream, mode="wb", mtime=0) as zipped:
     zipped.write(data)
