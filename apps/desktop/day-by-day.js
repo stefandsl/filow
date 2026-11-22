@@ -146,9 +146,9 @@ function createDaily({ store, now = () => new Date(), recognizer, notify = () =>
       return view();
     }
     if (action === "confirm") return confirm(p, current);
-    if (!["create", "edit", "complete", "reopen", "undo"].includes(action)) throw Error("Invalid action");
+    if (!["clear", "delete", "create", "edit", "complete", "reopen", "undo"].includes(action)) throw Error("Invalid action");
     const row = current.tasks.find(item => item.id === p.id && item.rev === p.rev);
-    if (action !== "create" && !row) return { ...current, status: "stale" };
+    if (action !== "create" && action !== "clear" && !row) return { ...current, status: "stale" };
     const ack = store.apply({ type: action, op: p.op, due: current.day, text: p.text, id: row?.id, rev: row?.rev });
     return { ...view(), status: ack ? "saved" : "stale", ack };
   }

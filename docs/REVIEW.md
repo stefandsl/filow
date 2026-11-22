@@ -233,3 +233,11 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R216 (2026-11-22, N-05): Read the injected daily clock at its packaged QA build, isolated profile and input-off guard. Check: run the desktop global-input suite and verify that removing any prerequisite leaves the daily clock on device time.
 - R217 (2026-11-22, N-05): Load package, browser and recognizer tooling only when the Windows replay uses it. Check: collect and run the port, WAV and keyboard cases with the locked Vitest runner, then run the same cases with Node.
 - R218 (2026-11-22, N-05): Activate the verified run-owned window and check native foreground ownership and document focus before pressing Talk. Check: withhold each focus prerequisite and count zero Enter presses, then replay 200% packaged audio and compare the foreground PID and HWND to the launch before capture goes live.
+- R219 (N-05): Resolve completed actions against task verbs, objects and recipients. Check irregular forms and delivery paraphrases in English and Italian against frozen positive cases.
+- R220 (N-05): Ask which person when a name fragment, pronoun or role fits several delivery tasks. Check the offered row IDs before confirmation.
+- R221 (N-05): Require a task request before proposing creation. Replay unrelated lectures, quoted commands and unmatched completion reports.
+- R222 (N-05): Expire daily rows and operation IDs on list access after 30 days. Advance the clock and reopen the journal.
+- R223 (N-05): Erase one selected revision through the daily controls. Reopen the journal and inspect its remaining rows.
+- R224 (N-05): Clear every date in a confirmed list deletion. Reopen the journal and check for task text and evidence.
+- R225 (N-05): Exercise Undo immediately after creation. Keep another row, reopen the file, check the version increment and reject a repeated Undo.
+- R226 (N-05): Freeze a bilingual set containing positive completions, ambiguous recipients and negatives before implementation. Compare completion, clarification and silent edits for each arm and language.

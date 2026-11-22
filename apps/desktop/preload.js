@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld("filow", {
   desktop: true,
   daily: {
     control: (action, payload) => {
-      if (["arm", "create", "confirm", "edit", "undo", "reopen", "complete"].includes(action) && !navigator.userActivation.isActive)
+      if (["clear", "delete", "arm", "create", "confirm", "edit", "undo", "reopen", "complete"].includes(action) && !navigator.userActivation.isActive)
         return Promise.reject(new Error("User action required"));
       return ipcRenderer.invoke("daily:control", action, payload);
     },

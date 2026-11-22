@@ -176,6 +176,7 @@ export default function DayByDay() {
       </section>}
       <p>{view.tasks.length ? t("daily.summary", lang, { open: view.tasks.length - done, done }) : tr("daily.empty")}</p>
       <ul className="daily-list">{view.tasks.map(row => <TaskRow key={row.id} row={row} tr={tr} act={act} />)}</ul>
+      <button className="btn" onClick={() => { if (window.confirm(tr("daily.clearConfirm"))) void act("clear"); }}>{tr("daily.clear")}</button>
     </>}
     <p role="status" aria-live="polite" aria-atomic="true"><span key={acknowledgement?.rev}>{message && tr(message)}{message === "daily.saved" && acknowledgement && " · " + acknowledgement.text}</span></p>
   </main>;
@@ -197,6 +198,7 @@ function TaskRow({ row, tr, act }: { row: DailyTask; tr: (key: I18nKey) => strin
     <div className="controls">
       {(row.evidence || row.done) && <details><summary>{tr("daily.evidence")}</summary><p>{row.evidence || tr("daily.manual")}</p></details>}
       {row.undo && <button className="btn" aria-label={tr("daily.undo") + " · " + row.text} onClick={() => void act("undo", target)}>{tr("daily.undo")}</button>}
+      <button className="btn" aria-label={tr("daily.delete") + " · " + row.text} onClick={() => void act("delete", target)}>{tr("daily.delete")}</button>
     </div>
   </li>;
 }

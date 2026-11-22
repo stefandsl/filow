@@ -12,7 +12,7 @@ function localDay(date, offset = 0) {
 }
 
 // There is one synchronous writer in the single-instance desktop main process.
-function openDailyStore(dir) {
+function openDailyStore(dir, now = Date.now) {
   const file = path.join(dir, "daily.json");
   let state;
   try { state = JSON.parse(fs.readFileSync(file, "utf8")); }
@@ -20,30 +20,56 @@ function openDailyStore(dir) {
     if (error.code !== "ENOENT") throw error;
     state = { version: 0, tasks: [], seen: [] };
   }
+  const lifetime = 30 * 86400000;
+  const legacyTime = fs.existsSync(file) ? fs.statSync(file).mtimeMs : now();
+  function save(tasks, seen) {
+    const replacement = { tasks, version: state.version + 1, seen };
+    fs.writeFileSync(file + ".tmp", JSON.stringify(replacement), { mode: 0o600, flush: true });
+    fs.renameSync(file + ".tmp", file);
+    state = replacement;
+  }
+  function expire() {
+    const cutoff = now() - lifetime;
+    const tasks = state.tasks.filter(row => (row.changed ?? legacyTime) > cutoff);
+    const seen = state.seen.filter(entry => (entry.at ?? legacyTime) > cutoff);
+    if (tasks.length !== state.tasks.length || seen.length !== state.seen.length ||
+        tasks.some(row => row.changed === undefined) || seen.some(entry => typeof entry === "string")) {
+      save(tasks.map(row => ({ ...row, changed: row.changed ?? legacyTime })),
+        seen.map(entry => typeof entry === "string" ? { op: entry, at: legacyTime } : entry));
+    }
+  }
   function view() {
+    expire();
     return { version: state.version, tasks: state.tasks.map(({ previous, ...row }) => ({ ...row, undo: previous !== undefined })) };
   }
   function apply(action) {
+    expire();
     const { op, type, id, rev } = action;
-    if (typeof op !== "string" || !op || op.length > 180 || state.seen.includes(op)) return null;
+    if (typeof op !== "string" || !op || op.length > 180 || state.seen.some(entry => entry.op === op)) return null;
     const index = state.tasks.findIndex(row => row.id === id);
     const before = state.tasks[index];
     const tasks = state.tasks.slice();
     let ack;
-    if (type === "create") {
+    if (type === "clear") {
+      if (!tasks.length && !state.seen.length) return null;
+      tasks.length = 0;
+      ack = { id: "", rev: state.version + 1 };
+    } else if (type === "create") {
       const text = cleanText(action.text);
       if (!text || !/^\d{4}-\d\d-\d\d$/.test(action.due)) return null;
-      const row = { id: randomUUID(), rev: 1, due: action.due, text, done: false, evidence: "", previous: null };
+      const row = { id: randomUUID(), rev: 1, due: action.due, text, changed: now(), done: false, evidence: "", previous: null };
       tasks.push(row);
       ack = { id: row.id, rev: 1 };
     } else {
       if (!before || before.rev !== rev) return null;
       const { previous, ...row } = before;
-      const next = { ...row, rev: rev + 1, previous: row };
-      if (type === "undo") {
+      const next = { ...row, changed: now(), rev: rev + 1, previous: row };
+      if (type === "delete") {
+        tasks.splice(index, 1);
+      } else if (type === "undo") {
         if (previous === undefined) return null;
         if (previous === null) tasks.splice(index, 1);
-        else tasks[index] = { ...previous, rev: next.rev };
+        else tasks[index] = { ...previous, changed: now(), rev: next.rev };
       } else {
         if (type === "edit") {
           next.text = cleanText(action.text);
@@ -58,10 +84,7 @@ function openDailyStore(dir) {
       }
       ack = { id, rev: next.rev };
     }
-    const replacement = { tasks, version: state.version + 1, seen: [...state.seen, op] };
-    fs.writeFileSync(file + ".tmp", JSON.stringify(replacement), { mode: 0o600, flush: true });
-    fs.renameSync(file + ".tmp", file);
-    state = replacement;
+    save(tasks, [...(type === "clear" ? [] : state.seen), { op, at: now() }]);
     return ack;
   }
   return { view, apply, get version() { return state.version; } };
