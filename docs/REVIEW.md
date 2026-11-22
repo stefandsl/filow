@@ -234,9 +234,9 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R217 (2026-11-22, N-05): Load package, browser and recognizer tooling only when the Windows replay uses it. Check: collect and run the port, WAV and keyboard cases with the locked Vitest runner, then run the same cases with Node.
 - R218 (2026-11-22, N-05): Activate the verified run-owned window and check native foreground ownership and document focus before pressing Talk. Check: withhold each focus prerequisite and count zero Enter presses, then replay 200% packaged audio and compare the foreground PID and HWND to the launch before capture goes live.
 - R219 (N-05): Resolve completed actions against task verbs, objects and recipients. Check irregular forms and delivery paraphrases in English and Italian against frozen positive cases.
-- R220 (N-05): Ask which person when a name fragment, pronoun or role fits several delivery tasks. Check the offered row IDs before confirmation.
+- R220 (N-05): Resolve first names, surnames and titled surnames against whole name components. Ask which person when several recipients fit a pronoun. Check the offered row IDs before confirmation.
 - R221 (N-05): Require a task request before proposing creation. Replay unrelated lectures, quoted commands and unmatched completion reports.
-- R222 (N-05): Expire daily rows and operation IDs on list access after 30 days. Advance the clock and reopen the journal.
+- R222 (N-05): Expire only archived rows 30 days after completion. Advance the clock across a rename, restore and restart, and inspect the journal for unfinished rows.
 - R223 (N-05): Erase one selected revision through the daily controls. Reopen the journal and inspect its remaining rows.
 - R224 (N-05): Clear every date in a confirmed list deletion. Reopen the journal and check for task text and evidence.
 - R225 (N-05): Exercise Undo immediately after creation. Keep another row, reopen the file, check the version increment and reject a repeated Undo.
@@ -249,7 +249,8 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R232 (2026-11-22, N-05): Ground offline action matching in bilingual inflection data and shared verb senses. Check irregular forms, agreement, passives and synonyms outside the development vocabulary against unrelated objects. Distinguish a bare verb and noun request from a declarative sentence.
 - R233 (2026-11-22, N-05): Resolve pronouns and descriptive references across every plausible recipient or contact. Check unfamiliar roles and lower-case names, then substitute an inanimate object or omit the required recipient and check that no review appears.
 - R234 (2026-11-22, N-05): Sweep the shared daily journal at startup, every 24 hours and on access. Inspect the on-disk journal across a timer tick without opening the list.
-- R235 (2026-11-22, N-05): Pin QA model probes to an explicit isolated loopback port before loading profile settings. Withhold the override and supply port 11434, then verify neither the version probe nor the welcome tags probe sends a request.
-- R236 (N-05): Route daily matching through the local Ollama source after a named grant and installed-model check. Verify the normal default with an intercepted request and refuse reserved ports under every test profile.
+- R235 (2026-11-22, N-05): Validate the profile, application ports and Ollama endpoint at the test launcher before spawning even a normal build. Withhold the profile and supply a reserved endpoint in separate trials.
+- R236 (N-05): Disclose the task and report sent over loopback before granting access to Gemma. Withdraw in Settings and verify that subsequent speech sends zero requests.
 - R237 (N-05): Check event time, action and participant direction before proposing a completion. Exercise both languages with independent future, past-context, unrelated-action and reversed-role reports on both matchers.
 - R238 (N-05): Credit the sources of derived word lists in the shipped notices. Check the data filename, authors and licences in the version packaged with the app.
+- R239 (2026-11-22, N-05): Require a successful granted model assessment for speech ticks. Remove the weights or fail the chat request and verify that manual and typed completion still work.

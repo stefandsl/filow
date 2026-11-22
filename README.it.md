@@ -58,11 +58,11 @@ Filow è un compagno di parola dal vivo: ti ascolta mentre presenti, spunta i tu
 
 ## Giorno per giorno
 
-Il riconoscimento di base funziona offline. Per riconoscere più parafrasi, scegli **Usa Gemma già installato** dopo aver installato Gemma 4 E2B nei modelli locali. Puoi sempre spuntare le attività a mano.
+Le spunte vocali richiedono il tuo permesso e Gemma 4 E2B installato. Autorizza Gemma in Giorno per giorno e, se necessario, scaricalo nei modelli locali. Puoi revocare il permesso nelle Impostazioni, spuntare a mano o confermare un resoconto scritto.
 
 Dal suggeritore desktop apri **Giorno per giorno** e scegli **Oggi** o **Domani**. Scrivi un’attività e seleziona **Aggiungi attività**, oppure premi **Parla** e detta un’attività alla volta. Attendi **In ascolto su questo dispositivo**, controlla il testo e aggiungi l’attività. Il riconoscimento delle richieste e dei resoconti supporta italiano e inglese. Usa **Elimina attività** per una riga o **Elimina tutta la lista** per tutte le date. Puoi scrivere anche quando il microfono o il modello vocale locale non sono disponibili.
 
-Se `OLLAMA_URL` indica un’istanza locale di Ollama su una porta dedicata con `gemma4:e2b` installato, Filow interpreta i resoconti con Gemma 4 E2B. Se il modello non è disponibile, usa i dizionari italiano e inglese inclusi.
+Apri Archivio per ripristinare o eliminare le attività nei 30 giorni dopo il completamento. Le attività incompiute restano finché non le elimini.
 
 Scrivi un aggiornamento nel **Resoconto dei progressi** o pronuncialo durante l’ascolto. Controlla le parole riportate e seleziona l’attività per confermare. Se ci sono più destinatari possibili, scegli una riga o premi **Ignora**. Apri **Motivo** sulla riga per leggere il resoconto. Una rettifica può riaprire l’attività. **Annulla modifica** ripristina la versione precedente della singola riga. Puoi anche cambiare il testo o selezionare la casella direttamente.
 

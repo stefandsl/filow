@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnTestApp } from "../autoloop/e2e/test-launch.cjs";
 // Whiteboard tutor, end to end in the packaged app (docs/whiteboard/SPEC.md section 6).
 // Starts the fake model server (no paid or cloud call), launches Filow.exe with its own profile and
 // ports, opens the whiteboard through OK Filow's bridge and checks what a user would see:
@@ -11,7 +12,7 @@
 //   --real   use the Ollama on this PC with offline mode on (the "packaged app shows a lesson
 //            offline with the local model" proof); the cloud steps are then checks that Cloud is refused.
 // Ports: FILOW_E2E_PORT (4811), FILOW_E2E_SESSION_PORT (4813), FILOW_E2E_DEVTOOLS (9392), fake model 4812.
-import { spawn, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { NO_PUBLIC_LINK, seedProfile } from "../autoloop/e2e/profile.mjs";
@@ -40,7 +41,7 @@ const check = (name, ok, detail = "") => {
 const fake = await startFakeModel(FAKE);
 // The voice is off in this profile: the checks run on the owner's PC, often at night.
 const profile = seedProfile(outDir, { ...NO_PUBLIC_LINK, okFilow: { enabled: true, voice: "off" } });
-const app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
+const app = spawnTestApp(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
   env: {
     ...process.env,
     FILOW_USER_DATA_DIR: profile,

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { spawnTestApp } from "./test-launch.cjs";
 // PERF-01 (docs/autoloop/STANDARDS.md): cold start of the packaged app. Launches it N times on its own
-// profile and ports and measures, from process spawn, when startup.log says "splash shown" and "main
+// profile and ports and measures, from process when startup.log says "splash shown" and "main
 // window shown". Writes tmp/autoloop/coldstart.json (median and p95). Budget: splash <= 0.5 s,
 // main window <= 3 s at the median, on this PC.
 //
 // Usage: node tools/autoloop/e2e/coldstart.mjs [win-unpacked dir] [runs=5]
-import { spawn, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { seedProfile } from "./profile.mjs";
@@ -33,7 +34,7 @@ const splash = [], main = []; let invalid = 0;
 for (let i = 0; i < runs; i++) {
   fs.writeFileSync(log, "");
   const t0 = Date.now();
-  const app = spawn(path.join(exeDir, "Filow.exe"), [], {
+  const app = spawnTestApp(path.join(exeDir, "Filow.exe"), [], {
     env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1) }, stdio: "ignore",
   });
   let m = null;

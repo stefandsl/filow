@@ -141,8 +141,9 @@ export default function DayByDay() {
     <header className="daily-header"><Link className="btn" href="/">{tr("daily.back")}</Link><ThemeSwitch pref={theme} onChange={setTheme} /></header>
     <h1>{tr("daily.title")}</h1>
     {view && <>
-      <nav className="controls" aria-label={tr("daily.title")}>{(["daily.today", "daily.tomorrow"] as const).map((key, i) =>
+      <nav className="controls" aria-label={tr("daily.title")}>{(["daily.today", "daily.tomorrow", "daily.archive"] as const).map((key, i) =>
         <button className="btn" key={key} aria-pressed={view.offset === i} onClick={() => { stop(); void act("day", { offset: i }); }}>{tr(key)}</button>)}</nav>
+      {view.offset === 2 ? <h2>{tr("daily.archive")}</h2> : <>
       <h2><time dateTime={view.day}>{new Intl.DateTimeFormat(lang, { dateStyle: "full" }).format(new Date(view.day + "T12:00:00"))}</time></h2>
       <form className="daily-entry" onSubmit={async e => {
         e.preventDefault();
@@ -163,6 +164,7 @@ export default function DayByDay() {
       <div className="controls"><button className="btn" data-daily-talk aria-pressed={mic !== "off"} onClick={() => void talk()}>{tr(mic === "off" ? "daily.talk" : "daily.stop")}</button>
         <span role="status" data-mic={mic}>{tr(`daily.${mic}`)}</span></div>
       {partial && <p>{partial}</p>}
+      </>}
       {view.review && <section className="daily-review" key={view.review.token} aria-live="polite">
         <h3>{tr(view.review.type === "create" ? "daily.draft" : view.review.which ? "daily.which" : "daily.review")}</h3>
         <blockquote>{view.review.words}</blockquote>
@@ -204,6 +206,7 @@ function TaskRow({ row, tr, act }: { row: DailyTask; tr: (key: I18nKey) => strin
     </form>
     <div className="controls">
       {(row.evidence || row.done) && <details><summary>{tr("daily.evidence")}</summary><p>{row.evidence || tr("daily.manual")}</p></details>}
+      {row.done && <button className="btn" onClick={() => void act("reopen", target)}>{tr("daily.restore")}</button>}
       {row.undo && <button className="btn" aria-label={tr("daily.undo") + " · " + row.text} onClick={() => void act("undo", target)}>{tr("daily.undo")}</button>}
       <button className="btn" aria-label={tr("daily.delete") + " · " + row.text} onClick={() => void act("delete", target)}>{tr("daily.delete")}</button>
     </div>

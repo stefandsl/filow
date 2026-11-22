@@ -1,3 +1,4 @@
+import { spawnTestApp } from "./test-launch.cjs";
 // Report a problem, end to end on a packaged QA build (GitHub issue #5): the report window shows the
 // "Open an issue on GitHub" button with its notice, passes axe in both themes, does not overflow at
 // 150 % or 480 px, and a click hands the default browser one link, within the limit, made only of what
@@ -7,7 +8,7 @@
 // Usage: node tools/autoloop/e2e/report-issue.mjs <win-unpacked dir> [out dir]
 // Env: PROBE_LANG (en), FILOW_E2E_PORT (4808), FILOW_E2E_SESSION_PORT (port + 3), FILOW_E2E_ISSUE_PORT
 // (port + 4), FILOW_E2E_DEVTOOLS (9388). Kills only the app it started. Exit 0 when every check holds.
-import { spawn, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -49,7 +50,7 @@ await new Promise((r) => server.listen(ISSUE_PORT, "127.0.0.1", r));
 
 const env = { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(SESSION_PORT), OPENROUTER_API_KEY: "test-not-a-key", FILOW_QA_ISSUE_PAGE: `http://127.0.0.1:${ISSUE_PORT}/issues/new` };
 delete env.ELECTRON_RUN_AS_NODE;
-const app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], { env, stdio: "ignore" });
+const app = spawnTestApp(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], { env, stdio: "ignore" });
 const stop = () => { try { execSync(`taskkill /PID ${app.pid} /T /F`, { stdio: "ignore" }); } catch { /* gone */ } };
 process.on("exit", stop);
 const finish = (code) => { fs.writeFileSync(path.join(OUT, `report-issue-${lang}.txt`), out.join("\n")); stop(); server.close(); process.exit(code); };

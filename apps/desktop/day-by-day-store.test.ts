@@ -72,3 +72,12 @@ it("retains unfinished rows and expires archives from completion even after a re
   assert.deepEqual(store.view().tasks.map((r: any) => r.id), [keep.id]);
   assert.deepEqual(open().view().tasks.map((r: any) => r.id), [keep.id]);
 });
+
+it("restores or erases archives on disk before their deadline", () => {
+  const { store, first, second } = seed();
+  store.apply({ ...first, type: "complete", op: "tick1" });
+  store.apply({ ...second, type: "complete", op: "tick2" });
+  store.apply({ id: first.id, rev: 2, type: "reopen", op: "restore" });
+  store.apply({ id: second.id, rev: 2, type: "delete", op: "erase" });
+  assert.deepEqual(open().view().tasks.map((r: any) => [r.id, r.done]), [[first.id, false]]);
+});

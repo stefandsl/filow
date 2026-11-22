@@ -1,9 +1,10 @@
+import { spawnTestApp } from "../autoloop/e2e/test-launch.cjs";
 // A hidden QA instance of Filow from this checkout (not a package): Electron on apps/desktop with the
 // built web and session servers, its own profile and ports, invisible and deaf to the PC
 // (FILOW_QA_HEADLESS, FILOW_QA_NO_GLOBAL_INPUT), every model answered by the fake model server on
 // loopback. Build first: npm run build -w apps/web && npm run build -w apps/server.
 // Ports: web 5091, session 5092, fake model 5093, HTTPS 5094, DevTools 9691.
-import { execSync, spawn } from "node:child_process";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,7 +61,7 @@ export async function launch({ profile, settings = {}, env = {}, files = {} }) {
   }
   const fake = await startFakeModel(PORTS.fake);
   const electron = path.join(ROOT, "node_modules", "electron", "dist", "electron.exe");
-  const app = spawn(electron, [path.join(ROOT, "apps", "desktop"), `--remote-debugging-port=${PORTS.devtools}`], {
+  const app = spawnTestApp(electron, [path.join(ROOT, "apps", "desktop"), `--remote-debugging-port=${PORTS.devtools}`], {
     env: {
       ...process.env,
       FILOW_QA_HEADLESS: "1",

@@ -1,10 +1,11 @@
+import { spawnTestApp } from "./test-launch.cjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import net from "node:net";
 import { createHash } from "node:crypto";
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
@@ -236,7 +237,7 @@ async function journey(spec, record, root, replayPath) {
     assert.equal(env.OLLAMA_URL, "http://127.0.0.1:" + ports[3]);
     assert.equal(env.OLLAMA_HOST, "127.0.0.1:" + ports[3]);
     await verifyFree(ports);
-    child = spawn(exe, ["--remote-debugging-port="+ports[2], "--remote-debugging-address=127.0.0.1", "--force-renderer-accessibility", "--lang="+spec.locale,
+    child = spawnTestApp(exe, ["--remote-debugging-port="+ports[2], "--remote-debugging-address=127.0.0.1", "--force-renderer-accessibility", "--lang="+spec.locale,
       "--log-net-log="+path.join(root,"chromium-"+record.launches.length+".json")], { env:{ ...env, FILOW_QA_DAILY_TIME:day }, stdio:"ignore" });
     await new Promise((resolve,reject) => { child.once("spawn",resolve); child.once("error",reject); });
     record.launches.push({ pid:child.pid, start:new Date().toISOString() });

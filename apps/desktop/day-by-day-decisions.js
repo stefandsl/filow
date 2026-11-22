@@ -57,7 +57,9 @@ const pronoun = /^(?:he|she|they|them|him|her|lei|lui|loro|gli|le|lo|la|li)$/u;
 const determiner = /^(?:a|an|the|my|your|his|her|their|our|this|that|one|il|lo|la|i|le|gli|un|una|uno|al|alla|mio|mia|nostr[oa]|l['’])(?:\s|')/u;
 function personMatches(reference, person) {
   if (!person) return false;
-  const name = normalize(person);
+  const title = /^(?:(?:il|la) )?(?:mr|mrs|ms|dr|dott|dottore|dottoressa|signor|signore|signora)\.?\s+/u;
+  reference = reference.replace(title, "");
+  const name = normalize(person).replace(title, "");
   if (pronoun.test(reference)) return true;
   if (determiner.test(reference)) {
     if (/^(?:one|un[oa]) (?:of|dei|delle)\b/.test(reference)) return true;
@@ -65,7 +67,7 @@ function personMatches(reference, person) {
     const head = words.filter(word => lexicon().nouns.has(word)).at(-1);
     return !head || lexicon().roles.has(head);
   }
-  return name === reference || name.split(/\s+/).some(part => part.startsWith(reference));
+  return (" " + name + " ").includes(" " + reference + " ") || name.split(/\s+/).some(part => part.startsWith(reference));
 }
 
 function parseReport(input, repair) {

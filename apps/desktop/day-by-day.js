@@ -2,12 +2,12 @@ const { randomUUID } = require("node:crypto");
 const { interpret } = require("./day-by-day-decisions");
 const { localDay } = require("./day-by-day-store");
 
-function dailyFrame(event, win, origin) {
+function dailyFrame(event, win, origin, pathname = "/day-by-day") {
   const frame = event.senderFrame;
   if (!win || win.isDestroyed() || event.sender !== win.webContents || !frame || frame !== win.webContents.mainFrame) return false;
   try {
     const url = new URL(frame.url);
-    return url.origin === origin && url.pathname === "/day-by-day";
+    return url.origin === origin && url.pathname === pathname;
   } catch { return false; }
 }
 
@@ -31,8 +31,8 @@ function createDaily({ store, match = interpret, now = () => new Date(), recogni
     const stored = store.view();
     const date = now();
     const today = localDay(date);
-    const day = localDay(date, offset);
-    const tasks = stored.tasks.filter(row => row.due === day || (!offset && row.due < today && !row.done));
+    const day = localDay(date, offset === 1 ? 1 : 0);
+    const tasks = stored.tasks.filter(row => offset === 2 ? row.done : !row.done && (row.due === day || (!offset && row.due < today)));
     pending = pending.filter(r => r.day === day && r.version === stored.version && r.expires > Date.now());
     return { session, version: stored.version, day, today, offset, tasks, review: pending[0] || null };
   }
@@ -52,7 +52,8 @@ function createDaily({ store, match = interpret, now = () => new Date(), recogni
         version: from.version, expires: Date.now() + 120000 });
       return view();
     }
-    const result = match(words, from.tasks, { speech, yesterday: localDay(now(), -1) });
+    const archived = offset === 2 ? [] : store.view().tasks.filter(row => row.done && row.due === from.day);
+    const result = match(words, [...from.tasks, ...archived], { speech, yesterday: localDay(now(), -1) });
     return result instanceof Promise ? result.then(enqueue) : enqueue(result);
   }
   function confirm(p, current) {
@@ -141,7 +142,7 @@ function createDaily({ store, match = interpret, now = () => new Date(), recogni
       if (capture && capture.id === p.capture) stop();
       return view();
     }
-    if (action === "day") { dayGeneration++; stop(); pending = []; offset = p.offset === 1 ? 1 : 0; return view(); }
+    if (action === "day") { dayGeneration++; stop(); pending = []; offset = [1, 2].includes(p.offset) ? p.offset : 0; return view(); }
     const current = view();
     if (p.day !== current.day || p.version !== current.version) return { ...current, status: "stale" };
     if (action === "arm") {
@@ -176,6 +177,14 @@ function wireDaily({ win, appHandle, appOn, origin, getStore, qaEpoch, recognize
   const launched = Date.now();
   const now = Number.isFinite(qaEpoch) ? () => new Date(qaEpoch + Date.now() - launched) : () => new Date();
   appHandle("daily:control", async (event, action, p) => {
+    if (action === "modelPermission" || action === "withdrawModel") {
+      if (!dailyFrame(event, win, origin, "/settings/local")) throw Error("Denied");
+      if (action === "withdrawModel") {
+        saveGrant(null);
+        workspace?.close();
+      }
+      return { modelGranted: model.granted() };
+    }
     if (!dailyFrame(event, win, origin) || (action === "arm" && !win.isFocused())) throw Error("Denied");
     if (action === "meter" && Number.isFinite(qaEpoch)) return workspace?.meter();
     const frame = event.senderFrame;

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnTestApp } from "./test-launch.cjs";
 // T1 take probe (TST-02 fake-mic session, PR-01 offline, PERF-02 memory): a full LOCAL take in the real
 // packaged app with no human. A System.Speech voice (take-voice.ps1) is fed to every microphone through
 // Chromium's fake audio capture (QA builds only, FILOW_OKF_FAKE_MIC), the page is put in local mode
@@ -30,7 +31,7 @@
 //                 came and when it ended ("askAfter"): its first answer after a take must still work.
 // Ports: --port (or FILOW_E2E_PORT, default 4801; the relay gets port + 1), --devtools (or
 // FILOW_E2E_DEVTOOLS, default 9351). Profile G:\FILOW\tmp\t1-profile by default. Stops only its own processes.
-import { spawn, execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -178,7 +179,7 @@ fs.rmSync(socketLog, { force: true });
 const env = { ...process.env, FILOW_USER_DATA_DIR: PROFILE, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1), FILOW_OKF_FAKE_MIC: wav, FILOW_QA_SOCKET_LOG: socketLog };
 if (OFFLINE) env.FILOW_OFFLINE = "1"; else delete env.FILOW_OFFLINE;
 if (PROBE_SERVER) env.FILOW_QA_PROBE_SERVER_OUTBOUND = PROBE_SERVER; else delete env.FILOW_QA_PROBE_SERVER_OUTBOUND;
-const app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`, `--log-net-log=${netLog}`], { env, stdio: "ignore", detached: false });
+const app = spawnTestApp(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`, `--log-net-log=${netLog}`], { env, stdio: "ignore", detached: false });
 let stopping = false;
 let tClick = null; // when Start was clicked
 // The app ending by itself during a take is a finding, not a harness hang: record when and how.

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnTestApp } from "../autoloop/e2e/test-launch.cjs";
 // Pictures of finished lessons, so the drawing quality can be judged at a glance: for each
 // lesson-<n>.json of a bench run (tools/whiteboard/bench.mjs) the final board is drawn by the real
 // whiteboard page in the packaged app, in the light theme, and saved as a PNG; then one contact
@@ -6,7 +7,7 @@
 // saved lesson is handed to the page (it validates it like any model output).
 //
 // Usage: node tools/whiteboard/shots.mjs <path\to\win-unpacked> <bench run dir> <out dir>
-import { spawn, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
@@ -31,7 +32,7 @@ if (!lessons.length) { console.error(`no lessons in ${runDir}`); process.exit(2)
 
 const fake = await startFakeModel(FAKE);
 const profile = seedProfile(path.join(outDir, "profile"), { ...NO_PUBLIC_LINK, okFilow: { enabled: true, voice: "off" } });
-const app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
+const app = spawnTestApp(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
   env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(SESSION), OLLAMA_URL: `http://127.0.0.1:${FAKE}`, BUDDY_LOCAL_MODEL: "fake-local", FILOW_OFFLINE: "1" },
   stdio: "ignore",
 });

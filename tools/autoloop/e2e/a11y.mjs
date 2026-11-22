@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { spawnTestApp } from "./test-launch.cjs";
 // A11Y-01..07 (docs/autoloop/STANDARDS.md): runs axe-core (WCAG 2.2 A and AA rules) inside every Filow page
 // of the real packaged app over the Chrome DevTools Protocol, in dark and light themes, and writes
 // tmp/autoloop/a11y.json. score.mjs reads that file when it is less than 48 hours old.
 //
 // Usage: node tools/autoloop/e2e/a11y.mjs [path\to\win-unpacked]   (default: newest G:\FILOW\release-autoloop*)
 // Starts the app on its own profile and ports (4787/4788, DevTools 9344) and stops its process tree after.
-import { spawn, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { NO_PUBLIC_LINK, seedProfile } from "./profile.mjs";
@@ -38,7 +39,7 @@ const profile = seedProfile(ROOT, NO_PUBLIC_LINK);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const startupLog = path.join(profile, "startup.log");
 const logLinesBefore = fs.existsSync(startupLog) ? fs.readFileSync(startupLog, "utf8").split("\n").length : 0;
-const app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
+const app = spawnTestApp(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
   env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1) },
   stdio: "ignore", detached: false,
 });

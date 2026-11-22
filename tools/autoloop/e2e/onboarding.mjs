@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnTestApp } from "./test-launch.cjs";
 // T3 onboarding probe: walks the first run of the packaged app on a NEW empty profile, the way a first-time
 // user meets it, and records every screen (CDP screenshot or native dialog capture), the clicks and decisions
 // it asked for, the seconds between steps, axe-core violations, a keyboard-only pass, reduced motion and
@@ -11,7 +12,7 @@
 // Writes G:/FILOW/tmp/t3-shots/<round>/*.png and report.json. Stops only the process tree it started.
 // Exit code: 0 PASS; 1 the probe crashed; 2 no main window; 3 timeout; 4 a check failed (no point ticked,
 // an axe violation or axe error, a Tab stop without visible focus, zoom overflow): onboarding-verdict.mjs.
-import { spawn, execFileSync, execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { onboardingFailures, onboardingExitCode } from "./onboarding-verdict.mjs";
@@ -50,7 +51,7 @@ for (const k of ["OPENROUTER_API_KEY", "ELEVENLABS_API_KEY", "OPENAI_API_KEY", "
 if (flag("offline")) env.FILOW_OFFLINE = "1";
 if (flag("no-ollama")) env.OLLAMA_URL = "http://127.0.0.1:9";
 if (opt("mic")) env.FILOW_OKF_FAKE_MIC = path.resolve(opt("mic"));
-const app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`, `--lang=${lang === "it" ? "it-IT" : "en-US"}`], { env, stdio: "ignore" });
+const app = spawnTestApp(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`, `--lang=${lang === "it" ? "it-IT" : "en-US"}`], { env, stdio: "ignore" });
 const stop = () => { try { execSync(`taskkill /PID ${app.pid} /T /F`, { stdio: "ignore" }); } catch { /* gone */ } };
 process.on("exit", stop);
 setTimeout(() => { report.problems.push("probe timeout (6 min)"); finish(3); }, 360000);

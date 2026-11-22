@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnTestApp } from "./test-launch.cjs";
 // PLAT-LINUX (docs/PLATFORMS.md): runs the packaged Linux AppImage the way a user meets it and checks
 // that the window opens, both local servers answer, the main page renders, axe-core finds 0 WCAG
 // violations, the on-device speech-to-text worker loads and transcribes a real recording, and a normal
@@ -14,7 +15,7 @@
 // Ports FILOW_E2E_PORT (default 4841) and the next one up, DevTools FILOW_E2E_DEVTOOLS (default 9355). Profile and
 // copy of the AppImage under --work (default $TMPDIR/filow-linux-e2e; emptied first, so it must be new or one
 // this script made). --keyring says which branch the keys-at-rest check expects; "auto" trusts the app's log.
-import { spawn, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -81,7 +82,7 @@ const cmd = asRoot ? "setpriv" : exe;
 const cmdArgs = asRoot ? ["--reuid", String(UID), "--regid", String(UID), "--clear-groups", "--", exe, `--remote-debugging-port=${DEVTOOLS}`] : [`--remote-debugging-port=${DEVTOOLS}`];
 const appLog = fs.openSync(path.join(work, "app-output.log"), "w");
 const t0 = Date.now();
-const app = spawn(cmd, cmdArgs, { env, stdio: ["ignore", appLog, appLog], detached: true });
+const app = spawnTestApp(cmd, cmdArgs, { env, stdio: ["ignore", appLog, appLog], detached: true });
 result.pid = app.pid;
 let appExited = null;
 app.on("exit", (code, signal) => { appExited = { code, signal, afterMs: Date.now() - t0 }; });

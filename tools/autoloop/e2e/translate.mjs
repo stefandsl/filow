@@ -1,3 +1,4 @@
+import { spawnTestApp } from "./test-launch.cjs";
 // Packaged check for script translation on this PC (docs/TRANSLATE-LOCAL.md).
 //   node tools/autoloop/e2e/translate.mjs --exe <dir with Filow.exe> --out <dir> --ollama <http://127.0.0.1:port>
 // It drives a QA package over CDP on its own profile and ports (FILOW_E2E_PORT, FILOW_E2E_DEVTOOLS),
@@ -12,7 +13,7 @@
 //      a press sends nothing anywhere; "Use the cloud" shows the notice.
 //   6. Offline mode: the same outline is translated on this PC.
 // The cloud is never reached: there is no key, and every cloud step stops at the notice.
-import { spawn, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -115,7 +116,7 @@ async function connect(match, tries = 160) {
 }
 
 function launch(extraEnv = {}) {
-  return spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
+  return spawnTestApp(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
     env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1), FILOW_HTTPS_PORT: String(PORT + 2),
       OLLAMA_URL: OLLAMA, FILOW_OFFLINE: "", OPENROUTER_API_KEY: "", FREELLMAPI_API_KEY: "", FREELLMAPI_BASE_URL: "", TRANSLATE_LOCAL_MODEL: "", ...extraEnv },
     stdio: "ignore",

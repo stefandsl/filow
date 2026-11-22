@@ -98,6 +98,10 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [testResult, setTestResult] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [whisperModel, setWhisperModel] = useState("");
+  const [dailyGrant, setDailyGrant] = useState(false);
+  useEffect(() => {
+    void desktopBridge()?.daily?.control("modelPermission").then(v => setDailyGrant(!!v.modelGranted)).catch(() => {});
+  }, []);
   const accountLink = useAccountLink();
   const [cached, setCached] = useState<Record<string, boolean>>({});
   const [screenMode, setScreenModeState] = useState<ScreenMode>("balanced");
@@ -934,6 +938,12 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               </div>
             )}
             <div className="hint">{t("settings.offlineHint")}</div>
+            {dailyGrant && <button className="btn" onClick={async () => {
+              try {
+                const result = await desktopBridge()?.daily?.control("withdrawModel");
+                setDailyGrant(!!result?.modelGranted);
+              } catch { setError(t("daily.error")); }
+            }}>{t("daily.withdraw")}</button>}
             <AboutPrivacyLink />
           </section>
           {error && <span className="chip err">{error}</span>}

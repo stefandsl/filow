@@ -30,11 +30,12 @@ function openDailyStore(dir, now = Date.now) {
   }
   function expire() {
     const cutoff = now() - lifetime;
-    const tasks = state.tasks.filter(row => (row.changed ?? legacyTime) > cutoff);
+    const completedAt = row => row.completedAt ?? (row.previous?.done ? row.previous.changed : undefined) ?? row.changed ?? legacyTime;
+    const tasks = state.tasks.filter(row => !row.done || completedAt(row) > cutoff);
     const seen = state.seen.filter(entry => (entry.at ?? legacyTime) > cutoff);
     if (tasks.length !== state.tasks.length || seen.length !== state.seen.length ||
-        tasks.some(row => row.changed === undefined) || seen.some(entry => typeof entry === "string")) {
-      save(tasks.map(row => ({ ...row, changed: row.changed ?? legacyTime })),
+        tasks.some(row => row.changed === undefined || (row.done && row.completedAt === undefined)) || seen.some(entry => typeof entry === "string")) {
+      save(tasks.map(row => ({ ...row, ...(row.done ? { completedAt: completedAt(row) } : {}), changed: row.changed ?? legacyTime })),
         seen.map(entry => typeof entry === "string" ? { op: entry, at: legacyTime } : entry));
     }
   }
@@ -69,7 +70,7 @@ function openDailyStore(dir, now = Date.now) {
       } else if (type === "undo") {
         if (previous === undefined) return null;
         if (previous === null) tasks.splice(index, 1);
-        else tasks[index] = { ...previous, changed: now(), rev: next.rev };
+        else tasks[index] = { ...previous, ...(previous.done ? { completedAt: previous.completedAt ?? previous.changed ?? legacyTime } : {}), changed: now(), rev: next.rev };
       } else {
         if (type === "edit") {
           next.text = cleanText(action.text);
@@ -78,6 +79,8 @@ function openDailyStore(dir, now = Date.now) {
           if (!["reopen", "complete"].includes(type)) return null;
           next.done = type === "complete";
           if (row.done === next.done) return null;
+          if (next.done) next.completedAt = next.changed;
+          else delete next.completedAt;
           next.evidence = cleanText(action.words);
         }
         tasks[index] = next;

@@ -129,3 +129,19 @@ it("revalidates a person choice and consumes a typed confirmation across restart
   assert.equal(replay.ack, null);
   assert.equal(replay.tasks[0].done, false);
 });
+
+it("withdraws the saved grant only from the Settings main frame", async () => {
+  const origin = "http://127.0.0.1:51288";
+  const frame = { url: origin + "/settings/local" };
+  const win = { isDestroyed: () => false, on() {}, webContents: { mainFrame: frame, on() {} } };
+  const event = { sender: win.webContents, senderFrame: frame };
+  let control: any, persisted: string | null = "previous";
+  load("./day-by-day").wireDaily({ win, origin, appOn() {}, appHandle(_name: string, fn: any) { control = fn; },
+    saveGrant(key: string | null) { persisted = key; }, hasGrant: () => persisted !== null });
+  frame.url = origin + "/mirror";
+  await assert.rejects(control(event, "withdrawModel"));
+  assert.equal(persisted, "previous");
+  frame.url = origin + "/settings/local";
+  assert.equal((await control(event, "withdrawModel")).modelGranted, false);
+  assert.equal(persisted, null);
+});

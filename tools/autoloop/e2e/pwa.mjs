@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnTestApp } from "./test-launch.cjs";
 // PLAT-PWA (docs/PLATFORMS.md): the phone companion is installable. Starts the packaged Windows app on its
 // own profile and ports, opens /mirror in Edge (or Chrome) emulating a 390x844 phone over the DevTools
 // Protocol, and checks Page.getInstallabilityErrors (must be empty), the parsed manifest, the iOS meta
@@ -71,7 +72,7 @@ async function cdp(wsUrl) {
 }
 
 try {
-  app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${APP_DT}`], {
+  app = spawnTestApp(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${APP_DT}`], {
     env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(SESSION_PORT) }, stdio: "ignore",
   });
   const startupLog = path.join(profile, "startup.log");

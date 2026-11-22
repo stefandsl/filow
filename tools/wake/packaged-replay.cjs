@@ -1,3 +1,4 @@
+const { spawnTestApp } = require("../autoloop/e2e/test-launch.cjs");
 // Windows QA package only. Usage: node packaged-replay.cjs FILOW_EXE MODELS CLIPS NEW_PROFILE
 const fs = require("node:fs");
 const path = require("node:path");
@@ -46,7 +47,7 @@ async function run() {
     FILOW_USER_DATA_DIR: root, FILOW_QA_NO_GLOBAL_INPUT: "1", FILOW_QA_HEADLESS: "1", FILOW_OFFLINE: "1", FILOW_OKF_FAKE_MIC: silent,
     FILOW_PORT: String(web), FILOW_SESSION_PORT: String(relay), FILOW_HTTPS_PORT: String(https), OLLAMA_URL: "http://127.0.0.1:" + ollama,
     OLLAMA_HOST: "127.0.0.1:" + ollama, FILOW_QA_OLLAMA_EXE: path.join(root, "missing.exe") };
-  const app = spawn(exe, ["--remote-debugging-port=" + debug, "--disable-background-timer-throttling",
+  const app = spawnTestApp(exe, ["--remote-debugging-port=" + debug, "--disable-background-timer-throttling",
     "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows"], { env, windowsHide: true, stdio: "ignore" });
   let browser;
   try {

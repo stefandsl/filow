@@ -1,3 +1,4 @@
+import { spawnTestApp } from "./test-launch.cjs";
 // Packaged check for FreeLLMAPI as an answer source (docs/okfilow/OUTBOUND.md, rows 16 to 19).
 // A fake router (fake-freellm.mjs) stands in for FreeLLMAPI; no provider and no real key.
 //   node tools/autoloop/e2e/freellm.mjs --exe <dir with Filow.exe> --out <dir for screenshots and result.json>
@@ -11,7 +12,7 @@
 //   4. Offline mode: the same question does not reach the router.
 // Ollama is pointed at a dead loopback address that Filow does not count as "the Ollama on this PC",
 // so nothing here touches, or starts, a real Ollama.
-import { spawn, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { startFakeFreeLlm } from "./fake-freellm.mjs";
@@ -114,7 +115,7 @@ const clickText = (scope, text) => `(() => {
 })()`;
 
 function launch(extraEnv = {}) {
-  const app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
+  const app = spawnTestApp(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
     env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1), FILOW_HTTPS_PORT: String(PORT + 2),
       OLLAMA_URL: "http://127.0.0.2:9", FILOW_OKF_QA: "1", FREELLMAPI_API_KEY: "", FREELLMAPI_BASE_URL: "", OPENROUTER_API_KEY: "", ...extraEnv },
     stdio: "ignore",

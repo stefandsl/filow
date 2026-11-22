@@ -43,8 +43,13 @@ async function assess(request, origin, row, words, repair, signal) {
   } catch { return false; }
 }
 
+function manualOrDraft(words, tasks, options) {
+  const result = interpret(words, tasks, options);
+  return options?.speech && result?.type !== "create" ? null : result;
+}
+
 function matchAtOrigin(origin, request, unavailable = () => {}) {
-  if (!origin) return interpret;
+  if (!origin) return manualOrDraft;
   return async function match(input, tasks, options) {
     const words = cleanText(input);
     if (!words || /["“”«»?\n;]/u.test(words)) return null;
@@ -62,7 +67,7 @@ function matchAtOrigin(origin, request, unavailable = () => {}) {
           targets.push({ id: row.id, rev: row.rev, text: row.text });
         }
       }
-    } catch { unavailable(); return grounded; }
+    } catch { unavailable(); return manualOrDraft(words, tasks, options); }
     // Never narrow a grounded question about two people to a single guessed person.
     if (grounded?.which) {
       for (const row of grounded.targets) if (!targets.some(t => t.id === row.id)) targets.push(row);
@@ -79,7 +84,7 @@ function dailyModel({ origin = ollamaProbeUrl(), hasGrant, request = fetch }) {
     if (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) &&
         !url.username && !url.password && url.pathname === "/" && !url.hash && !url.search && url.port !== "0") source = url.origin;
   } catch { /* No usable local source. */ }
-  const grant = source && source + "/" + model;
+  const grant = source && "daily-report-v2:" + source + "/" + model;
   let installed = false;
   const granted = () => Boolean(grant && hasGrant(grant));
   async function available() {
@@ -92,10 +97,15 @@ function dailyModel({ origin = ollamaProbeUrl(), hasGrant, request = fetch }) {
     }
     return installed && granted();
   }
-  const matchModel = matchAtOrigin(source, request, () => { installed = false; });
+  const matchModel = matchAtOrigin(source, (...args) => {
+    if (!granted()) throw Error("Permission withdrawn");
+    return request(...args);
+  }, () => { installed = false; });
   return { grant, granted, available, ready: () => granted() && installed,
     async match(words, tasks, options) {
-      return await available() ? matchModel(words, tasks, options) : interpret(words, tasks, options);
+      if (!await available()) return manualOrDraft(words, tasks, options);
+      const result = await matchModel(words, tasks, options);
+      return granted() ? result : manualOrDraft(words, tasks, options);
     }
   };
 }

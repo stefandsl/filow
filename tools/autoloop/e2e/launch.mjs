@@ -1,8 +1,9 @@
+import { spawnTestApp } from "./test-launch.cjs";
 // Launching and watching a packaged Filow from a test tool (coldstart.mjs, take.mjs, tools/eval/latency.mjs).
 // One place for: starting Filow.exe on its own profile and ports (optionally on a processor mask),
 // finding its main process, reading startup.log as it grows, and stopping exactly the processes it
 // started. Nothing here touches any other process.
-import { execFile, execFileSync, spawn } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -91,10 +92,10 @@ export async function launchFilow({ exeDir, profile, env, args = [], affinity = 
   const startedAt = Date.now();
   if (affinity) {
     if (!/^[0-9a-f]{1,16}$/i.test(affinity)) throw new Error(`bad affinity mask ${affinity}`);
-    const child = spawn("cmd.exe", ["/d", "/c", "start", '""', "/affinity", affinity, "/b", `"${exe}"`, ...args], { env, stdio: "ignore", windowsHide: true, windowsVerbatimArguments: true });
+    const child = spawnTestApp("cmd.exe", ["/d", "/c", "start", '""', "/affinity", affinity, "/b", `"${exe}"`, ...args], { env, stdio: "ignore", windowsHide: true, windowsVerbatimArguments: true });
     child.unref();
   } else {
-    const child = spawn(exe, args, { env, stdio: "ignore", windowsHide: true, detached: false });
+    const child = spawnTestApp(exe, args, { env, stdio: "ignore", windowsHide: true, detached: false });
     child.unref();
   }
   const until = Date.now() + timeoutMs;
