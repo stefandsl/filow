@@ -65,7 +65,8 @@ with ZipFile(inputs / "omw.zip") as archive:
             if fields[0][:-2] in role_senses:
                 roles.add(fields[2])
 
-# Index only morphology that can express an instruction or a completed action.
+# Use inflection data for instructions, completed actions and unreached outcomes.
+unreached = set()
 index = {key: defaultdict(set) for key in ["past", "participle", "imperative", "gerund"]}
 for lang in ("ita", "eng"):
     for line in (inputs / lang).read_text(encoding="utf8").splitlines():
@@ -75,6 +76,8 @@ for lang in ("ita", "eng"):
         lemma, form, tags = fields
         if not form.isalpha() or not lemma.isalpha() or not tags.startswith("V"):
             continue
+        if lang == "ita" and (";FUT;" in tags or ";COND;" in tags):
+            unreached.add(form)
         if lang == "ita" and lemma.endswith("si"):
             continue  # reflexive lemmas need their own argument structure
         if "V.PTCP" in tags and "PST" in tags:
@@ -90,6 +93,7 @@ for lang in ("ita", "eng"):
 index["senses"] = senses
 packed = {key: {k: sorted(v) for k, v in entries.items()} for key, entries in index.items()}
 packed["humanTarget"] = sorted(word for word, ids in senses.items() if ids & human_target_senses)
+packed["unreached"] = sorted(unreached)
 packed["roles"] = sorted(roles)
 packed["nouns"] = sorted(nouns)
 packed["primarilyVerb"] = sorted(word for word, count in tagged["2"].items() if count > tagged["1"][word])

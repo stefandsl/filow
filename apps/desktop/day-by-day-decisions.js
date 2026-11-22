@@ -1,13 +1,14 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { gunzipSync } = require("node:zlib");
-const { cleanText } = require("./day-by-day-store");
+const { cleanText, localDay } = require("./day-by-day-store");
 
 let dictionary;
 function lexicon() {
   if (!dictionary) {
     dictionary = JSON.parse(gunzipSync(fs.readFileSync(path.join(__dirname, "daily-lexicon", "verbs.json.gz"))));
     dictionary.humanTarget = new Set(dictionary.humanTarget);
+    dictionary.unreached = new Set(dictionary.unreached);
     dictionary.roles = new Set(dictionary.roles);
     dictionary.nouns = new Set(dictionary.nouns);
     dictionary.primarilyVerb = new Set(dictionary.primarilyVerb);
@@ -142,6 +143,32 @@ function matchesTask(report, row) {
 
 const correction = /^(?:correction|i mean|let me correct that|mi correggo|rettifica)\b[, :]*\s*/u;
 
+// Apply these exclusions to the individual task before either matcher may propose it.
+function conflictsWithEvent(words, row, { yesterday } = {}) {
+  const phrase = normalize(words).replace(correction, "").replace(/[.!]+$/, "");
+  const tokens = phrase.match(/\p{L}+/gu) || [];
+  if (tokens.some(w => lexicon().unreached.has(w))) return true;
+  if (/\b(?:will|would|might|tomorrow|domani|going to|about to|st[oa] per|shall|who|che)\b|'ll\b/u.test(phrase)) return true;
+  if (/\b(?:last (?:week|month|year|spring|summer|autumn|winter)|(?:weeks?|months?|years?) ago|(?:settimane?|mes[ei]|ann[oi]|giorn[oi]) fa|(?:settimana|mese|anno) (?:scors[oa]|passat[oa]))\b/u.test(phrase)) return true;
+  if (/\b(?:yesterday|ieri)\b/u.test(phrase) && row.due !== (yesterday || localDay(new Date(), -1))) return true;
+
+  // A first-person object or indirect clitic assigns the speaker the recipient role.
+  if (/\b(?:me|us|a me|a noi)\b|\b(?:mi|ci) (?:ha|hanno|aveva|avevano)\b/u.test(phrase)) return true;
+  const report = parseReport(phrase, correction.test(normalize(words)));
+  if (report?.verbs?.length && !taskArguments(report, row)) return true;
+
+  // In an active contact/transfer, the task's addressee cannot be its agent.
+  // A receipt or possession statement can legitimately start with the recipient.
+  const task = /^(\S+) (.+)$/.exec(row.text.trim());
+  if (!task || (report?.delivery && taskArguments(report, row))) return false;
+  const verbs = lemmas(normalize(task[1]), "imperative");
+  const dest = splitArguments(task[2], related(verbs, transfer));
+  const namedContact = /^\p{Lu}[\p{L}'-]*$/u.test(dest.object) ||
+    (/^[\p{L}'-]+$/u.test(dest.object) && verbs.some(v => lexicon().humanTarget.has(v))) || lexicon().roles.has(objectKey(normalize(dest.object)));
+  const person = dest.person || (namedContact && dest.object);
+  return Boolean(person && phrase.startsWith(normalize(person) + " ") && !report?.verbs);
+}
+
 function objectPair(words, row) {
   const phrase = normalize(words).replace(/[.!]+$/, "");
   const report = parseReport(phrase.replace(correction, ""), correction.test(phrase));
@@ -168,7 +195,8 @@ function bareObject(verb, words) {
   return !finite || lexicon().primarilyVerb.has(verb);
 }
 
-function interpret(input, tasks, { speech = false } = {}) {
+function interpret(input, tasks, options = {}) {
+  const { speech = false } = options;
   const words = cleanText(input);
   if (!words || /["“”«»?\n]/u.test(words)) return null;
   const normalized = normalize(words).replace(/[.!]+$/, "");
@@ -177,7 +205,7 @@ function interpret(input, tasks, { speech = false } = {}) {
   if (/[;:.!]/.test(phrase)) return null;
   const report = parseReport(phrase, repair);
   if (report) {
-    const targets = tasks.filter(row => row.done === repair && matchesTask(report, row)).map(({ id, rev, text }) => ({ id, rev, text }));
+    const targets = tasks.filter(row => row.done === repair && !conflictsWithEvent(words, row, options) && matchesTask(report, row)).map(({ id, rev, text }) => ({ id, rev, text }));
     return targets.length ? { type: repair ? "reopen" : "complete", words, which: targets.length > 1, targets } : null;
   }
   if (!speech || repair) return null;
@@ -194,4 +222,4 @@ function interpret(input, tasks, { speech = false } = {}) {
   return { type: "create", words, text, dueTomorrow: tomorrow.test(words), targets: [] };
 }
 
-module.exports = { interpret, contradictsRecipient, objectPair };
+module.exports = { interpret, contradictsRecipient, conflictsWithEvent, objectPair };

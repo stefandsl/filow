@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const { it } = process.env.VITEST ? await import("vitest") : await import("node:test");
 const load = createRequire(import.meta.url);
+const aligned = { event: "task outcome", roles: "aligned", time: "current result" };
 const tasks = ["Bind the booklet", "Fold the leaflet"].map((text, id) => ({ id: String(id), rev: 2, done: false, text }));
 function matcher(answer: (body: any) => unknown) {
   return load("./day-by-day-model").createMatcher("http://127.0.0.1:53781", async (_url: string, init: any) =>
@@ -11,7 +12,7 @@ function matcher(answer: (body: any) => unknown) {
 it("maps constrained semantic choices to original task revisions", async () => {
   const match = matcher(body => {
     assert.deepEqual(body.format.properties.verdict.enum, ["yes", "no"]);
-    return { reason: "outcome", verdict: body.messages[0].content.includes("Bind the booklet") ? "yes" : "no" };
+    return { ...aligned, reason: "outcome", verdict: body.messages[0].content.includes("Bind the booklet") ? "yes" : "no" };
   });
   const result = await match("The booklet now has its binding", tasks, {});
   assert.deepEqual(result.targets, [{ id: "0", rev: 2, text: "Bind the booklet" }]);
@@ -20,13 +21,13 @@ it("maps constrained semantic choices to original task revisions", async () => {
 
 it("honours abstention and rejects invalid model choices", async () => {
   for (const verdict of ["no", "unknown"]) {
-    assert.equal(await matcher(() => ({ reason: "assessment", verdict }))("I folded the leaflet", tasks, {}), null);
+    assert.equal(await matcher(() => ({ ...aligned, reason: "assessment", verdict }))("I folded the leaflet", tasks, {}), null);
   }
 });
 
 it("refuses a different named recipient even when the model accepts", async () => {
   const rows = [{ id: "1", rev: 3, done: false, text: "Send the sketches to Erin" }];
-  const match = matcher(() => ({ reason: "assessment", verdict: "yes" }));
+  const match = matcher(() => ({ ...aligned, reason: "assessment", verdict: "yes" }));
   assert.equal(await match("I sent the sketches to Ari", rows, {}), null);
 });
 
@@ -50,7 +51,7 @@ it("routes the granted installed model through the profile's local source", asyn
   const request = async (url: string) => {
     calls.push(url);
     return Response.json(url.endsWith("/api/tags") ? { models: installed ? [{ name: "gemma4:e2b" }] : [] }
-      : { message: { content: JSON.stringify({ reason: "bound", verdict: "yes" }) } });
+      : { message: { content: JSON.stringify({ ...aligned, reason: "bound", verdict: "yes" }) } });
   };
   const options = { request, hasGrant: () => granted };
   const daily = dailyModel({ ...options, origin: load("./localai").ollamaProbeUrl({ NODE_ENV: "test" }) });
@@ -79,11 +80,26 @@ for (const [task, report] of [
   ["Riparare la tenda", "Ho misurato la tenda"],
   ["Invite Eva", "We are going to invite Eva"],
   ["Invitare Eva", "Inviteremo Eva"],
-  ["Contact Vera", "I contacted our guide last month"],
-  ["Contattare Vera", "Ho contattato la guida il mese passato"],
+  ["Contact Vera", "Last winter I contacted Vera"],
+  ["Contattare Vera", "Due settimane fa ho contattato Vera"],
 ]) it("rejects a conflicting event on both paths: " + report, async () => {
   const rows = [{ id: "1", rev: 1, done: false, text: task }];
-  const model = matcher(() => ({ reason: "overconfident", verdict: "yes" }));
+  const model = matcher(() => ({ ...aligned, reason: "overconfident", verdict: "yes" }));
   assert.equal(load("./day-by-day-decisions").interpret(report, rows), null);
   assert.equal(await model(report, rows, {}), null);
+});
+
+it("rejects a role reference containing a second event in offline matching", () => {
+  const { interpret } = load("./day-by-day-decisions");
+  for (const [text, report] of [
+    ["Send the seal to Remy", "The guide who phoned me has the seal"],
+    ["Avvisare Vera", "Ho avvisato la guida che partirà"],
+  ]) assert.equal(interpret(report, [{ id: "1", rev: 1, done: false, text }]), null);
+});
+
+it("requires all semantic checks for a paraphrased outcome", async () => {
+  for (const conflict of [{ event: "other" }, { roles: "reversed" }, { time: "future" }, { time: "historical" }]) {
+    const match = matcher(() => ({ ...aligned, ...conflict, verdict: "yes", reason: "conflict" }));
+    assert.equal(await match("The booklet now has its binding", tasks, {}), null);
+  }
 });

@@ -52,7 +52,7 @@ function createDaily({ store, match = interpret, now = () => new Date(), recogni
         version: from.version, expires: Date.now() + 120000 });
       return view();
     }
-    const result = match(words, from.tasks, { speech });
+    const result = match(words, from.tasks, { speech, yesterday: localDay(now(), -1) });
     return result instanceof Promise ? result.then(enqueue) : enqueue(result);
   }
   function confirm(p, current) {

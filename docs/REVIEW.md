@@ -251,4 +251,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R234 (2026-11-22, N-05): Sweep the shared daily journal at startup, every 24 hours and on access. Inspect the on-disk journal across a timer tick without opening the list.
 - R235 (2026-11-22, N-05): Pin QA model probes to an explicit isolated loopback port before loading profile settings. Withhold the override and supply port 11434, then verify neither the version probe nor the welcome tags probe sends a request.
 - R236 (N-05): Route daily matching through the local Ollama source after a named grant and installed-model check. Verify the normal default with an intercepted request and refuse reserved ports under every test profile.
+- R237 (N-05): Check event time, action and participant direction before proposing a completion. Exercise both languages with independent future, past-context, unrelated-action and reversed-role reports on both matchers.
 - R238 (N-05): Credit the sources of derived word lists in the shipped notices. Check the data filename, authors and licences in the version packaged with the app.
