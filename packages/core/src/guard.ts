@@ -94,18 +94,28 @@ function retentionEvidence(sentence: string, tokens: Token[]): boolean | undefin
   );
 }
 
-/** "Partiamo martedì, non lunedì" names the event with a verb. Resolve the day
- * attached to that verb, even if a different event later denies the same weekday. */
-function contrastedStartDay(words: string[], tokens: Token[]): boolean | undefined {
+/** Read the weekday attached to the event noun or verb in a compact date label. */
+function statedStartDay(words: string[], tokens: Token[]): "matching" | "different" | "tentative" | undefined {
   const expected = words.filter(w => WEEKDAY.test(w));
-  if (expected.length !== 1 || !words.some(w => START_EVENT.test(w)) ||
+  const event = words.find(w => START_EVENT.test(w));
+  if (expected.length !== 1 || !event ||
       !words.every(w => WEEKDAY.test(w) || START_EVENT.test(w) || w === "date" || w === "data")) return;
   const denial = tokens.some((t, i) => (t.norm === "non" || t.norm === "not") && WEEKDAY.test(tokens[i + 1]?.norm ?? ""));
-  if (!denial) return;
   for (let i = tokens.length - 1; i >= 0; i--) {
     if (!WEEKDAY.test(tokens[i].norm)) continue;
-    const lead = tokens.slice(Math.max(0, i - 4), i).map(t => t.norm).join(" ");
-    if (/\b(?:we (?:launch|start|begin)(?: on)?|(?:partiamo|iniziamo|cominciamo)(?: il)?)$/.test(lead)) return tokens[i].norm === expected[0];
+    const before = tokens.slice(Math.max(0, i - 9), i);
+    const lead = before.map(t => t.norm).join(" ");
+    if (/\b(?:we (?:might|may|could) (?:launch|start|begin)(?: on)?|(?:perhaps|maybe) we (?:launch|start|begin)(?: on)?|forse (?:partiamo|iniziamo|cominciamo)(?: il)?|potremmo (?:partire|iniziare|cominciare)(?: il)?)$/.test(lead)) return "tentative";
+    const verb = /\b(?:we (?:will )?(?:launch|start|begin)(?: on)?|(?:partiamo|iniziamo|cominciamo)(?: il)?)$/.test(lead);
+    const subject = before.map(t => t.norm === event ? "<event>" : t.norm).join(" ");
+    const named = /<event>(?: date)? (?:is|was|has been)(?: (?:set|scheduled|confirmed) for| on)?$/.test(subject) ||
+      /<event> e(?: (?:previst[oa]|fissat[oa]|confermat[oa]) per| il)?$/.test(subject);
+    if (verb || named) {
+      if (tokens[i].norm !== expected[0]) return "different";
+      // A second event can deny our weekday explicitly. Otherwise let the normal guard
+      // check a matching day for negation, including a denial of the entire sentence.
+      return denial ? "matching" : undefined;
+    }
   }
 }
 
@@ -116,7 +126,9 @@ function deniesScheduledDay(words: string[], parts: Token[][]): boolean {
   if (!event) return false;
   return parts.some(part => {
     const clause = part.map(t => t.norm === event ? "<event>" : t.norm).join(" ");
-    return /(?:<event> date|\bdate of (?:the )?<event>) (?:has not|had not|is not|was not|hasn t|hadn t|isn t|wasn t) (?:yet )?(?:been )?(?:set|scheduled|confirmed|decided)\b/.test(clause) ||
+    return /(?:<event> date|\bdate of (?:the )?<event>) (?:is|remains) (?:still )?(?:uncertain|undecided|unconfirmed|tentative|unset)\b/.test(clause) ||
+      /\bdata (?:di |del |dell )?<event> (?:e|resta) (?:ancora )?(?:incerta|provvisoria|da (?:decidere|fissare|confermare))\b/.test(clause) ||
+      /(?:<event> date|\bdate of (?:the )?<event>) (?:has not|had not|is not|was not|hasn t|hadn t|isn t|wasn t) (?:yet )?(?:been )?(?:set|scheduled|confirmed|decided)\b/.test(clause) ||
       /\bdata (?:di |del |dell )?<event> non (?:e |era )?(?:ancora )?(?:stata )?(?:fissata|stabilita|decisa|confermata|definita)\b/.test(clause);
   });
 }
@@ -390,7 +402,7 @@ export function checkClaim(point: string, transcript: string): ClaimCheck {
     const sq = quantitiesFromTokens(toks);
     const numberMatch = claim.quantities.some((q) => sq.some((x) => sameQuantity(q, x)));
     const meal = schedulesMeal(claim.words, toks);
-    const day = contrastedStartDay(claim.words, toks);
+    const day = statedStartDay(claim.words, toks);
     const retention = retentionPoint ? retentionEvidence(s.text, toks) : undefined;
     return { s, lexical, meal, day, retention, relevance: meal || day !== undefined || retention ? 1 : Math.min(1, lexical + (numberMatch ? 0.5 : 0)) };
   });
@@ -401,8 +413,8 @@ export function checkClaim(point: string, transcript: string): ClaimCheck {
   const relevant = scored.filter((x) => x.relevance >= MIN_RELEVANT);
   for (let i = relevant.length - 1; i >= 0; i--) {
     const x = relevant[i];
-    if (x.day !== undefined) return { ok: x.day, evidence: x.s, lexical: round(x.lexical),
-      ...(!x.day ? { conflict: { kind: "negation" as const, detail: "the speaker named a different start day" } } : {}) };
+    if (x.day !== undefined) return { ok: x.day === "matching", evidence: x.s, lexical: round(x.lexical),
+      ...(x.day === "different" ? { conflict: { kind: "negation" as const, detail: "the speaker named a different start day" } } : {}) };
     if (x.meal) return { ok: false, evidence: x.s, lexical: round(x.lexical), conflict: { kind: "subject", detail: "the weekday is stated for a meal" } };
     const r = read(claim, x.s.text);
     if (r.conflict && (r.anchored || !claim.anchors.length)) return { ok: false, evidence: x.s, lexical: round(x.lexical), conflict: r.conflict };
