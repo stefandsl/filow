@@ -69,7 +69,7 @@ it("pauses capture on confirmed session loss and keeps listening during an ordin
   const effects: EffectCallback[] = [];
   const cleanups: Array<() => void> = [];
   const engine = new Engine({ decide: vi.fn(), setInterval: () => 1, clearInterval: () => {} });
-  const stop = vi.fn(() => engine.stop());
+  const stop = vi.fn(engine.stop.bind(engine));
   engine.onTakeControl({ start: () => engine.start(), stop });
   engine.loadScript(parseScript("# Pilot\n- Support team"));
   engine.dispatch({ type: "reopen", id: "s0b0" });
@@ -94,6 +94,8 @@ it("pauses capture on confirmed session loss and keeps listening during an ordin
     expect(engine.getState().engine.recording).toBe(true);
     status("closed", "session lost");
     expect(stop).toHaveBeenCalledOnce();
+    expect(stop).toHaveBeenCalledWith("interruption");
+    expect(engine.committedPlace()?.points.s0b0.reopened).toBe(true);
     expect(engine.getState().engine.recording).toBe(false);
     expect(engine.getState().points.s0b0.reopened).toBe(true);
   } finally {

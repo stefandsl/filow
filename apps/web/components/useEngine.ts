@@ -102,7 +102,7 @@ export function useEngine() {
     const unsub = engine.subscribe((s) => setState(s));
     return () => {
       unsub();
-      engine.stop();
+      engine.stop("interruption");
     };
   }, [engine]);
   const script = state.script;

@@ -193,9 +193,10 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R178 (2026-11-22, N-03): Check the evidence source together with its supporting words in speech regressions. Check: type-check the retention assertion against both evidence variants and require the model quote to contain the actual retention statement.
 
 - R179 (2026-11-22, N-03): bind the date, outcome or owner to the subject of its clause. Check: train on separate scripts and freeze bilingual audio before edits. Report correction recovery, near-point errors and ordinary-speech exposure separately.
-- R180 (2026-11-22, N-03): end the disk checkpoint on Stop, Reset, script replacement and clean quit. Check: reopen the old script after each boundary and race a lower-version save against clear.
+- R180 (2026-11-22, N-03): end the disk checkpoint on presenter Stop, Reset, script replacement and clean quit. Check: reopen the old script after each boundary and race a lower-version save against clear.
 - R181 (2026-11-22, N-03): reject a missing command epoch when the presenter has published one. Check: send an unstamped command followed by a current one and count deliveries.
 - R182 (2026-11-22, N-03): fence only a segment already in progress at Reset. Check: repeat an identical committed sentence on a final-only backend and separately finish a pre-Reset partial.
 - R183 (2026-11-22, N-03): recognize an explicit self-repair inside an unpunctuated final. Check: submit one committed segment with two different subjects sharing a weekday and confirm only the replacement reaches the decision window.
 
 - R184 (2026-11-22, N-03): recognize speaker, optional modal and repair verb as grammatical roles. Check: retract an accepted event with a first-person modal amendment and keep evaluation prompts out of the cue list.
+- R185 (2026-11-22, N-03): Preserve the committed place when capture stops automatically. Check: end the microphone track after a speech mark, kill the packaged main process and verify the same mark returns with capture off. Repeat with presenter Stop and verify a fresh place.

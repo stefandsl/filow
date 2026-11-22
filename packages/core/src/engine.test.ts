@@ -48,6 +48,20 @@ const BIG = parseScript(`# One
 `);
 
 describe("script-scoped place", () => {
+  it.each(["interruption", "user"] as const)("restores the committed place only after an interruption (%s)", reason => {
+    const { e } = makeEngine();
+    e.start();
+    e.dispatch({ type: "anchor", idx: 1 });
+    e.dispatch({ type: "markStarted", id: "s1b0" });
+    const before = e.committedPlace();
+    e.stop(reason);
+    const saved = e.committedPlace();
+    expect(saved).toEqual(reason === "interruption" ? before : null);
+    const fresh = makeEngine().e;
+    fresh.loadScript({ script: SCRIPT, place: saved });
+    expect(fresh.getState().engine.recording).toBe(false);
+    expect(fresh.getState().sectionIdx).toBe(reason === "interruption" ? 1 : 0);
+  });
   it("runs speech navigation only for accepted input, before deciding it in the new section", () => {
     const { e } = makeEngine();
     e.start();

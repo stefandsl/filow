@@ -176,7 +176,7 @@ export function useSession(engine: Engine, ready = true) {
             if (s === "closed" && d === "session lost" && !retry) {
               // The relay has discarded the session. Close active or opening capture
               // before advertising the replacement and requesting a new pairing.
-              engine.dispatch({ type: "stopTake" });
+              engine.requestStop("interruption");
               replaceLostSession();
             }
           },

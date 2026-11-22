@@ -46,6 +46,8 @@ From a fresh install find Talk or type, see mic state, recipient and data, and f
 
 Use a nearby mic, then Bluetooth. In EN and IT, digress, correct a phrase, reconnect the mic and resume. A partial highlights a possible match. A final revision can retract it. See evidence, green Done, missed and next on desktop and LAN phone. Try a late Next, clicker, Stop and Reset. Keep the manual reopen. Save the last committed point locally. Interrupt speech worker, relay, renderer and main. Time recovery. After a full restart, resume with mic muted and pending actions paused. Record the noise, alias and near-next-point cases separately. Borrow bb's shared point IDs.
 
+Bluetooth and real phone checks await the owner's hardware test.
+
 - **Requests** R-013, R-016, R-078, R-104, R-143, R-149, R-151
 
 ### N-04 Teach one lesson and perform one permitted action
@@ -235,6 +237,16 @@ Use an existing fixture or saved lesson. Approve the slice when the reply's reve
 **Verification.** Report average CPU cores, peak private memory, drops and wake recall on the frozen held-out set for both builds. Repeat the comparison on a low-spec 4-core machine and report the same measures.
 
 - **Requests** R-181
+
+### X-17 Raise correction and near-next accuracy on unseen phrasing
+
+**Goal.** Recover at least 30 of 40 corrections and make at most 5 near-next errors in 40 trials per language, with 0 false accepts per hour. On the spent held-out set, main recovered 0/40 corrections in both English and Italian. N-03 recovered 7/40 in English and 5/40 in Italian. Near-next errors fell from 25 to 17/40 in English and from 19 to 16/40 in Italian. Both builds recorded 0 false accepts per hour.
+
+**Acceptance test.** Before any implementation or tuning, freeze a new held-out set of unseen English and Italian phrasing and commit its manifest hash. Include 40 corrections, 40 near-next trials and ordinary speech per language. Meet all three thresholds independently in each language.
+
+**Verification.** Score the packaged candidate once on the new set. Report correction counts, near-next errors, ordinary-speech hours and false accepts per hour separately for English and Italian.
+
+- **Requests** R-182
 
 ## Later/Icebox
 
@@ -507,6 +519,7 @@ Request statuses come from the owner's private request register (not in the repo
 | R-179 | Open | [X-14](#x-14-act-in-another-app-through-one-measured-driver) |
 | R-180 | Open | [X-15](#x-15-win-back-wake-recall-at-the-default-setting) |
 | R-181 | Open | [X-16](#x-16-keep-background-listening-under-one-core) |
+| R-182 | Open | [X-17](#x-17-raise-correction-and-near-next-accuracy-on-unseen-phrasing) |
 
 </details>
 

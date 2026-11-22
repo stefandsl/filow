@@ -23,6 +23,7 @@ import {
   type Script,
   type SttBackendId,
   type SttStatus,
+  type StopReason,
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, sherpaUsable, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
@@ -312,7 +313,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
   const rehearsal = useRehearsal({ engine, state, scriptText, saveScript, notes: lastNotes });
 
   // ---- transcription ---------------------------------------------------
-  const stopTake = useCallback(() => {
+  const stopTake = useCallback((reason: StopReason) => {
     startAttempts.current.cancel();
     setStarting(false);
     setMicWarning(null);
@@ -320,7 +321,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     backendRef.current = null;
     endOutbound();
     releasePreopenedMic(); // the check's stream, if no backend took it (Web Speech, or a failed start)
-    engine.stop();
+    engine.stop(reason);
     // Live notes (§6.4) are offered for export until the next take starts.
     if (engine.getNotes().length) setLastNotes([...engine.getNotes()]);
   }, [engine, endOutbound]);
@@ -512,14 +513,14 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         onError: (m: string) => {
           if (!attempt.isCurrent()) return;
           pushLog(`error: ${m}`);
-          if (backend === "sherpa") stopTake();
+          if (backend === "sherpa") stopTake("interruption");
           engine.setError(backend === "sherpa" ? t("take.speechStopped") : m);
         },
         onReady: () => { if (attempt.isCurrent()) pushLog("transcription ready"); },
         onLog: (line: string) => { if (attempt.isCurrent()) pushLog(line); },
         onMicWarning: (warning: MicWarning | null) => {
           if (!attempt.isCurrent()) return;
-          if (warning?.kind === "ended") stopTake();
+          if (warning?.kind === "ended") stopTake("interruption");
           setMicWarning(warning);
         },
       };
@@ -544,22 +545,22 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       if (attempt.isCurrent()) {
         engine.setError((err as Error).message);
         pushLog(`could not start transcription: ${(err as Error).message}`);
-        stopTake();
+        stopTake("interruption");
       }
     } finally {
       if (attempt.isCurrent()) setStarting(false);
     }
   };
 
-  const cancelStart = () => {
+  const cancelStart = (reason: StopReason) => {
     startAttempts.current.cancel();
     outbound.dismissAll(); // a notice still open for this start sends nothing
-    stopTake();
+    stopTake(reason);
     setStarting(false);
   };
   useEffect(() => engine.onTakeControl({
     start: () => { if (!engine.getState().engine.recording && !starting && !startDialog) void requestStart(); },
-    stop: () => { setStartDialog(false); cancelStart(); },
+    stop: reason => { setStartDialog(false); cancelStart(reason); },
   }));
 
   useEffect(() => () => { startAttempts.current.cancel(); backendRef.current?.stop(); endOutbound(); }, [endOutbound]);
@@ -579,7 +580,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     });
     if (!lost) return;
     pushLog(`take stopped: the yes for ${lost} was withdrawn`);
-    stopTake();
+    stopTake("interruption");
   }, [outState.consent, eng.recording, outbound, pushLog, stopTake]);
 
   // When the engine stops itself (cost cap), release the microphone too.
@@ -735,7 +736,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       {displayOpen && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setDisplayOpen(false)} pointsWindow={pointsWindow} anchor="sidebar" />}
       <ActionBar label={t("ctl.controls")} start={<>
         {eng.recording ? (
-          <button ref={stopButtonRef} className="btn primary" onClick={stopTake}>
+          <button ref={stopButtonRef} className="btn primary" onClick={() => stopTake("user")}>
             <Icon name="stop" /> {t("ctl.stop")}
           </button>
         ) : (
@@ -743,7 +744,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
             <button ref={startButtonRef} className="btn primary" onClick={() => void requestStart()} disabled={starting || !section || availability.length === 0}>
               {starting ? t("ctl.starting") : <><Icon name="play" /> {t("ctl.start")}</>}
             </button>
-            {starting && <button className="btn danger" onClick={cancelStart}>{t("ctl.cancel")}</button>}
+            {starting && <button className="btn danger" onClick={() => cancelStart("interruption")}>{t("ctl.cancel")}</button>}
           </>
         )}
 </>} mode={<><label className="backend-choice"><span>{t("ctl.mode")}</span>

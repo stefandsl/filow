@@ -12,6 +12,8 @@ import { isScreenScript, sectionFromSummary, type ScreenNote } from "./screen";
 import { PHONE_ASK } from "./phone-ask";
 import type { Bullet, Command, CommandResult, CommittedPlace, Evidence, PointState, ScreenSummary, Script, SessionState, SttBackendId } from "./types";
 
+export type StopReason = "user" | "interruption";
+
 export type TranscriptEvent = { committed?: string; partial?: string };
 
 export type EngineOptions = {
@@ -130,7 +132,7 @@ export class Engine {
   private unmentioned: string[] = [];
   private notes: ScreenNote[] = [];
   private lookNowSubs = new Set<() => void>();
-  private takeControl: { start(): void; stop(): void } | null = null;
+  private takeControl: { start(): void; stop(reason: StopReason): void } | null = null;
   private paused = false;
   private takeFloor = 0;
   private lastFinal = "";
@@ -202,10 +204,15 @@ export class Engine {
     return () => this.lookNowSubs.delete(fn);
   }
   /** The prompter owns the real microphone and its startup consent dialogs. */
-  onTakeControl(control: { start(): void; stop(): void }): () => void {
+  onTakeControl(control: { start(): void; stop(reason: StopReason): void }): () => void {
     this.takeControl = control;
     return () => { if (this.takeControl === control) this.takeControl = null; };
   }
+  requestStop(reason: StopReason): void {
+    if (this.takeControl) this.takeControl.stop(reason);
+    else this.stop(reason);
+  }
+
   subscribe(fn: Subscriber): () => void {
     this.subs.add(fn);
     return () => this.subs.delete(fn);
@@ -455,8 +462,7 @@ export class Engine {
         else this.start();
         return { ok: true };
       case "stopTake":
-        if (this.takeControl) this.takeControl.stop();
-        else this.stop();
+        this.requestStop("user");
         return { ok: true };
       case "loadScript":
         this.loadScript(parseScript(cmd.text));
@@ -597,7 +603,7 @@ export class Engine {
     this.timer = this.o.setInterval(() => void this.tick(), this.o.tickMs);
   }
 
-  stop(): void {
+  stop(reason: StopReason = "user"): void {
     if (this.timer !== null) this.o.clearInterval(this.timer);
     this.timer = null;
     this.paused = true;
@@ -616,7 +622,7 @@ export class Engine {
         delete p.active;
         if (p.status === "waiting") p.confidence = 0;
       }
-    }, true);
+    }, reason === "user");
   }
 
   /**
@@ -873,7 +879,7 @@ export class Engine {
     const cap = this.o.costCapUsd;
     const cost = this.state.stats.costUsd;
     if (cap !== null && cost !== null && cost >= cap && this.state.engine.recording) {
-      this.stop();
+      this.stop("interruption");
       this.update((st) => (st.engine.error = `cost cap of $${cap} reached; take stopped`));
     }
   }
