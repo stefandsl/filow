@@ -241,3 +241,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R224 (N-05): Clear every date in a confirmed list deletion. Reopen the journal and check for task text and evidence.
 - R225 (N-05): Exercise Undo immediately after creation. Keep another row, reopen the file, check the version increment and reject a repeated Undo.
 - R226 (N-05): Freeze a bilingual set containing positive completions, ambiguous recipients and negatives before implementation. Compare completion, clarification and silent edits for each arm and language.
+- R227 (N-05): Resolve Italian articulated prepositions before matching the recipient of a possession report. Check two delivery tasks against the same recipient role.
+- R228 (N-05): Confirm whole-list erasure inside the list with a separate user activation. Expand the disclosure in the packaged app, confirm, and inspect the journal.

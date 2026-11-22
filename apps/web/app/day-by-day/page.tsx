@@ -176,7 +176,11 @@ export default function DayByDay() {
       </section>}
       <p>{view.tasks.length ? t("daily.summary", lang, { open: view.tasks.length - done, done }) : tr("daily.empty")}</p>
       <ul className="daily-list">{view.tasks.map(row => <TaskRow key={row.id} row={row} tr={tr} act={act} />)}</ul>
-      <button className="btn" onClick={() => { if (window.confirm(tr("daily.clearConfirm"))) void act("clear"); }}>{tr("daily.clear")}</button>
+      <details key={view.session + view.version} className="daily-clear">
+        <summary>{tr("daily.clear")}</summary>
+        <p>{tr("daily.clearConfirm")}</p>
+        <button className="btn" onClick={() => void act("clear")}>{tr("daily.clear")}</button>
+      </details>
     </>}
     <p role="status" aria-live="polite" aria-atomic="true"><span key={acknowledgement?.rev}>{message && tr(message)}{message === "daily.saved" && acknowledgement && " · " + acknowledgement.text}</span></p>
   </main>;

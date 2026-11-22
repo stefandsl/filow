@@ -21,3 +21,11 @@ for (const lang of ["en","it"] as const) it("shows the daily date, editable row,
   expect(html).toContain('data-id="task-id" data-revision="3"');
   expect(html).toContain(new Intl.DateTimeFormat(lang,{ dateStyle:"full" }).format(new Date(row.due+"T12:00:00")));
 });
+
+it("offers an in-page confirmation before erasing every date", () => {
+  surface.lang = "en";
+  vi.mocked(useState).mockReturnValueOnce([{ session: "session", version: 0, day: "2026-06-02", tasks: [], offset: 0 }, () => {}]);
+  const html = renderToStaticMarkup(<DayByDay />);
+  expect(html).toMatch(/<details[^>]*><summary[^>]*>Delete entire list<\/summary>/);
+  expect(html).toContain(t("daily.clearConfirm", "en"));
+});

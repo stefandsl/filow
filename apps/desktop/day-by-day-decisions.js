@@ -38,7 +38,7 @@ function splitDelivery(rest) {
 
 function personMatches(reference, person) {
   if (!person) return false;
-  if (!reference || /^(?:he|she|they|them|him|her|lei|lui|loro|gli|le|one of (?:them|the two)|un[oa] (?:dei|delle) due|(?:my|the) (?:colleague|coworker|person(?: we mentioned)?)|(?:(?:il|la|al|alla|mio|mia) )+(?:collega|persona))$/.test(reference)) return true;
+  if (!reference || /^(?:he|she|they|them|him|her|lei|lui|loro|gli|le|one of (?:them|the two)|un[oa] (?:dei|delle) due|(?:my|the) (?:colleague|coworker|person(?: we mentioned)?)|(?:(?:il|la|al|alla|mio|mia) )*(?:collega|persona))$/.test(reference)) return true;
   return person === reference || person.split(/\s+/).some(part => part.startsWith(reference));
 }
 
@@ -50,6 +50,8 @@ function parseReport(phrase, repair) {
     return { group: 0, person, object, implicit: repair && !object && /non l[ei] ha/.test(verb) };
   }
   if (!repair) {
+    const possession = /^(.+?) (?:è|sono) (dal|dallo|dalla|dai|dagli|dalle|dall')\s*(.+)$/.exec(phrase);
+    if (possession) return { group: 0, object: possession[1], person: possession[3] };
     const reached = /^(.+?) (?:reached|is with|are with|è (?:arrivat[oa] (?:a|ad)|da)|sono (?:arrivat[ie] (?:a|ad)|da)) (.+)$/.exec(phrase);
     if (reached) return { group: 0, object: reached[1], person: reached[2] };
     const passive = /^(.+?) (?:is|are|è|sono) (\p{L}+)$/u.exec(phrase);

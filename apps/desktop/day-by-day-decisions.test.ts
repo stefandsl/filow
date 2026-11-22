@@ -32,3 +32,10 @@ for (const [report, count] of [["I gave Dara the tickets", 1], ["I sent the tick
 for (const report of ["Clouds scatter sunlight", "I finished decorating", "Repeat after me: buy bread"]) {
   it("ignores speech without a request: " + report, () => assert.equal(interpret(report, deliveries, { speech: true }), null));
 }
+
+it("asks about delivery to a role with an Italian contracted preposition", () => {
+  const tasks = ["Inviare il modulo a Cleo", "Dare il modulo a Ezio"].map((text, id) => ({ id, rev: 1, text, done: false }));
+  const review = interpret("Il modulo \u00e8 dal collega", tasks, { speech: true });
+  assert.equal(review?.which, true);
+  assert.deepEqual(review.targets.map((row: any) => row.id), [0, 1]);
+});
