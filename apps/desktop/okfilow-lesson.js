@@ -363,7 +363,7 @@ function edgeDriver(userData) {
     if (process.platform !== "win32" || !exe) throw Error("Edge unavailable");
     const start = "about:blank#filow-" + turn;
     child = spawn(exe, ["--user-data-dir=" + dir, "--remote-debugging-port=0", "--remote-debugging-address=127.0.0.1",
-      "--no-first-run", "--no-default-browser-check", "--disable-sync", "--no-proxy-server", "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost", "--disable-quic", "--disable-background-networking", "about:blank"],
+      "--no-first-run", "--no-default-browser-check", "--disable-sync", "--no-proxy-server", "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1", "--disable-quic", "--disable-background-networking", "about:blank"],
       { stdio: "ignore", detached: true, windowsHide: false,
         env: Object.fromEntries(Object.entries(process.env).filter(([name]) =>
           /^(SystemRoot|SystemDrive|WINDIR|TEMP|TMP|USERPROFILE|LOCALAPPDATA|APPDATA|ProgramFiles(?:\(x86\))?|PATH|ComSpec)$/i.test(name))) });

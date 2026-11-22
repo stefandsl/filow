@@ -219,3 +219,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R202 (N-04): Draw precipitation from clouds to ground and runoff from ground to lake. Read both relations in English and Italian.
 - R203 (N-04): Keep unrelated command text out of the approval flow. Check the unmatched reply and absent decision, then submit the exact phrase.
 - R204 (N-04): Disable Open once during its click handler. Deliver two clicks before a render and count one approval request.
+- R205 (N-04): Include the numeric loopback lesson host in the Edge resolver exceptions. Measure the private Edge process tree through a successful authenticated navigation and record public and loopback traffic separately.

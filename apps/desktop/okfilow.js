@@ -1959,7 +1959,8 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { bindLessonSpeaker(controller) { lessonSpeaker = controller; }, start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, openLessonAsk, clearLessonDraft, askFromPhone, phoneAskers, publishPhoneCount, micReport: () => micOpens.report(), wakeAction, wakeReconcile: () => wake.reconcile(), outboundSignal };
+  const bindLessonSpeaker = controller => { lessonSpeaker = controller; };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, openLessonAsk, bindLessonSpeaker, clearLessonDraft, askFromPhone, phoneAskers, publishPhoneCount, micReport: () => micOpens.report(), wakeAction, wakeReconcile: () => wake.reconcile(), outboundSignal };
 }
 
 /**
