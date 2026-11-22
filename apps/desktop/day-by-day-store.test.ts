@@ -41,3 +41,27 @@ it("acknowledges only after replacement succeeds", () => {
   rmSync(join(dir, "daily.json.tmp"), { recursive: true });
   assert.equal(s.apply(action).rev, 1);
 });
+
+function seed() {
+  dir = mkdtempSync(join(tmpdir(), "daily-"));
+  const store = open();
+  const add = (op: string) => store.apply({ type: "create", op, text: op, due: "2026-06-05" });
+  return { store, first: add("first"), second: add("second") };
+}
+for (const type of ["delete", "clear", "undo"]) it("persists " + type + " after creating two rows", () => {
+  const {store, first, second} = seed();
+  const action = { ...first, type, op: "remove" };
+  assert.ok(store.apply(action));
+  assert.equal(open().version, 3);
+  assert.deepEqual(open().view().tasks.map((r: any) => r.id), type === "clear" ? [] : [second.id]);
+  assert.equal(store.apply(action), null);
+});
+it("expires tasks and their evidence after thirty days of inactivity", () => {
+  dir = mkdtempSync(join(tmpdir(), "daily-"));
+  let clock = Date.now();
+  const store = loadStore("./day-by-day-store").openDailyStore(dir, () => clock);
+  store.apply({ type: "create", op: "old", text: "Old item", due: "2026-06-05" });
+  clock += 30 * 86400000;
+  assert.deepEqual(store.view().tasks, []);
+  assert.deepEqual(open().view().tasks, []);
+});

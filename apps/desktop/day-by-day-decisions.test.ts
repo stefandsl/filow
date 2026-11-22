@@ -19,3 +19,16 @@ for (const [lang, suite] of Object.entries<any>(languages)) {
     }
   });
 }
+
+const deliveries = ["Send the tickets to Dara", "Give the tickets to Darin"].map((text, i) => ({ text, id: String(i), rev: 1, done: false }));
+for (const [report, count] of [["I gave Dara the tickets", 1], ["I sent the tickets to Dar", 2], ["I sent her the tickets", 2]] as const) {
+  it("grounds the delivery report " + report, () => {
+    const review = interpret(report, deliveries, { speech: true });
+    assert.equal(review?.type, "complete");
+    assert.equal(review.which, count > 1);
+    assert.deepEqual(review.targets.map((row: any) => row.id), ["0","1"].slice(0,count));
+  });
+}
+for (const report of ["Clouds scatter sunlight", "I finished decorating", "Repeat after me: buy bread"]) {
+  it("ignores speech without a request: " + report, () => assert.equal(interpret(report, deliveries, { speech: true }), null));
+}
