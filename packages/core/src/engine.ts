@@ -305,7 +305,9 @@ export class Engine {
   /** Account for a correction even if its first version was already accepted or is in flight. */
   private reconcileCorrection(final: string): { withdrawn: string[]; endsClaim: boolean } {
     const { script, sectionIdx, points } = this.state;
-    const cue = /(?:^|[.!?,]\s*|^sorry[, ]+)\s*(?:sorry[, ]+)?(?:i\s+mean(?:t)?|mi\s+corregg\w*|anzi|rettific\w*|actually|correction|scratch\s+that|volev\w*\s+dire)\b/i.exec(final);
+    // Streaming backends can join both clauses without punctuation. First-person
+    // repairs delimit a replacement even there. Bare adverbs need a clause boundary.
+    const cue = /\b(?:i\s+mean(?:t)?|mi\s+corregg\w*|rettific\w*|scratch\s+that|volev\w*\s+dire|anzi)\b|(?:^|[.!?,]\s*)\s*(?:actually|correction)\b/i.exec(final);
     const from = cue ? cue.index + cue[0].length : 0;
     const correction = final.slice(from);
     const withdrawn: string[] = [];

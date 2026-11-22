@@ -1274,3 +1274,12 @@ it("accepts the same final in a new section rehearsal without interim events", a
   }
   expect(calls).toHaveLength(2);
 });
+
+it("uses the replacement clause inside a punctuation-free final", async () => {
+  const { e } = makeEngine([{ s0b0: 1 }]);
+  e.loadScript(parseScript("# Production\n- Workshop Friday"));
+  e.feed({ committed: "the workshop is Friday I mean the interview is Friday" });
+  await e.tick();
+  expect(e.getState().points.s0b0?.status).toBe("waiting");
+});
+
