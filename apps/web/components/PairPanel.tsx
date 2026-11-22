@@ -10,6 +10,11 @@ import { publicLinkOn, useRemoteStatus } from "@/lib/useRemoteStatus";
 import type { PairedDevice } from "@filow/client";
 import { PairedDevices } from "./PairedDevices";
 
+export function firewallMessage(status: "missing" | "blocked", canAllow = true) {
+  if (status === "blocked") return "pair.firewallBlocked";
+  return canAllow ? "pair.firewallMissing" : "pair.firewallMissingPrivate";
+}
+
 /** Shows the pairing code and a QR for the mirror URL. */
 export function PairPanel({ info, status, error, onNewCode, prompter = false, devices, onRevoke, onAllowAsk, onApprove }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean; devices?: PairedDevice[]; onRevoke?: (id: string) => void; onAllowAsk?: (id: string, allow: boolean) => void; onApprove?: (id: string) => void }) {
   const t = useT();
@@ -126,7 +131,7 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false, de
                 <div>
                   {t("pair.netIface", { ip: net.ip, iface: net.iface || "?" })}
                   {net.virtual && <span className="chip err"> {t("pair.netVirtual")}</span>}
-                  {net.firewall === "missing" && <span className="chip err"> {t("pair.firewallMissing")}</span>}
+                  {(net.firewall === "blocked" || net.firewall === "missing") && <span className="chip err"> {t(firewallMessage(net.firewall, net.canAllowFirewall))}</span>}
                   {net.firewall === "ok" && <span className="chip live"> {t("pair.firewallOk")}</span>}
                 </div>
                 <div className="row">

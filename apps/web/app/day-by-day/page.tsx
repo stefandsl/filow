@@ -62,7 +62,10 @@ export default function DayByDay() {
       } else {
         setPartial(event.partial || "");
         if (event.status) setMessage(`daily.${event.status}`);
-        if (event.final) refresh();
+        if (event.final) {
+          if (!event.status) setMessage(undefined);
+          refresh();
+        }
       }
     });
     const hidden = () => { if (document.hidden) stop(); };
@@ -79,9 +82,11 @@ export default function DayByDay() {
     const bridge = desktopBridge()?.daily;
     if (!from || !bridge || busy.current) return;
     busy.current = true;
+    if (action === "review" && from.modelGranted) setMessage("daily.loadingModel");
     try {
       const next = await bridge.control(action, { session: from.session, day: from.day, version: from.version, op: crypto.randomUUID(), ...extra });
       if (current.current?.session !== from.session) return;
+      if (action === "review" && !next.status) setMessage(undefined);
       accept(next);
       if (next.ack) {
         const id = next.ack.id;

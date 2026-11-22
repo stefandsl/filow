@@ -815,16 +815,18 @@ function firewallStatus() {
     const { profiles, rules } = JSON.parse(out);
     const exe = path.win32.normalize(process.execPath).toLowerCase();
     const permits = (rule, port) => {
-      if (rule.Protocol === 256 || (rule.Protocol === 6 && rule.LocalPorts === "*")) return true;
+      if (rule.Protocol === 256 || (rule.Protocol === 6 && (!rule.LocalPorts || rule.LocalPorts === "*"))) return true;
       return rule.Protocol === 6 && String(rule.LocalPorts).split(",").some(range => {
         const [start, end = start] = range.trim().split("-").map(Number);
         return start <= port && port <= end;
       });
     };
-    const inbound = rules.filter(r => r.Enabled && r.Direction === 1 && r.Action === 1 &&
+    const inbound = rules.filter(r => r.Enabled && r.Direction === 1 &&
       path.win32.normalize(r.ApplicationName).toLowerCase() === exe);
+    if (inbound.some(r => r.Action === 0 && (r.Profiles & profiles) &&
+      [PORT, SESSION_PORT].some(port => permits(r, port)))) return "blocked";
     return profiles && [PORT, SESSION_PORT].every(port => [1, 2, 4].every(profile =>
-      !(profiles & profile) || inbound.some(r => (r.Profiles & profile) && permits(r, port)))) ? "ok" : "missing";
+      !(profiles & profile) || inbound.some(r => r.Action === 1 && (r.Profiles & profile) && permits(r, port)))) ? "ok" : "missing";
   } catch {
     return "missing";
   }
@@ -858,7 +860,7 @@ function rebuildMenu(win) {
 // A LAN phone may need a Windows firewall rule. The same choice is available in the pairing panel.
 async function offerFirewall(win) {
   if (privateLaunch || process.platform !== "win32" || settings.remoteShare !== false) { logLine("firewall offer: left to the pairing panel"); return; }
-  if (firewallStatus() === "ok") return;
+  if (firewallStatus() !== "missing") return;
   const tx = (key) => sharedText(`shell.firewall.${key}`, menuLang());
   const { response } = await dialog.showMessageBox(win, { type: "question", title: tx("title"), message: tx("message"), detail: tx("detail"), buttons: [tx("allow"), tx("later")], defaultId: 0, cancelId: 1, noLink: true });
   if (response === 0) await allowFirewall();
@@ -2183,7 +2185,8 @@ function secretBox() {
 }
 
 /** Where Filow's own servers listen: every interface for the phone on the Wi-Fi, this computer only in hosted mode. */
-const serverHost = () => (process.env.FILOW_SESSION_URL ? "127.0.0.1" : "0.0.0.0");
+const serverHost = () => (process.env.FILOW_SESSION_URL ||
+  (app.isPackaged && require("./qa.js").isQaBuild(app) && process.env.FILOW_PRIVATE_LAN !== "1") ? "127.0.0.1" : "0.0.0.0");
 function startServers() {
   const hosted = Boolean(process.env.FILOW_SESSION_URL);
   const bind = serverHost();
@@ -2194,7 +2197,7 @@ function startServers() {
     // The app's own floating windows (overlay, points window) pair with this key instead (preload appPairKey):
     // loopback is never auto-accepted, since the HTTPS proxy and the tunnel come from this computer too.
     process.env.FILOW_APP_PAIR_KEY = crypto.randomBytes(24).toString("base64url");
-    process.env.FILOW_LAN_IP = lanIp();
+    process.env.FILOW_LAN_IP = bind === "127.0.0.1" ? bind : lanIp();
   }
   process.env.PORT = String(PORT);
   process.env.HOSTNAME = bind;

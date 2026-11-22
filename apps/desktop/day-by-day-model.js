@@ -60,15 +60,25 @@ function matchAtOrigin(origin, request, unavailable = () => {}) {
     if (grounded?.type === "create") return grounded;
     const candidates = eligible.filter(row => !conflictsWithEvent(words, row, options) && !contradictsRecipient(words, row));
     const targets = [];
-    const signal = AbortSignal.timeout(45000);
+
     try {
+      if (candidates.length) {
+        options?.onStatus?.("loadingModel");
+        // An empty generate loads the same context as chat, including after an idle unload.
+        const load = await request(origin + "/api/generate", { method: "POST", redirect: "error",
+          signal: AbortSignal.timeout(180000), headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model, stream: false, keep_alive: "5m", options: { num_ctx: 8192 } }) });
+        if (!load.ok) throw Error("Local model unavailable");
+        await load.json();
+      }
+      const signal = AbortSignal.timeout(45000);
       // Assess each recipient independently so another row can never win by list position.
       for (const row of candidates) {
         if (await assess(request, origin, row, words, repair, signal)) {
           targets.push({ id: row.id, rev: row.rev, text: row.text });
         }
       }
-    } catch { unavailable(); return manualOrDraft(words, tasks, options); }
+    } catch { unavailable(); options?.onStatus?.("modelNotReady"); return manualOrDraft(words, tasks, options); }
     // Never narrow a grounded question about two people to a single guessed person.
     if (grounded?.which) {
       for (const row of grounded.targets) if (!targets.some(t => t.id === row.id)) targets.push(row);
@@ -108,7 +118,10 @@ function dailyModel({ origin = ollamaProbeUrl(), hasGrant, request = fetch }) {
   }, () => { installed = false; });
   return { grant, granted, available, ready: () => granted() && installed,
     async match(words, tasks, options) {
-      if (!await available()) return manualOrDraft(words, tasks, options);
+      if (!await available()) {
+        options?.onStatus?.("modelNotReady");
+        return manualOrDraft(words, tasks, options);
+      }
       const route = digest && "daily-gemma-v2/" + model + "/" + digest;
       const result = await matchModel(words, tasks, options);
       if (!granted()) return manualOrDraft(words, tasks, options);

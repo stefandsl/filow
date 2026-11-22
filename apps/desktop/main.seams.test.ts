@@ -91,7 +91,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   // the old seeded model ids loadEnv reads as unset
   modules["./env-defaults.js"] = createRequire(import.meta.url)("./env-defaults.js");
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
-    ;({ registerPptManifest, migrateLegacyProfile, firewallStatus, applyOffline, loadSettings, wireScreenSense, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
+    ;({ registerPptManifest, migrateLegacyProfile, serverHost, firewallStatus, applyOffline, loadSettings, wireScreenSense, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
        setTakeLive, loadUpdater, installUpdate, setUpdateState, setMainWin: (win, shown = false) => { mainWin = win; mainWasShown = shown; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, publicSession: () => currentSession, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
@@ -964,11 +964,23 @@ describe("Windows installation boundaries", () => {
   });
 
   const rule = { ApplicationName: "d:/PRIVATE/Filow.exe", Enabled: true, Direction: 1, Action: 1, Profiles: 2, Protocol: 6, LocalPorts: "58110-58111" };
+  it("keeps private QA listeners on loopback until LAN is requested", () => {
+    expect(fixture({}, { qaBuild: true }).api.serverHost()).toBe("127.0.0.1");
+    expect(fixture({ FILOW_PRIVATE_LAN: "1" }, { qaBuild: true }).api.serverHost()).toBe("0.0.0.0");
+  });
+  it("gives a matching TCP block precedence over an allow on either service", () => {
+    for (const LocalPorts of ["58110", "58111", "*"]) {
+      const rules = [rule, { ...rule, Action: 0, LocalPorts }];
+      const execFileSync = () => JSON.stringify({ profiles: 2, rules });
+      const f = fixture({ FILOW_PORT: "58110", FILOW_SESSION_PORT: "58111" }, { childProcess: { execFileSync } });
+      expect(f.api.firewallStatus()).toBe("blocked");
+    }
+  });
   it.each([
     [rule, "ok"], [{ ...rule, ApplicationName: "D:/old/Filow.exe" }, "missing"],
     [{ ...rule, Enabled: false }, "missing"], [{ ...rule, Profiles: 4 }, "missing"],
     [{ ...rule, Protocol: 17 }, "missing"], [{ ...rule, LocalPorts: "58110" }, "missing"],
-    [{ ...rule, Direction: 2 }, "missing"], [{ ...rule, Action: 0 }, "missing"],
+    [{ ...rule, Direction: 2 }, "missing"], [{ ...rule, Action: 0 }, "blocked"],
   ])("checks the inbound TCP rule %j", (row, status) => {
     const execFileSync = vi.fn(() => JSON.stringify({ profiles: 2, rules: [row] }));
     const f = fixture({ FILOW_PORT: "58110", FILOW_SESSION_PORT: "58111" }, { childProcess: { execFileSync } });

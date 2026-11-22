@@ -286,3 +286,7 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R269 (N-07): Exercise the splash live region, tray image selection and isolated migration. Keep the original native failure in the private receipt.
 - R270 (N-07): Disable login registration for the private package. Toggle startup in a packaged fixture and check that Electron receives no registration call.
 - R271 (N-07): Copy each standalone dependency to the private installer once. Check the package completes and the extracted web server answers.
+- R272 (N-07): Give applicable inbound block rules precedence on either LAN service port. Check a fixture with overlapping allow and block rules.
+- R273 (N-07): Bind packaged QA servers and their port probes to loopback until LAN testing is explicitly selected. Check both hosts and compare read-only Windows firewall snapshots around packaged QA.
+- R274 (N-07): Load the granted model before starting the report judgment deadline after each idle unload. Exercise two simulated cold loads, visible progress and a packaged speech proposal with no launcher preload.
+- R275 (N-07): Match pairing guidance to the firewall result and the controls available in the running copy. Check blocked and missing results in private and public modes.

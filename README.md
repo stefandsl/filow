@@ -876,3 +876,5 @@ Local answers require Ollama 0.9.0 or newer for the API, plus any higher minimum
 Settings offers model deletion only for completed downloads recorded by Filow in the current app profile, with a matching server and model digest. Pre-existing models, changed models and unknown ownership are preserved. The profile also records runtime installation intent and completion; uninstalling Filow continues to preserve the runtime and models by default. Native runtime removal and installer cleanup are not automated by these safeguards.
 
 The optional matching model requests missing files from Hugging Face only after you approve that download. Private practice works without it.
+
+When Day-by-day checks a report, it shows progress while the local model loads. If the model is unavailable, tick the task manually.

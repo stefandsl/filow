@@ -136,7 +136,8 @@ it("reassesses a spoken recipient correction and saves its original evidence onc
   const store = storage(), updates: any[] = [];
   const worker: any = { ready: true, start: async () => ({ model: "fixture" }), dispose() {}, feed() {},
     worker: { postMessage(m: any) { worker.context = m.context; } } };
-  const match = load("./day-by-day-model").createMatcher("http://127.0.0.1:53881", async (_: string, req: any) => {
+  const match = load("./day-by-day-model").createMatcher("http://127.0.0.1:53881", async (url: string, req: any) => {
+    if (url.endsWith("/generate")) return Response.json({done: true});
     const content = JSON.parse(req.body).messages[0].content;
     const [task, report] = content.split("Task: ")[1].split("Report: ");
     const aligned = ["Nora Lane", "Nora Lake"].some(name => task.includes(name) && report.includes(name));

@@ -5,8 +5,8 @@ const load = createRequire(import.meta.url);
 const aligned = { event: "task outcome", roles: "aligned", time: "current result" };
 const tasks = ["Bind the booklet", "Fold the leaflet"].map((text, id) => ({ id: String(id), rev: 2, done: false, text }));
 function matcher(answer: (body: any) => unknown) {
-  return load("./day-by-day-model").createMatcher("http://127.0.0.1:53781", async (_url: string, init: any) =>
-    Response.json({ message: { content: JSON.stringify(answer(JSON.parse(init.body))) } }));
+  return load("./day-by-day-model").createMatcher("http://127.0.0.1:53781", async (url: string, init: any) =>
+    url.endsWith("/generate") ? Response.json({done: true}) : Response.json({ message: { content: JSON.stringify(answer(JSON.parse(init.body))) } }));
 }
 
 const italianRecipients = ["Consegnare il plico alla dottoressa Ada Riva", "Inviare il plico ad Ada Neri"]
@@ -177,4 +177,36 @@ it("prefers a whole first name to another person's longer first name", async () 
   const rows = ["Call Al Wynn", "Call Alan Wells"].map((text,i) => ({ ...tasks[i], text }));
   const match = matcher(() => ({ ...aligned, reason:"called", verdict:"yes" }));
   assert.deepEqual((await match("I called Al", rows, {})).targets.map((row:any) => row.id), ["0"]);
+});
+
+it("loads a cold model before assessment, including after an idle unload", async () => {
+  const deadlines = new WeakMap<AbortSignal, number>();
+  const { mock } = await import("node:test");
+  const clock = mock.method(AbortSignal, "timeout", (ms: number) => {
+    const signal = new AbortController().signal;
+    deadlines.set(signal, ms);
+    return signal;
+  });
+  try {
+    let loaded = false;
+    const statuses: string[] = [];
+    const model = load("./day-by-day-model").dailyModel({ origin: "http://localhost:51623", hasGrant: () => true,
+      request: async (url: string, init: RequestInit) => {
+        if (url.endsWith("/tags")) return Response.json({ models: [{name: "gemma4:e2b"}] });
+        if (url.endsWith("/generate")) {
+          if ((deadlines.get(init.signal!) ?? 0) < 81000) throw Error("Cold load timed out");
+          loaded = true;
+          return Response.json({done: true});
+        }
+        if (!loaded || deadlines.get(init.signal!) !== 45000) throw Error("Cold model exceeded judgment deadline");
+        return Response.json({message: {content: JSON.stringify({...aligned, verdict: "yes", reason: "called"})}});
+      } });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      loaded = false;
+      const review = await model.match("I called Ada", [{...tasks[0], text: "Call Ada"}],
+        {speech: true, onStatus: (status: string) => statuses.push(status)});
+      assert.equal(review?.type, "complete");
+    }
+    assert.deepEqual(statuses, ["loadingModel", "loadingModel"]);
+  } finally { clock.mock.restore(); }
 });

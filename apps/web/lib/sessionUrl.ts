@@ -16,11 +16,11 @@ export type DailyView = {
   session: string; version: number; day: string; today: string; offset: number; tasks: DailyTask[];
   review?: { token: string; type: "create" | "complete" | "reopen"; words: string; text?: string; due: string;
     targets: { id: string; rev: number; text: string }[]; which?: boolean } | null;
-  status?: "saved" | "stale" | "noMatch";
+  status?: "modelNotReady" | "saved" | "stale" | "noMatch";
   ack?: { id: string; rev: number } | null;
 };
 export type DailySpeech = { session: string; capture: string; partial?: string; final?: string; error?: boolean;
-  stopped?: boolean; status?: "stale" | "noMatch" };
+  stopped?: boolean; status?: "modelNotReady" | "loadingModel" | "stale" | "noMatch" };
 export type DailyBridge = {
   feed(session: string, capture: string, samples: Float32Array): void;
   onSpeech(fn: (message: DailySpeech) => void): () => void;
@@ -100,7 +100,7 @@ export type DesktopBridge = {
   /** Phone on this network (desktop app): adapter and firewall diagnostics with one-click fixes. */
   net?: {
     status: () => Promise<NetStatus>;
-    allowFirewall: () => Promise<"ok" | "missing" | "n/a">;
+    allowFirewall: () => Promise<"blocked" | "ok" | "missing" | "n/a">;
     useInterface: (address: string) => Promise<boolean>;
   };
   /** Local AI setup (desktop app): hardware scan, recommendation and the unattended Ollama install. */
@@ -117,7 +117,7 @@ export type DesktopBridge = {
   appPairKey?: string;
 };
 
-export type NetStatus = { ip: string; iface: string; virtual: boolean; canAllowFirewall?: boolean; firewall: "ok" | "missing" | "n/a"; interfaces: Array<{ name: string; address: string; virtual: boolean }> };
+export type NetStatus = { ip: string; iface: string; virtual: boolean; canAllowFirewall?: boolean; firewall: "blocked" | "ok" | "missing" | "n/a"; interfaces: Array<{ name: string; address: string; virtual: boolean }> };
 
 export type LocalAiStatus = { state: "idle" | "checking" | "downloading" | "installing" | "starting" | "ready" | "manual" | "error"; pct: number; error: string; version: string; command: string;
   /** On "error": what failed (localai.js installOllama). The page has a sentence for each in the user's language; "" = `error` is already one. */

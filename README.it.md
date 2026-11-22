@@ -890,3 +890,5 @@ Le risposte locali richiedono Ollama 0.9.0 o successivo per le API, oltre all'ev
 Le Impostazioni offrono la cancellazione dei modelli solo per download completati e registrati da Filow nel profilo corrente, con server e digest corrispondenti. I modelli preesistenti, modificati o di proprietà non verificata vengono conservati. Il profilo registra anche l'avvio e il completamento dell'installazione del runtime; disinstallare Filow continua a conservare runtime e modelli per impostazione predefinita. Queste protezioni non automatizzano la rimozione del runtime o la pulizia tramite il programma di disinstallazione.
 
 Il modello di confronto facoltativo richiede i file mancanti a Hugging Face solo dopo la tua autorizzazione. La prova privata funziona anche senza il modello.
+
+Quando Giorno per giorno verifica un resoconto, mostra un messaggio durante il caricamento del modello locale. Se il modello non è disponibile, spunta manualmente l’attività.

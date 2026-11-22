@@ -44,11 +44,16 @@ function createDaily({ store, match = manualOrDraft, isQualified = qualified, no
     if (from.day !== current.day || from.version !== current.version) return { ...current, status: "stale" };
     const generation = dayGeneration;
     const source = capture;
+    let unavailable = false;
+    function onStatus(status) {
+      if (status === "modelNotReady") unavailable = true;
+      else if (speech && source === capture && !segment?.retired) notify({ session, capture: source.id, status });
+    }
     function enqueue(proposal) {
       const latest = view();
       if (from.session !== session || from.day !== latest.day || from.version !== latest.version ||
           generation !== dayGeneration || (speech && (source !== capture || segment?.retired))) return { ...latest, status: "stale" };
-      if (!proposal) return { ...latest, status: "noMatch" };
+      if (!proposal) return { ...latest, status: unavailable ? "modelNotReady" : "noMatch" };
       if (proposal.type !== "create") {
         const choice = dailyChoice(proposal, [...from.tasks, ...archived]);
         if (choice.action === "abstain") return { ...latest, status: "noMatch" };
@@ -66,7 +71,7 @@ function createDaily({ store, match = manualOrDraft, isQualified = qualified, no
       return view();
     }
     const archived = offset === 2 ? [] : store.view().tasks.filter(row => row.done && row.due === from.day);
-    const result = match(words, [...from.tasks, ...archived], { speech, yesterday: localDay(now(), -1) });
+    const result = match(words, [...from.tasks, ...archived], { speech, onStatus, yesterday: localDay(now(), -1) });
     return result instanceof Promise ? result.then(enqueue) : enqueue(result);
   }
   function confirm(p, current) {
