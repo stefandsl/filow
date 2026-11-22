@@ -60,6 +60,7 @@
         },
         {
           "kind": "draft",
+          "interaction": "saveDraft",
           "utterance": "Tomorrow file the invoices",
           "expectedMutations": 1
         }
@@ -125,6 +126,7 @@
         },
         {
           "kind": "draft",
+          "interaction": "saveDraft",
           "utterance": "Domani archiviare le fatture",
           "expectedMutations": 1
         }

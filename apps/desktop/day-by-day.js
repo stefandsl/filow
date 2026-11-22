@@ -68,7 +68,7 @@ function createDaily({ store, now = () => new Date(), recognizer, notify = () =>
   async function arm(p) {
     stop();
     const worker = recognizer();
-    const take = { id: p.capture, worker, sequence: 0, context: 0, live: false, from: null };
+    const take = { id: p.capture, worker, sequence: 0, context: 0, live: false, from: null, frames: 0, samples: 0 };
     capture = take;
     worker.onError = () => {
       if (capture !== take) return;
@@ -93,6 +93,7 @@ function createDaily({ store, now = () => new Date(), recognizer, notify = () =>
     try {
       const model = await worker.start(p.language);
       if (capture !== take) throw Error("Closed");
+      take.model = model.model;
       return { ...view(), model: model.model };
     } catch {
       if (capture === take) stop();
@@ -109,6 +110,8 @@ function createDaily({ store, now = () => new Date(), recognizer, notify = () =>
       capture.context++;
       capture.worker.worker.postMessage({ type: "daily-boundary", context: capture.context });
     }
+    capture.frames++;
+    capture.samples += samples.length;
     capture.worker.feed(samples);
   }
   function control(action, p = {}) {
@@ -149,7 +152,7 @@ function createDaily({ store, now = () => new Date(), recognizer, notify = () =>
     const ack = store.apply({ type: action, op: p.op, due: current.day, text: p.text, id: row?.id, rev: row?.rev });
     return { ...view(), status: ack ? "saved" : "stale", ack };
   }
-  return { control, close, feed, interrupt() {
+  return { control, close, feed, meter: () => capture && ({ frames: capture.frames, samples: capture.samples, model: capture.model }), interrupt() {
     if (capture) { const id = capture.id; stop(); notify({ session, capture: id, stopped: true }); }
   } };
 }
@@ -160,6 +163,7 @@ function wireDaily({ win, appHandle, appOn, origin, userData, qaEpoch, recognize
   const now = Number.isFinite(qaEpoch) ? () => new Date(qaEpoch + Date.now() - launched) : () => new Date();
   appHandle("daily:control", (event, action, p) => {
     if (!dailyFrame(event, win, origin) || (action === "arm" && !win.isFocused())) throw Error("Denied");
+    if (action === "meter" && Number.isFinite(qaEpoch)) return workspace?.meter();
     const frame = event.senderFrame;
     workspace ??= createDaily({ store: openDailyStore(userData), now, recognizer, notify(message) {
       if (dailyFrame({ sender: win.webContents, senderFrame: frame }, win, origin)) frame.send("daily:speech", message);
