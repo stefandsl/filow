@@ -30,7 +30,7 @@ import { LIMITS, cleanText, lessonMarkdown, validateLesson, type Lesson } from "
 import { readDiagram, sceneFromDiagram, type Diagram } from "@/lib/whiteboard/templates";
 import { boardLesson, pendingScene, sceneFromLayout, type Scene } from "@/lib/whiteboard/scene";
 import { BOARD_KEY, MAX_SAVED_BYTES, applyEdits, applyOps, cameraFor, changesToOps, diffEdits, excalidrawFile, frameBox, hasEdits, noEdits, parseExcalidrawFile, readScene, withFrame, type SceneEdits, type ToolOp } from "@/lib/whiteboard/doc";
-import type { EditPlan } from "@/lib/whiteboard/edits";
+import { teachingChoice, type EditPlan } from "@/lib/whiteboard/edits";
 import { checkScene, countProblems, fixOps, type CheckCounts } from "@/lib/whiteboard/check";
 import { fontCss, prepareScene, scenePng } from "@/lib/whiteboard/excalidraw";
 import { PaceMeter, drawMsFor, stepSchedule } from "@/lib/whiteboard/pace";
@@ -220,6 +220,7 @@ export default function WhiteboardPage() {
     const text = raw.trim().slice(0, LIMITS.question);
     const current = lsRef.current.lesson;
     if (!text || (more && !current)) return;
+    if (teachingChoice(text) === "clarify") { setNote(wbText(langRef.current, "editNone")); return; }
     abortRef.current?.abort();
     const abort = new AbortController();
     abortRef.current = abort;
@@ -595,11 +596,14 @@ export default function WhiteboardPage() {
   // A follow-up first goes to the board's tools ("make the arrow red", "zoom into step 2"): the model
   // on this PC reads the scene and names what to change by id. Anything that needs new explaining
   // ("add an example") continues the lesson on the same board, as before.
+  const currentScene = useRef(prepared);
+  currentScene.current = prepared;
   const followUp = async (text: string) => {
     const scene = prepared;
     const words = text.trim().slice(0, LIMITS.question);
     if (!words) return;
-    if (!scene || !fixedBase) return void ask(words, true);
+    if (!scene || !fixedBase) { setNote(t("editNone")); return; }
+    const boardVersion = askSeq.current;
     setEditing(true);
     setNote(t("editWorking"));
     try {
@@ -609,7 +613,9 @@ export default function WhiteboardPage() {
         body: JSON.stringify({ request: words, scene: readScene(scene).slice(0, 80), steps: imported ? [] : ls.lesson?.steps.map((s) => s.say) ?? [], setup: getSetupPreference() }),
       });
       const j = res.ok ? ((await res.json()) as EditPlan) : null;
-      if (!j || j.kind === "explain") {
+      if (askSeq.current !== boardVersion || scene !== currentScene.current) return;
+      if (!j || j.kind === "clarify") { setNote(t("editNone")); return; }
+      if (j.kind === "explain") {
         setNote("");
         if (ls.lesson && !imported) void ask(words, true);
         else setNote(t("editNone"));

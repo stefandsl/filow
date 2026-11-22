@@ -58,6 +58,8 @@ Filow è un compagno di parola dal vivo: ti ascolta mentre presenti, spunta i tu
 
 ## Giorno per giorno
 
+Controlla il destinatario proposto prima di confermare una consegna a voce. Se correggi il nome mentre la proposta è aperta, verifica la nuova riga. Al momento tutte le lingue richiedono conferma.
+
 Le spunte vocali richiedono il tuo permesso e Gemma 4 E2B installato. Autorizza Gemma in Giorno per giorno e, se necessario, scaricalo nei modelli locali. Puoi revocare il permesso nelle Impostazioni, spuntare a mano o confermare un resoconto scritto.
 
 Dal suggeritore desktop apri **Giorno per giorno** e scegli **Oggi** o **Domani**. Scrivi un’attività e seleziona **Aggiungi attività**, oppure premi **Parla** e detta un’attività alla volta. Attendi **In ascolto su questo dispositivo**, controlla il testo e aggiungi l’attività. Il riconoscimento delle richieste e dei resoconti supporta italiano e inglese. Usa **Elimina attività** per una riga o **Elimina tutta la lista** per tutte le date. Puoi scrivere anche quando il microfono o il modello vocale locale non sono disponibili.

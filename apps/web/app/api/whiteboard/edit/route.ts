@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   });
   const steps = (Array.isArray(body.steps) ? body.steps : []).slice(0, 40).map((s) => cleanText(s, LIMITS.say)).filter(Boolean);
   const quick = quickEdit(request);
-  if (quick) return NextResponse.json(quick);
+  if (quick) return NextResponse.json(readEditPlan(quick, new Set(), steps.length, true) ?? { kind: "clarify", changes: [] });
   let helper: LocalHelper;
   try {
     // the model chosen for whiteboard lessons in Settings, as for the lesson itself; the user's own
@@ -47,15 +47,15 @@ export async function POST(req: Request) {
     helper = await resolveLocalHelper(body.setup, request, false, "whiteboard");
     if (!serverAllowed(helper, req.headers.get(CONSENT_HEADER) ?? undefined)) helper = await resolveLocalHelper(body.setup, request, false, "whiteboard", false);
   } catch {
-    // no model on this PC: the page treats the follow-up as a question, through its usual route
-    return NextResponse.json({ kind: "explain", said: "", changes: [] });
+    // An unresolved edit needs a new choice from the presenter.
+    return NextResponse.json({ kind: "clarify", said: "", changes: [] });
   }
   try {
     const { system, user } = editPrompt(request, scene, steps);
     const raw = await localJson(helper.model, system, user, EDIT_SCHEMA, { timeoutMs: 60_000, maxTokens: 500, at: helper.at });
-    const plan = readEditPlan(raw, new Set(scene.map((s) => s.id)), steps.length);
-    return NextResponse.json(plan ?? { kind: "explain", said: "", changes: [] });
+    const plan = readEditPlan(raw, new Set(scene.map((s) => s.id)), steps.length, true);
+    return NextResponse.json(plan ?? { kind: "clarify", said: "", changes: [] });
   } catch {
-    return NextResponse.json({ kind: "explain", said: "", changes: [] });
+    return NextResponse.json({ kind: "clarify", said: "", changes: [] });
   }
 }

@@ -3,6 +3,8 @@
 // model cannot draw becomes a text card and the lesson goes on. Cloud: one call for the whole lesson.
 // Every answer is parsed and validated in lesson.ts before anything is sent to the page.
 import katex from "katex";
+import { groundingErrors, groundingReference } from "./grounding";
+import { teachingChoice, validTeachingFields } from "./edits";
 import { BUDDY_LANG_NAMES, type BuddyLang } from "@/lib/buddy/lang";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { checkArithmetic } from "./plot";
@@ -12,7 +14,7 @@ import { LIMITS, cleanText, contextOf, lessonContextText, lessonNodes, makeStep,
 
 export type LessonEvent =
   | { type: "start"; provider: "local" | "cloud" | "freellm"; model: string; lang: BuddyLang; lite: boolean; more: boolean }
-  | { type: "outline"; title: string; scene: Scene; says: string[] }
+  | { type: "outline"; title: string; scene: Scene; kind?: ExplanationKind; says: string[] }
   /** The local model picked a picture for the concept: the board draws it (templates.ts), the steps say it. */
   | { type: "diagram"; diagram: Diagram; result: string }
   | { type: "step"; index: number; step: LessonStep }
@@ -427,7 +429,9 @@ export async function tryTemplate(asked: Ask, req: LessonRequest, emit: (e: Less
 
 export async function generateLocal(asked: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
   const ask = withJsonWord(asked);
-  if (req.templates && (await tryTemplate(ask, req, emit))) return;
+  const choice = teachingChoice(req.question);
+  if (choice === "clarify") return emit({ type: "error", code: "plan", message: "Choose an explanation and layout." });
+  if (!choice && req.templates && (await tryTemplate(ask, req, emit))) return;
   const more = Boolean(req.lesson);
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;
   const outlineUser = more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(req.question)}` : `Concept: ${quoted(req.question)}`;
@@ -474,7 +478,10 @@ export async function generateLocal(asked: Ask, req: LessonRequest, emit: (e: Le
   let kept: Set<number> | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const text = await ask({ system: outlineSystem(req.lang, maxSteps, more), user: outlineUser, format: outlineSchema(maxSteps), maxTokens: 140 + maxSteps * 90, timeoutMs: TIMEOUTS.outlineMs, temperature: attempt ? 0.6 : 0.3 });
-    const next = validateOutline(parseJsonLoose(text), maxSteps);
+    const raw = parseJsonLoose(text);
+    if (!validTeachingFields(raw)) return emit({ type: "error", code: "plan", message: "Choose an explanation and layout." });
+    const next = validateOutline(raw, maxSteps);
+    if (next && choice) Object.assign(next, choice);
     if (!next) continue;
     outline = next;
     const judged = await examine(next.kind, `Asked: ${quoted(req.question)}\nLesson: ${next.title}\n${next.says.map((s, k) => `${k + 1}. ${s}`).join("\n")}`, next.says.length);
@@ -564,7 +571,7 @@ export async function generateLocal(asked: Ask, req: LessonRequest, emit: (e: Le
     return r && says.length - refused.length < 3 ? [`${label(r.from)} ${r.text} ${label(r.to)}.`] : [];
   });
   if (!says.length) says = [outline.says[0]];
-  emit({ type: "outline", title, scene, says });
+  emit({ type: "outline", title, scene, ...(choice && { kind: choice.kind }), says });
 
   const thingIds = plan.things.map((t) => t.id);
   let cards = 0;
@@ -1032,6 +1039,8 @@ export function wrongSums(lesson: Lesson): Array<{ step: number; claim: string }
 export async function generateCloud(asked: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
   const ask = withJsonWord(asked);
   const more = Boolean(req.lesson);
+  const choice = teachingChoice(req.question);
+  if (choice === "clarify") return emit({ type: "error", code: "plan", message: "Choose an explanation and layout." });
   const guards = { ...GUARDS, ...req.guards };
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;
   const userFor = (question: string) => (more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(question)}` : `Concept: ${quoted(question)}`);
@@ -1053,8 +1062,9 @@ export async function generateCloud(asked: Ask, req: LessonRequest, emit: (e: Le
   const write = async (note: string): Promise<Draft | null> => {
     for (let attempt = 0; attempt < 2; attempt++) {
       // a name the model wrote spelled out, as it was sent, is written normally again before anything reads the answer
-      const text = unspell(await ask({ system: cloudSystem(req.lang, maxSteps, more), user: note ? `${user}\n\n${note}` : user, format: { type: "object" }, maxTokens: 3500, timeoutMs: TIMEOUTS.cloudMs, temperature: attempt ? 0.6 : 0.3 }), spelled);
+      const text = unspell(await ask({ system: [cloudSystem(req.lang, maxSteps, more), groundingReference(req.question), choice ? `Use the ${choice.kind} explanation and ${choice.scene} layout.` : ""].filter(Boolean).join("\n"), user: note ? `${user}\n\n${note}` : user, format: { type: "object" }, maxTokens: 3500, timeoutMs: TIMEOUTS.cloudMs, temperature: attempt ? 0.6 : 0.3 }), spelled);
       const raw = parseJsonLoose(text);
+      if (raw && !validTeachingFields(raw)) return null;
       const valid = validateLesson(raw, { maxSteps, texOk, sketch: true, continues: more ? req.lesson! : undefined });
       // A placeholder the question did not contain means the model never saw a name of the question.
       redacted = placeholderLeaks(text, req.question + (more ? JSON.stringify(req.lesson) : ""));
@@ -1097,7 +1107,7 @@ export async function generateCloud(asked: Ask, req: LessonRequest, emit: (e: Le
     // what the examiner says the board must show is looked for on the board, in code
     const absent = guards.must && review?.must && !boardShows(lesson, review.must) ? [`the board never shows "${review.must}": draw it`] : [];
     // the first sentence must introduce the topic: always looked at; the rest of the last look only with the examiner
-    return [...said, ...refused, ...absent, ...sums, ...finalProblems(lesson).filter((p) => guards.examiner || p.startsWith("the first sentence"))];
+    return [...groundingErrors(lesson), ...said, ...refused, ...absent, ...sums, ...finalProblems(lesson).filter((p) => guards.examiner || p.startsWith("the first sentence"))];
   };
   const offTopic = (review: Review | null) => Boolean(review && !review.topic);
   const audit = () => { if (req.audit) emit({ type: "audit", raw: firstRaw, changes }); };
@@ -1229,10 +1239,16 @@ export async function generateCloud(asked: Ask, req: LessonRequest, emit: (e: Le
     if (!legend.added.length) changes.push("legend asked for and nothing usable came back: the lesson is unchanged");
   }
   // The last look, in code. What it still finds is said to the page with the lesson, not cut out of it.
+  const unsupported = groundingErrors(lesson);
+  if (unsupported.length) {
+    changes.push(...unsupported);
+    audit();
+    return emit({ type: "error", code: "plan", message: unsupported.join(" ") });
+  }
   const doubts = guards.examiner ? finalProblems(lesson) : [];
   for (const d of doubts) changes.push(`left as it is: ${d}`);
   for (const line of noted(lesson)) changes.push(line);
-  emit({ type: "outline", title: more ? req.lesson!.title : lesson.title, scene: more ? req.lesson!.scene : lesson.scene, says: lesson.steps.map((s) => s.say) });
+  emit({ type: "outline", title: more ? req.lesson!.title : lesson.title, scene: more ? req.lesson!.scene : choice?.scene ?? lesson.scene, ...(choice && { kind: choice.kind }), says: lesson.steps.map((s) => s.say) });
   lesson.steps.forEach((step, index) => emit({ type: "step", index, step }));
   audit();
   emit({ type: "done", cards: lesson.steps.filter((s) => s.card).length, stalled: false, ...(unchecked.length ? { unchecked } : {}), ...(doubts.length ? { doubts } : {}), ...(spelled.length ? { spelled } : {}) });

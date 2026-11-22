@@ -6,6 +6,7 @@ import sonnetFixtures from "./fixtures/cloud-sonnet-raw.json";
 import { GUARDS, TIMEOUTS, finalProblems, formulaSymbols, generateCloud, labelNotes, missingLegend, missingNames, orphanBoxes, placeNotes, texOk, validatorLosses, wrongSums, type Ask, type LessonEvent } from "./generate";
 import { LIMITS, validateLesson, type Lesson, type LessonItem } from "./lesson";
 import { layoutBoard, layoutProblems } from "./layout";
+import { groundingErrors } from "./grounding";
 import { checkArithmetic } from "./plot";
 
 // "Do no harm", measured. The fixtures are twenty lessons a real cloud model wrote before round 5
@@ -13,6 +14,16 @@ import { checkArithmetic } from "./plot";
 // is played by this file, so every difference between what the model wrote and what is shown was
 // made by Filow's own code. The rule for every guard: repair, ask for a rewrite, or refuse the
 // WHOLE lesson with a reason; never delete a step, a curve or part of a worked example and show the rest.
+it("checks the words and direction of a phase change and the size of a unit", () => {
+  const board = (say: string, from = "liquid", to = "gas") => validateLesson({ title: "Evaporation", scene: "flow",
+    steps: [{ say, items: [{ kind: "node", id: "liquid", text: "Liquid" }, { kind: "node", id: "gas", text: "Gas" },
+      { kind: "edge", from, to, text: "evaporates to" }] }] })!;
+  expect(groundingErrors(board("Liquid evaporates into gas."))).toEqual([]);
+  expect(groundingErrors(board("Gas evaporates into liquid.", "gas", "liquid"))).toHaveLength(1);
+  expect(groundingErrors(board("1 m = 10 cm."))).toHaveLength(1);
+  expect(groundingErrors(board("1 m = 100 cm."))).toEqual([]);
+});
+
 type Fixture = { run: string; n: number; question: string; lesson: Lesson };
 const FIXTURES = fixtures as unknown as Fixture[];
 // lessons written about "[PERSON_NAME]" by a provider that hid the name are refused as a whole: tested at the route

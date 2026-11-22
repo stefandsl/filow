@@ -59,6 +59,7 @@
       "stt.js",
       "take-checkpoint.js",
       "day-by-day.js",
+      "bounded-decision.js",
       "day-by-day-store.js",
       "day-by-day-decisions.js",
         "day-by-day-model.js",

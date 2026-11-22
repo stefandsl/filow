@@ -87,13 +87,17 @@ function dailyModel({ origin = ollamaProbeUrl(), hasGrant, request = fetch }) {
   } catch { /* No usable local source. */ }
   const grant = source && "daily-report-v2:" + source + "/" + model;
   let installed = false;
+  let digest;
   const granted = () => Boolean(grant && hasGrant(grant));
   async function available() {
     installed = false;
+    digest = undefined;
     if (granted()) {
       try {
         const tags = await fetchOllamaTags(request, source);
-        installed = tags?.models?.some(entry => entry.name === model) === true;
+        const entry = tags?.models?.find(entry => entry.name === model);
+        installed = Boolean(entry);
+        if (/^(?:sha256:)?[a-f0-9]{64}$/.test(entry?.digest ?? "")) digest = entry.digest;
       } catch { /* Offline matching stays available. */ }
     }
     return installed && granted();
@@ -105,8 +109,10 @@ function dailyModel({ origin = ollamaProbeUrl(), hasGrant, request = fetch }) {
   return { grant, granted, available, ready: () => granted() && installed,
     async match(words, tasks, options) {
       if (!await available()) return manualOrDraft(words, tasks, options);
+      const route = digest && "daily-gemma-v2/" + model + "/" + digest;
       const result = await matchModel(words, tasks, options);
-      return granted() ? result : manualOrDraft(words, tasks, options);
+      if (!granted()) return manualOrDraft(words, tasks, options);
+      return result && installed && route ? { ...result, route } : result;
     }
   };
 }

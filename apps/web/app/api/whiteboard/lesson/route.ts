@@ -8,6 +8,8 @@ import { BusyError, RETRY, StallError, TIMEOUTS, generateCloud, generateLocal, m
 import { LIMITS, cleanText, validateLesson } from "@/lib/whiteboard/lesson";
 import { serverAllowed } from "@/lib/modelRoles/helper";
 
+import { teachingChoice } from "@/lib/whiteboard/edits";
+
 export const dynamic = "force-dynamic";
 const MAX_BODY = 64_000;
 
@@ -31,6 +33,7 @@ export async function POST(req: Request) {
   }
   const question = cleanText(body?.question, LIMITS.question);
   if (!question) return NextResponse.json({ error: "question is empty" }, { status: 400 });
+  if (teachingChoice(question) === "clarify") return NextResponse.json({ code: "clarify" }, { status: 422 });
   // The lesson a follow-up continues comes from the page: it is checked like model output.
   const lesson = body.lesson === undefined || body.lesson === null ? null : validateLesson(body.lesson, { maxSteps: 40, texOk, sketch: true });
   if (body.lesson !== undefined && body.lesson !== null && !lesson) return NextResponse.json({ error: "the lesson to continue is not valid" }, { status: 400 });

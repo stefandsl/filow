@@ -1,14 +1,36 @@
 // What the whiteboard asks the models on this PC about a board, and how their answers are read:
 // the look at a picture of the board, and the plan of a follow-up that changes it. Pure: the
 // prompts, the schemas and the checks of the answers (the calls are in local.ts).
-import { cleanText } from "./lesson";
+import { cleanText, KINDS, SCENES, type ExplanationKind, type Scene } from "./lesson";
+import { offeredChoice } from "../../../desktop/bounded-decision";
+
+export type TeachingChoice = { kind: ExplanationKind; scene: Scene };
+export function teachingChoice(request: string): TeachingChoice | "clarify" | null {
+  const words = request.toLowerCase().trim();
+  const layout = /\b(?:as (?:a |an )?|layout[: ]+|come (?:un |una )?)([\p{L}-]+)(?:\s+(?:layout|diagram))?[.!?]?$/u.exec(words);
+  const aliases: Record<string, Scene> = { cycle: "cycle", ciclo: "cycle", flow: "flow", flusso: "flow", stack: "stack", pila: "stack" };
+  const scene = layout && Object.hasOwn(aliases, layout[1]) ? aliases[layout[1]] : undefined;
+  if (layout && !scene) return "clarify";
+  if (/^(?:(?:please )?(?:explain|compare|draw|show)|spiega|confronta)(?: (?:it|that|this|those|questo))?[.!?]?$/.test(words)) return "clarify";
+  const kind: ExplanationKind | undefined = /\b(?:compare|comparison|confronta|confronto)\b/.test(words) ? "comparison" :
+    /\b(?:process|processo|repeating|cycle|ciclo)\b/.test(words) ? "process" : undefined;
+  if (!scene && !kind) return null;
+  return { kind: kind ?? "process", scene: scene ?? (kind === "comparison" ? "stack" : /\b(?:cycle|ciclo|repeating)\b/.test(words) ? "cycle" : "flow") };
+}
+
+export function validTeachingFields(raw: unknown) {
+  if (!raw || typeof raw !== "object") return false;
+  const choice = raw as { kind?: unknown; scene?: unknown };
+  return (choice.kind === undefined || offeredChoice(choice.kind, KINDS)) &&
+    (choice.scene === undefined || offeredChoice(choice.scene, SCENES));
+}
 
 export const EDIT_COLOURS = { red: "#e03131", blue: "#1971c2", green: "#2f9e44", orange: "#e8590c", purple: "#9c36b5", black: "#1e1e1e", yellow: "#f08c00", pink: "#c2255c", teal: "#0c8599", gray: "#868e96" } as const;
 export type EditColour = keyof typeof EDIT_COLOURS;
 export const EDIT_ACTIONS = ["recolor", "delete", "rename", "bigger", "smaller", "zoom", "show_all"] as const;
 export type EditAction = (typeof EDIT_ACTIONS)[number];
 export type EditChange = { action: EditAction; target: string; color?: EditColour; text?: string; step?: number };
-export type EditPlan = { kind: "edit" | "explain"; said: string; changes: EditChange[] };
+export type EditPlan = { kind: "edit" | "explain" | "clarify"; said: string; changes: EditChange[] };
 
 export const LOOK_SCHEMA = {
   type: "object",
@@ -87,7 +109,7 @@ export function quickEdit(request: string): EditPlan | null {
 }
 
 /** The model's plan, kept to ids that are on the board and to the actions and colours above. */
-export function readEditPlan(raw: unknown, ids: Set<string>, stepCount: number): EditPlan | null {
+export function readEditPlan(raw: unknown, ids: Set<string>, stepCount: number, strict = false): EditPlan | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as { kind?: unknown; said?: unknown; changes?: unknown };
   const kind = r.kind === "edit" ? "edit" : r.kind === "explain" ? "explain" : null;
@@ -110,6 +132,7 @@ export function readEditPlan(raw: unknown, ids: Set<string>, stepCount: number):
       if (text) changes.push({ action, target, text });
     } else changes.push({ action, target });
   }
+  if (strict && (!Array.isArray(r.changes) || (kind === "edit" ? changes.length !== r.changes.length : r.changes.length !== 0))) return null;
   if (kind === "edit" && !changes.length) return null;
   return { kind, said: cleanText(r.said, 80), changes: kind === "edit" ? changes : [] };
 }

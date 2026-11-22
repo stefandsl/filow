@@ -63,6 +63,29 @@ const PICK2 = pick([], ["2"], { formula: "6CO_2 + 6H_2O \\rightarrow C_6H_{12}O_
 const PICK3 = pick(["leaf"], ["3"]);
 const FULL = [OUTLINE, JUDGE, PLAN, CHECK, PICK1, PICK2, PICK3];
 
+describe("bounded teaching choices", () => {
+  for (const [question, kind, scene] of [["Explain a repeating process as a cycle", "process", "cycle"],
+    ["Compare the two processes", "comparison", "stack"]]) {
+    it(question, async () => {
+      localAnswers = [...FULL];
+      const result = await events(await post({ question }));
+      expect(result.find(e => e.type === "outline")).toMatchObject({ kind, scene });
+    });
+  }
+  for (const question of ["Explain this", "Explain the process as a torus"]) {
+    it("asks for clarification before inference: " + question, async () => {
+      expect((await post({ question })).status).toBe(422);
+      expect(calls).toHaveLength(0);
+    });
+  }
+  it("rejects an invented model layout", async () => {
+    localAnswers = [OUTLINE.replace('"flow"', '"invented"')];
+    const result = await events(await post({ question: "Explain the process" }));
+    expect(result.at(-1)).toMatchObject({ type: "error" });
+    expect(stepsOf(result)).toEqual([]);
+  });
+});
+
 describe("whiteboard lesson, local model: plan, check, then a pick per step", () => {
   it("streams the outline, then one step per call, drawn only from the checked plan", async () => {
     localAnswers = [...FULL];

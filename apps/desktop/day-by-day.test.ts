@@ -130,6 +130,72 @@ it("revalidates a person choice and consumes a typed confirmation across restart
   assert.equal(replay.tasks[0].done, false);
 });
 
+it("reassesses a spoken recipient correction and saves its original evidence once", async () => {
+  const store = storage(), updates: any[] = [];
+  const worker: any = { ready: true, start: async () => ({ model: "fixture" }), dispose() {}, feed() {},
+    worker: { postMessage(m: any) { worker.context = m.context; } } };
+  const match = load("./day-by-day-model").createMatcher("http://127.0.0.1:53881", async (_: string, req: any) => {
+    const content = JSON.parse(req.body).messages[0].content;
+    const [task, report] = content.split("Task: ")[1].split("Report: ");
+    const aligned = ["Nora Lane", "Nora Lake"].some(name => task.includes(name) && report.includes(name));
+    return Response.json({ message: { content: JSON.stringify({ verdict: aligned ? "yes" : "no",
+      event: "task outcome", roles: "aligned", time: "current result", reason: "received" }) } });
+  });
+  const daily = createDaily({ store, match, recognizer: () => worker, notify: (m: any) => updates.push(m) });
+  let v = daily.control("open");
+  for (const name of ["Lane", "Lake"]) v = daily.control("create", { ...v, op: name, text: "Send the slides to Nora " + name });
+  const target = v.ack.id, capture = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+  await daily.control("arm", { ...v, capture, language: "en" });
+  daily.feed({ ...v, capture }, new Float32Array(1600));
+  const final = (sequence: number, committed: string) => worker.onResult({ sequence, committed, context: worker.context });
+  final(1, "Nora Lane received them");
+  final(2, "I mean Nora Lake");
+  await new Promise(resolve => setTimeout(resolve, 0));
+  v = daily.control("state", v);
+  assert.deepEqual(v.review.targets.map((r: any) => r.id), [target]);
+  assert.equal(v.version, 2);
+  v = daily.control("confirm", { ...v, token: v.review.token, id: target });
+  final(2, "I mean Nora Lake");
+  daily.close();
+  assert.equal(store.version, 3);
+  assert.equal(openDailyStore(dirs.at(-1)).view().tasks.find((r: any) => r.done)?.evidence, "Nora Lane received them — I mean Nora Lake");
+});
+
+it("binds automatic ticks to an assessed row, model digest and capture language", async () => {
+  const { qualified } = load("./bounded-decision");
+  const route = "fixture/version";
+  const receipt = { route, locale: "it", clear: 5, correct: 4, negative: 3, falseTicks: 0, clarification: 1 };
+  for (const [language, automatic] of [["en", false], ["it", true]] as const) {
+    const worker: any = { ready: true, start: async () => ({ model: "fixture" }), feed() {}, dispose() {},
+      worker: { postMessage(m: any) { worker.context = m.context; } } };
+    const store = storage();
+    const daily = createDaily({ store, recognizer: () => worker,
+      isQualified: (id: string, lang: string) => qualified(id, lang, [receipt]),
+      match: (words: string, rows: any[]) => ({ ...load("./day-by-day-decisions").interpret(words, rows), route }) });
+    let v = daily.control("open");
+    for (const name of ["Lane", "Lake"]) v = daily.control("create", { ...v, op: name, text: "Send the slides to Nora " + name });
+    const id = v.tasks[0].id;
+    const capture = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    await daily.control("arm", { ...v, capture, language });
+    daily.feed({ ...v, capture }, new Float32Array(1600));
+    const final = { sequence: 1, context: worker.context, committed: "Nora Lane received the slides" };
+    worker.onResult(final);
+    v = daily.control("state", v);
+    assert.equal(v.version, automatic ? 3 : 2);
+    if (!automatic) {
+      assert.deepEqual(v.review.targets.map((r: any) => r.id), [id]);
+      v = daily.control("confirm", { ...v, token: v.review.token, id });
+    }
+    worker.onResult(final);
+    daily.close();
+    assert.equal(store.view().version, 3);
+    assert.deepEqual(store.view().tasks.filter((r: any) => r.done).map((r: any) => [r.id, r.evidence]), [[id, final.committed]]);
+  }
+  assert.equal(qualified(route, "it"), false);
+  assert.equal(qualified("other", "it", [receipt]), false);
+  assert.equal(qualified(route, "it", [{ ...receipt, falseTicks: 1 }]), false);
+});
+
 it("withdraws the saved grant only from the Settings main frame", async () => {
   const origin = "http://127.0.0.1:51288";
   const frame = { url: origin + "/settings/local" };

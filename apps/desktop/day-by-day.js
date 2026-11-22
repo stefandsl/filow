@@ -11,7 +11,9 @@ function dailyFrame(event, win, origin, pathname = "/day-by-day") {
   } catch { return false; }
 }
 
-function createDaily({ store, match = manualOrDraft, now = () => new Date(), recognizer, notify = () => {} }) {
+const { dailyChoice, qualified } = require("./bounded-decision");
+
+function createDaily({ store, match = manualOrDraft, isQualified = qualified, now = () => new Date(), recognizer, notify = () => {} }) {
   let session = "";
   let offset = 0;
   let dayGeneration = 0;
@@ -37,7 +39,7 @@ function createDaily({ store, match = manualOrDraft, now = () => new Date(), rec
     return { session, version: stored.version, day, today, offset, tasks, review: pending[0] || null };
   }
 
-  function review(words, from, op, speech) {
+  function review(words, from, op, speech, segment) {
     const current = view();
     if (from.day !== current.day || from.version !== current.version) return { ...current, status: "stale" };
     const generation = dayGeneration;
@@ -45,9 +47,20 @@ function createDaily({ store, match = manualOrDraft, now = () => new Date(), rec
     function enqueue(proposal) {
       const latest = view();
       if (from.session !== session || from.day !== latest.day || from.version !== latest.version ||
-          generation !== dayGeneration || (speech && source !== capture)) return { ...latest, status: "stale" };
+          generation !== dayGeneration || (speech && (source !== capture || segment?.retired))) return { ...latest, status: "stale" };
       if (!proposal) return { ...latest, status: "noMatch" };
-      if (!pending.some(p => p.op === op) && pending.length < 30) pending.push({ ...proposal, token: randomUUID(), op, speech,
+      if (proposal.type !== "create") {
+        const choice = dailyChoice(proposal, [...from.tasks, ...archived]);
+        if (choice.action === "abstain") return { ...latest, status: "noMatch" };
+        if (speech && !segment?.repair && choice.action === "complete" && isQualified(proposal.route, source.language)) {
+          const row = from.tasks.find(r => r.id === choice.id && !r.done);
+          if (row) {
+            const ack = store.apply({ type: "complete", id: row.id, rev: row.rev, op, words });
+            return { ...view(), ack, status: ack ? "saved" : "stale" };
+          }
+        }
+      }
+      if (!pending.some(p => p.op === op) && pending.length < 30) pending.push({ ...proposal, words: segment?.evidence ?? proposal.words, token: randomUUID(), op, speech,
         day: from.day, due: proposal.dueTomorrow ? localDay(now(), 1) : from.day,
         version: from.version, expires: Date.now() + 120000 });
       return view();
@@ -78,7 +91,7 @@ function createDaily({ store, match = manualOrDraft, now = () => new Date(), rec
   async function arm(p) {
     stop();
     const worker = recognizer();
-    const take = { id: p.capture, worker, sequence: 0, context: 0, live: false, from: null, frames: 0, samples: 0 };
+    const take = { id: p.capture, language: p.language, worker, sequence: 0, context: 0, live: false, from: null, frames: 0, samples: 0 };
     capture = take;
     worker.onError = () => {
       if (capture !== take) return;
@@ -96,7 +109,25 @@ function createDaily({ store, match = manualOrDraft, now = () => new Date(), rec
       const from = take.from;
       // Keep the displayed list until a new version or civil day reaches capture.
       if (from) {
-        const next = review(result.committed, from, take.id + "/" + result.sequence, true);
+        const op = take.id + "/" + result.sequence;
+        let words = result.committed;
+        const previous = take.segment;
+        const segment = { op, words, context: take.context };
+        take.segment = segment;
+        const replacement = /^(?:I mean|intendevo)\s+([\p{L}][\p{L}'’ -]{0,70})[.!]?$/iu.exec(words);
+        if (replacement && previous && previous.context === take.context) {
+          previous.retired = true;
+          pending = pending.filter(r => r.op !== previous.op);
+          // Reassess the report with the corrected recipient and retain both spoken finals.
+          const recipient = replacement[1].trim();
+          const prior = /^([\p{Lu}][\p{L}'’-]*(?:\s+[\p{Lu}][\p{L}'’-]*)*)\s+(received|has|ha)\b(.*)$/u.exec(previous.words);
+          if (prior && from.tasks.some(row => row.text.toLowerCase().endsWith(" " + recipient.toLowerCase()))) {
+            words = recipient + " " + prior[2] + prior[3];
+          }
+          segment.repair = true;
+          segment.evidence = previous.words + " — " + result.committed;
+        }
+        const next = review(words, from, op, true, segment);
         const publish = state => {
           if (capture === take) notify({ session, capture: take.id, final: result.committed, status: state.status });
         };
