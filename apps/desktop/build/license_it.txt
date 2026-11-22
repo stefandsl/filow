@@ -1,4 +1,4 @@
-﻿Filow: parla liberamente, resta sul punto. Un compagno di parola dal vivo.
+Filow: parla liberamente, resta sul punto. Un compagno di parola dal vivo.
 Copyright (C) 2026 Stefan Butnaru (VoidExploit)
 
 Questo programma è software libero: puoi ridistribuirlo e/o modificarlo secondo
