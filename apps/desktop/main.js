@@ -1814,9 +1814,9 @@ function wireStt() {
   appHandle("stt:start", async (e, language) => {
     setSttLanguage(language);
     if (!sttSession) {
-      const id = process.env.FILOW_QA_TRACE_ID;
+      const id = require("./qa.js").isQaBuild(app) && process.env.FILOW_QA_TRACE_ID;
       const traceId = id && /^[a-f0-9-]{36}$/.test(id) && app.isPackaged && INPUT_OFF &&
-        process.env.FILOW_USER_DATA_DIR && require("./qa.js").isQaBuild(app) ? id : undefined;
+        process.env.FILOW_USER_DATA_DIR ? id : undefined;
       sttSession = new sttLocal.SttSession(userData, logLine, { use: "tracking", getLanguage: sttLanguage, task: () => "tracking", traceId });
     }
     const wc = e.sender;

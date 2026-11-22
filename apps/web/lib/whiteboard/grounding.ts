@@ -1,5 +1,4 @@
 import { lessonNodes, type Lesson } from "./lesson";
-import { checkArithmetic } from "./plot";
 
 // Defined SI prefix factors. Compare in the base unit, including on labelled diagram edges.
 const units: Record<string, [string, number]> = {
@@ -42,7 +41,6 @@ export function groundingErrors(lesson: Lesson): string[] {
   const names = lessonNodes(lesson);
   const text = (words: string) => {
     if (wrongConversion(words)) faults.add("The stated unit conversion does not preserve the quantity.");
-    if (checkArithmetic(words).length) faults.add("The stated calculation does not give the displayed result.");
   };
   const relation = (from: string, verb: string, to: string) => {
     text(from + " " + verb + " " + to);

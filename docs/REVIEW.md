@@ -263,3 +263,7 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R246 (2026-11-22, N-06): Validate predicted layouts and row IDs against the choices offered for the current request. Check: request a cycle and an invented layout, correct a similar recipient before confirming, then repeat the final and reopen the journal.
 - R247 (2026-11-22, N-06): Check a grounded calculation and a visible row against the final output before scoring it. Check: keep an incorrect sum after repair, withhold the matching phone paint, then replay a correct sum and matching row on both displays. Count deliveries and timed attempts separately.
 - R248 (N-06): Preserve both spoken finals in a correction using the approved slash separator. Check: confirm the revised recipient, reopen the journal and compare the saved evidence with both transcripts in order.
+- R249 (N-06): Read the recognizer trace override behind the packaged QA build check. Check: run the global-input environment-switch audit.
+- R250 (N-06): Retry an unreadable outline before asking for a different teaching layout. Check: feed two unreadable replies and verify the existing plan error.
+- R251 (N-06): Preserve the configured arithmetic checking and rounding behavior when adding unit and relation checks. Check: replay the compound-interest lesson, default sum audit and explicit sum guard.
+- R252 (N-06): Allow a recognized explanation follow-up when the board has no editable scene. Check: exercise the explicit send paths and reject an unknown layout before generation.

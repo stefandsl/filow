@@ -602,7 +602,12 @@ export default function WhiteboardPage() {
     const scene = prepared;
     const words = text.trim().slice(0, LIMITS.question);
     if (!words) return;
-    if (!scene || !fixedBase) { setNote(t("editNone")); return; }
+    if (!scene || !fixedBase) {
+      const intent = teachingChoice(words);
+      if (intent && intent !== "clarify") return void ask(words, true);
+      setNote(t("editNone"));
+      return;
+    }
     const boardVersion = askSeq.current;
     setEditing(true);
     setNote(t("editWorking"));

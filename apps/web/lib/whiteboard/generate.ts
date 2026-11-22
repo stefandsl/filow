@@ -479,7 +479,7 @@ export async function generateLocal(asked: Ask, req: LessonRequest, emit: (e: Le
   for (let attempt = 0; attempt < 2; attempt++) {
     const text = await ask({ system: outlineSystem(req.lang, maxSteps, more), user: outlineUser, format: outlineSchema(maxSteps), maxTokens: 140 + maxSteps * 90, timeoutMs: TIMEOUTS.outlineMs, temperature: attempt ? 0.6 : 0.3 });
     const raw = parseJsonLoose(text);
-    if (!validTeachingFields(raw)) return emit({ type: "error", code: "clarify", message: "Choose an explanation and layout." });
+    if (raw && !validTeachingFields(raw)) return emit({ type: "error", code: "clarify", message: "Choose an explanation and layout." });
     const next = validateOutline(raw, maxSteps);
     if (next && choice) Object.assign(next, choice);
     if (!next) continue;
