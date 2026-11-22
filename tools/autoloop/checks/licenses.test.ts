@@ -38,3 +38,8 @@ describe("licenses check allow-list", () => {
     expect(out).toContain("nolicense@0.1.0: no license");
   });
 });
+it("attributes the separately licensed daily verb index in the shipped notice", () => {
+  const notice = fs.readFileSync(path.join(root, "apps/desktop/THIRD_PARTY_NOTICES.md"), "utf8");
+  for (const credit of ["UniMorph", "Wikipedia", "CC BY-SA 3.0", "MultiWordNet", "Princeton WordNet", "verbs.json.gz"])
+    expect(notice.includes(credit), credit).toBe(true);
+});

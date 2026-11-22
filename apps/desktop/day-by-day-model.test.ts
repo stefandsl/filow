@@ -41,3 +41,49 @@ it("discards a delayed semantic decision after the page is reopened", async () =
   assert.equal((await waiting).status, "stale");
   assert.equal(daily.control("state", after).review, null);
 });
+
+it("routes the granted installed model through the profile's local source", async () => {
+  const { dailyModel } = load("./day-by-day-model");
+  const calls: string[] = [];
+  let granted = false;
+  let installed = false;
+  const request = async (url: string) => {
+    calls.push(url);
+    return Response.json(url.endsWith("/api/tags") ? { models: installed ? [{ name: "gemma4:e2b" }] : [] }
+      : { message: { content: JSON.stringify({ reason: "bound", verdict: "yes" }) } });
+  };
+  const options = { request, hasGrant: () => granted };
+  const daily = dailyModel(options);
+  const query = () => daily.match("The booklet now has its binding", tasks.slice(0, 1), {});
+  assert.equal(await query(), null);
+  assert.deepEqual(calls, []);
+  granted = true;
+  assert.equal(await query(), null);
+  assert.deepEqual(calls, []); // test profile without a private endpoint
+  const { ollamaProbeUrl } = load("./localai");
+  const production = ollamaProbeUrl({}, false);
+  assert.equal(production, "http://127.0.0.1:11434");
+  assert.equal(ollamaProbeUrl({ VITEST: "1", OLLAMA_URL: production }, false), null);
+  const normal = dailyModel({ ...options, origin: production });
+  assert.equal(await normal.match("The booklet now has its binding", tasks, {}), null);
+  assert.deepEqual(calls, [production + "/api/tags"]);
+  installed = true;
+  assert.equal((await normal.match("The booklet now has its binding", tasks.slice(0, 1), {})).type, "complete");
+  assert.equal(calls.at(-1), production + "/api/chat");
+});
+
+for (const [task, report] of [
+  ["Notify Vera", "Vera notified us"],
+  ["Avvisare Vera", "Vera ci ha avvisati"],
+  ["Repair the antenna", "I inspected the antenna"],
+  ["Riparare la tenda", "Ho misurato la tenda"],
+  ["Invite Eva", "We are going to invite Eva"],
+  ["Invitare Eva", "Inviteremo Eva"],
+  ["Contact Vera", "I contacted our guide last month"],
+  ["Contattare Vera", "Ho contattato la guida il mese passato"],
+]) it("rejects a conflicting event on both paths: " + report, async () => {
+  const rows = [{ id: "1", rev: 1, done: false, text: task }];
+  const model = matcher(() => ({ reason: "overconfident", verdict: "yes" }));
+  assert.equal(load("./day-by-day-decisions").interpret(report, rows), null);
+  assert.equal(await model(report, rows, {}), null);
+});
