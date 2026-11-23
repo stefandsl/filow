@@ -111,7 +111,7 @@ function printPlan(state) {
     'Checks: ' + state.card.checks.join(' ') + ' ' + editGrant(state.card).fileListRule, 'Spend unknown. Release authority: owner.',
     'Next: ' + next(state,'build')].join('\n'));
 }
-function build(state, tree, dir, options, checkpoint) {
+function build(state, tree, dir, options, checkpoint, resolveCodex = desktopCodex) {
   const repairing = tree.head === state.candidate && needsRepair(state) && !options.retry;
   if (repairing) {
     state.reservedRule = nextRule(git(tree.root,'show',state.candidate + ':docs/REVIEW.md'));
@@ -128,9 +128,11 @@ function build(state, tree, dir, options, checkpoint) {
   const privateTree = path.join(folder,'checkout');
   if (!state.dry && fs.existsSync(file)) {
     ensureDependencies(tree.root,dir);
-    builderCheckout(state,folder,state.repairPacketBase || state.base);
-  }
-  if (!state.dry && fs.existsSync(file)) {
+    const metadata = path.join(folder,'git-data');
+    ensure(fs.existsSync(privateTree) && fs.existsSync(metadata) &&
+      fs.realpathSync(git(privateTree,'rev-parse','--absolute-git-dir')) === fs.realpathSync(metadata) &&
+      !git(privateTree,'remote'),
+      'Private builder checkout metadata is missing or changed. Inspect ' + folder);
     const report = getReport(file);
     const sha = builderResult(state,folder,report);
     actor(report,state.builderRoute);
@@ -167,7 +169,7 @@ function build(state, tree, dir, options, checkpoint) {
         evidence += '\nPinned baseline CI receipts: ' + JSON.stringify(state.baseline.gate.receipts.map(r=>json(r.path)));
       }
     }
-    packet({...state,builderRoot:prepared || undefined,runFile:path.join(dir,'run.json')},'Builder',folder, detail + evidence,file);
+    packet({...state,builderRoot:prepared || undefined,runFile:path.join(dir,'run.json')},'Builder',folder, detail + evidence,file,resolveCodex);
     if (!state.dry) {
       console.log('Commit the assigned change, then resume: ' + next(state,'build')); return;
     }
@@ -302,7 +304,7 @@ export async function run(options, resolveCodex = desktopCodex) {
         checkpoint(); printPlan(state);
       } else if (options.verb === 'build') {
         ensure(state.dry || state.readiness?.builder && state.readiness?.reviewer, 'Complete the provider preflight with the same plan ID.');
-        build(state,tree,dir,options,checkpoint);
+        build(state,tree,dir,options,checkpoint,resolveCodex);
       } else {
         ensure(state.candidate && tree.head === state.candidate && (!options.candidate || options.candidate === state.candidate),
           'Stale or missing candidate. Run build on the exact local commit and use its SHA.');
@@ -317,7 +319,7 @@ export async function run(options, resolveCodex = desktopCodex) {
         state.verdict = 'HOLD';
         state.step = 'verify'; checkpoint();
         runGates(state, dir, 'verify', checkpoint, options.retry);
-        await review(state,dir,ledger,options,checkpoint);
+        await review(state,dir,ledger,options,checkpoint,resolveCodex);
         ensure(inspect(tree.root).head === state.candidate,'Candidate moved during verification.');
         delete state.failedCandidate;
         state.verdict = 'PASS'; state.step = 'complete'; checkpoint();

@@ -1029,3 +1029,80 @@ it.each(['Coordinator','Builder','Repair','Reviewer, blind case','Reviewer, repl
     expect(run('config','factory.probe')).toBe('second');
     for (const who of ['AUTHOR','COMMITTER']) expect(run('var','GIT_'+who+'_IDENT')).toContain('Practice <practice@example.invalid>');
   },15000); // Generates a real packet and starts four Git processes per role.
+
+function keyedCommand(verb: string, ...args: string[]) {
+  return spawnSync(process.execPath,[...keyedPlanEntry,verb,...args],{
+    cwd: tree, encoding:'utf8', timeout:30000, windowsHide:true,
+    env:{...privateEnv(path.join(lab,'runtime')), PATH:cliPath, GH_TOKEN:marker,
+      NODE_ENV:'test', FILOW_FACTORY_ALLOW_ANY_VOLUME:'1', npm_execpath:path.join(lab,'install.cjs'),
+      CODEX_API_KEY:marker, OPENROUTER_API_KEY:marker},
+  });
+}
+
+it('forwards an injected Codex resolver through plan, build and verify', () => {
+  const state = freshSlice();
+  const plan = keyedCommand('plan',fixture);
+  expect(plan.status,plan.stderr).toBe(0);
+  const file = plan.stdout.match(/State: ([^\r\n]+)/)![1], dir = path.dirname(file);
+  const saved = json(file);
+  const issued = keyedCommand('build',saved.run);
+  expect(issued.status,issued.stderr).toBe(0);
+  expect(fs.existsSync(path.join(dir,'b','dispatch.ps1'))).toBe(true);
+  state.run = saved.run;
+  const candidate = changeSlice(state,'Verify injected resolver').head;
+  const builder = path.join(dir,'b','report.json');
+  save(builder,{verdict:'COMMITTED',provider:'OpenAI',model:'gpt-6.2-sol',effort:'medium',session:'author',
+    candidate,baseObservation:'before',candidateObservation:'after',incident:null,expected:null,observed:null,
+    affectedCommand:null,skillRevision:null,neighboringReplay:null});
+  const gateState:any = {root:tree,candidate};
+  runGates(gateState,dir,'verify',()=>{},false,passingGate);
+  const ledger = path.join(path.dirname(path.dirname(dir)),'reviews',fixture+'.json');
+  fs.rmSync(ledger,{force:true});
+  save(file,{...json(file),step:'verify',candidate,gate:gateState.gate,buildEvidence:{...gateState.gate,phase:'build'},
+    builder:{provider:'OpenAI',model:'gpt-6.2-sol',effort:'medium',session:'author'},
+    builderEvidence:{file:builder,digest:hash(fs.readFileSync(builder))},round:null});
+  const verified = keyedCommand('verify',saved.run,'--candidate',candidate);
+  expect(verified.status).toBe(1);
+  expect(verified.stderr).toMatch(/HOLD: Awaiting blind evidence/);
+  expect(fs.existsSync(path.join(dir,'v1','blind','dispatch.ps1'))).toBe(true);
+},60000); // Runs plan, build and verify across separate Node processes with a synthetic CLI resolver.
+
+it('holds a dirty or unprefixed private builder reply instead of archiving report.json', async () => {
+  const { builderCheckout } = await import('./builder.mjs');
+  freshSlice();
+  const plan = keyedCommand('plan',fixture);
+  expect(plan.status,plan.stderr).toBe(0);
+  const file = plan.stdout.match(/State: ([^\r\n]+)/)![1], dir = path.dirname(file);
+  const saved = json(file);
+  const bDir = path.join(dir,'b'), copy = builderCheckout(saved,bDir,saved.base), reportFile = path.join(bDir,'report.json');
+  save(file,{...saved,step:'build',builderRoute:route(saved.risk.level,'Builder'),
+    intent:{id:saved.run,command:'ticket commits',base:saved.base,destination:saved.branch,...editGrant(saved.card)}});
+  const baseReport = {verdict:'COMMITTED',provider:'OpenAI',model:'gpt-6.2-sol',effort:'medium',session:'dirty-author',
+    candidate:saved.base,baseObservation:'before',candidateObservation:'after',incident:null,expected:null,observed:null,
+    affectedCommand:null,skillRevision:null,neighboringReplay:null};
+  fs.writeFileSync(path.join(copy,'unfinished.txt'),'draft');
+  save(reportFile,baseReport);
+  const dirty = keyedCommand('build',saved.run);
+  expect(dirty.status).toBe(1);
+  expect(dirty.stderr).toMatch(/HOLD: .*uncommitted changes[\s\S]*diff HEAD/);
+  expect(fs.existsSync(reportFile)).toBe(true);
+  expect(fs.readdirSync(bDir).filter(name => name.startsWith('old-'))).toEqual([]);
+  fs.unlinkSync(path.join(copy,'unfinished.txt'));
+  fs.appendFileSync(path.join(copy,saved.card.paths[0]),'\n// unprefixed draft\n');
+  git(copy,'commit','-qam','Wrong prefix','-m','Factory-Run: ' + saved.run);
+  save(reportFile,{...baseReport,candidate:git(copy,'rev-parse','HEAD')});
+  const badCommit = keyedCommand('build',saved.run);
+  expect(badCommit.status).toBe(1);
+  expect(badCommit.stderr).toMatch(/HOLD: .*Unexplained commit[\s\S]*dispatch\.ps1/);
+  expect(fs.existsSync(reportFile)).toBe(true);
+  expect(fs.readdirSync(bDir).filter(name => name.startsWith('old-'))).toEqual([]);
+},60000); // Runs plan and two build invocations against a real private builder checkout.
+
+it('keeps clean-clone paths and exact build-before-observe guidance in GUIDE-START-HERE.md', () => {
+  const guide = fs.readFileSync(path.join(source,'docs/GUIDE-START-HERE.md'),'utf8');
+  expect(guide).not.toMatch(/[A-Z]:\\FILOW\\/i);
+  const practice = guide.slice(guide.indexOf('### Practice ticket'), guide.indexOf('### Real ticket N-01'));
+  expect(practice).toMatch(/fast-forward/i);
+  const verifySection = practice.slice(practice.indexOf('**Resume and verify.**'));
+  expect(verifySection).toContain('dispatch.ps1');
+});
