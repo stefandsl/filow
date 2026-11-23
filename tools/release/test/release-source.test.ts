@@ -18,7 +18,14 @@ function runStage(
   mockGit = '',
   stage = 'tag',
   failWelcome = false,
-  { expectedSha = sha as string | null, shell = 'pwsh', originUrl = 'https://github.com/stefandsl/filow.git' } = {},
+  {
+    expectedSha = sha as string | null,
+    shell = 'pwsh',
+    originUrl = 'https://github.com/stefandsl/filow.git',
+    pushOriginUrl = originUrl,
+    testFixtureOrigin = null as string | null,
+    extraEnv = {} as Record<string, string>,
+  } = {},
 ) {
   const checkout = path.join(work, 'checkout');
   const fixtureScript = path.join(checkout, 'tools/release/release.ps1');
@@ -27,6 +34,7 @@ function runStage(
   fs.mkdirSync(path.join(checkout, 'apps/desktop/vendor'), { recursive: true });
   fs.copyFileSync(desktopPackage, path.join(checkout, 'apps/desktop/package.json'));
   const shaArg = expectedSha === null ? '' : '-ExpectedSha $env:TEST_EXPECTED_SHA';
+  const fixtureArg = testFixtureOrigin === null ? '' : '-TestFixtureOrigin $env:TEST_FIXTURE_ORIGIN';
   // Shadow Git in the child process. Even an unexpected Git command cannot touch a ref.
   const command = `
     $ErrorActionPreference = 'Stop'
@@ -34,7 +42,13 @@ function runStage(
     function git {
       Add-Content -LiteralPath (Join-Path $env:TEST_WORK 'git.log') -Value ($args -join ' ')
       $global:LASTEXITCODE = 0
-      if ($args[0] -eq 'remote' -and $args[1] -eq 'get-url' -and $args[2] -eq 'origin') { $env:TEST_ORIGIN_URL; return }
+      if ($args[0] -eq 'remote' -and $args[1] -eq 'get-url') {
+        $raw = if ($args -contains '--push') { $env:TEST_ORIGIN_PUSH_URL } else { $env:TEST_ORIGIN_URL }
+        foreach ($line in ($raw -split "\`r?\`n")) {
+          if ($line -ne '') { $line }
+        }
+        return
+      }
       ${mockGit}
     }
     function npm {
@@ -52,14 +66,27 @@ function runStage(
       if (Test-Path apps/desktop/vendor/i18n.js) { throw 'CI runs Vitest without the generated dictionary' }
       $global:LASTEXITCODE = 0
     }
-    & $env:TEST_SCRIPT -Stage $env:TEST_STAGE -Version $env:TEST_VERSION -Work $env:TEST_WORK ${shaArg}
+    & $env:TEST_SCRIPT -Stage $env:TEST_STAGE -Version $env:TEST_VERSION -Work $env:TEST_WORK ${shaArg} ${fixtureArg}
     exit $LASTEXITCODE
   `;
+  const childEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    TEST_WORK: work,
+    TEST_SCRIPT: fixtureScript,
+    TEST_STAGE: stage,
+    TEST_VERSION: version,
+    TEST_FAIL_WELCOME: failWelcome ? '1' : '0',
+    TEST_EXPECTED_SHA: expectedSha ?? '',
+    TEST_ORIGIN_URL: originUrl,
+    TEST_ORIGIN_PUSH_URL: pushOriginUrl,
+    ...(testFixtureOrigin === null ? {} : { TEST_FIXTURE_ORIGIN: testFixtureOrigin }),
+    ...extraEnv,
+  };
+  if (!('FILOW_RELEASE_TEST_ORIGIN' in extraEnv)) delete childEnv.FILOW_RELEASE_TEST_ORIGIN;
   const result = spawnSync(shell,
     ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command], {
       encoding: 'utf8', timeout: 20000,
-      env: { ...process.env, TEST_WORK: work, TEST_SCRIPT: fixtureScript, TEST_STAGE: stage, TEST_VERSION: version,
-        TEST_FAIL_WELCOME: failWelcome ? '1' : '0', TEST_EXPECTED_SHA: expectedSha ?? '', TEST_ORIGIN_URL: originUrl },
+      env: childEnv,
     });
   if (result.error) throw result.error;
   const log = path.join(work, 'git.log');
@@ -171,6 +198,98 @@ it.each(['verify-main', 'tag'] as const)('refuses an origin remote other than st
   expect(result.status).toBe(1);
   expect(result.stderr).toMatch(/stefandsl\/filow/);
   expect(result.calls.filter(call => call.startsWith('push '))).toEqual([]);
+});
+
+it.each(['verify-main', 'preflight', 'tag', 'draft', 'publish'] as const)('fails before invoking Git when FILOW_RELEASE_TEST_ORIGIN is set in %s', stage => {
+  const version = JSON.parse(fs.readFileSync(desktopPackage, 'utf8')).version;
+  const mockGit = `
+    if ($args[0] -eq 'tag' -or $args[0] -eq 'status') { return }
+    if ($args[0] -eq 'symbolic-ref') { 'refs/heads/main'; return }
+    if ($args[0] -eq 'rev-parse') { '${sha}'; return }
+    if ($args[0] -eq 'ls-remote') { "${sha}$([char]9)refs/heads/main"; return }
+  `;
+  const cases = stage === 'verify-main' || stage === 'tag'
+    ? ['https://github.com/other/filow.git', 'https://github.com/stefandsl/filow.git']
+    : ['https://github.com/other/filow.git'];
+  for (const override of cases) {
+    const work = fs.mkdtempSync(path.join(scratch, `env-origin-${stage}-`));
+    const record = JSON.stringify({ version, tagSha: sha });
+    fs.writeFileSync(path.join(work, 'verified.json'), record);
+    fs.writeFileSync(path.join(work, 'preflight.json'), record);
+    const extraEnv: Record<string, string> = { FILOW_RELEASE_TEST_ORIGIN: override };
+    if (stage === 'preflight' || stage === 'draft' || stage === 'publish') extraEnv.GH_TOKEN = 'blocked-in-test';
+    const result = runStage(work, version, mockGit, stage, false, { originUrl: override, extraEnv });
+    expect(result.status, `${stage} with ${override}`).toBe(1);
+    expect(result.stderr).toMatch(/FILOW_RELEASE_TEST_ORIGIN/);
+    expect(result.calls).toEqual([]);
+  }
+});
+
+it.each(['verify-main', 'tag'] as const)('refuses -TestFixtureOrigin without matching local fixture markers in %s', stage => {
+  const version = JSON.parse(fs.readFileSync(desktopPackage, 'utf8')).version;
+  for (const candidate of ['https://github.com/other/filow.git', scratch]) {
+    const work = fs.mkdtempSync(path.join(scratch, `fixture-flag-${stage}-`));
+    const record = JSON.stringify({ version, tagSha: sha });
+    fs.writeFileSync(path.join(work, 'verified.json'), record);
+    fs.writeFileSync(path.join(work, 'preflight.json'), record);
+    const result = runStage(work, version, '', stage, false, { testFixtureOrigin: candidate });
+    expect(result.status, `${stage} with ${candidate}`).toBe(1);
+    expect(result.stderr).toMatch(/fixture marker/i);
+    expect(result.calls).toEqual([]);
+  }
+});
+
+it.each(['verify-main', 'tag'] as const)('refuses an origin push URL other than stefandsl/filow in %s', stage => {
+  const version = JSON.parse(fs.readFileSync(desktopPackage, 'utf8')).version;
+  const mockGit = `
+    if ($args[0] -eq 'tag' -or $args[0] -eq 'status') { return }
+    if ($args[0] -eq 'symbolic-ref') { 'refs/heads/main'; return }
+    if ($args[0] -eq 'rev-parse') { '${sha}'; return }
+    if ($args[0] -eq 'ls-remote') { "${sha}$([char]9)refs/heads/main"; return }
+  `;
+  const badPushUrls = [
+    'https://github.com/other/filow.git',
+    'git@github.com:other/filow.git',
+    'https://github.com/stefandsl/filow.git\nhttps://github.com/other/filow.git',
+  ];
+  for (const pushOriginUrl of badPushUrls) {
+    const work = fs.mkdtempSync(path.join(scratch, `push-origin-${stage}-`));
+    if (stage === 'tag') {
+      const record = JSON.stringify({ version, tagSha: sha });
+      fs.writeFileSync(path.join(work, 'verified.json'), record);
+      fs.writeFileSync(path.join(work, 'preflight.json'), record);
+    }
+    const result = runStage(work, version, mockGit, stage, false, {
+      originUrl: 'https://github.com/stefandsl/filow.git',
+      pushOriginUrl,
+    });
+    expect(result.status, `${stage} pushUrl=${pushOriginUrl}`).toBe(1);
+    expect(result.stderr).toMatch(/push URL.*stefandsl\/filow/i);
+    expect(result.calls.filter(call => call.startsWith('push '))).toEqual([]);
+  }
+});
+
+it.each([
+  ['https', 'https://github.com/stefandsl/filow.git', 'https://github.com/stefandsl/filow.git'],
+  ['https-no-git', 'https://github.com/stefandsl/filow', 'https://github.com/stefandsl/filow'],
+  ['ssh-scp', 'git@github.com:stefandsl/filow.git', 'git@github.com:stefandsl/filow.git'],
+  ['ssh-url', 'ssh://git@github.com/stefandsl/filow.git', 'ssh://git@github.com/stefandsl/filow'],
+  ['mixed-https-ssh', 'https://github.com/stefandsl/filow.git', 'git@github.com:stefandsl/filow.git'],
+] as const)('verifies both fetch and push origin URLs for valid %s form in tag', (_label, originUrl, pushOriginUrl) => {
+  const work = fs.mkdtempSync(path.join(scratch, 'valid-origin-'));
+  const record = JSON.stringify({ version: '1.2.3', tagSha: sha });
+  fs.writeFileSync(path.join(work, 'verified.json'), record);
+  fs.writeFileSync(path.join(work, 'preflight.json'), record);
+  const mockGit = `
+    if ($args[0] -eq 'tag' -or $args[0] -eq 'status') { return }
+    if ($args[0] -eq 'ls-remote') { "${sha}$([char]9)refs/heads/main"; return }
+    if ($args[0] -eq 'symbolic-ref') { 'refs/heads/main'; return }
+    if ($args[0] -eq 'rev-parse') { '${sha}'; return }
+  `;
+  const result = runStage(work, '1.2.3', mockGit, 'tag', false, { originUrl, pushOriginUrl });
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.calls.some(call => call.startsWith('remote get-url ') && call.includes('--push'))).toBe(true);
+  expect(result.calls.filter(call => call.startsWith('push '))).toEqual([`push --no-follow-tags origin ${sha}:refs/tags/v1.2.3`]);
 });
 
 if (process.platform === 'win32') {

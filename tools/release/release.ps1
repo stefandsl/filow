@@ -4,10 +4,14 @@ param([Parameter(Mandatory)][string]$Version,
       [Parameter(Mandatory)][ValidateSet('verify-main','preflight','tag','draft','publish')][string]$Stage,
       [Parameter(Mandatory)][string]$Work,
       [string]$Notes,
-      [string]$ExpectedSha)
+      [string]$ExpectedSha,
+      [string]$TestFixtureOrigin)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Use PowerShell 7 (pwsh)' }
+if (Test-Path Env:FILOW_RELEASE_TEST_ORIGIN) {
+  throw 'FILOW_RELEASE_TEST_ORIGIN is forbidden; release commands only accept stefandsl/filow'
+}
 if ($Stage -in 'verify-main','preflight','tag') {
   if (-not $ExpectedSha -or $ExpectedSha -cnotmatch '\A[0-9a-f]{40}\z') {
     throw 'ExpectedSha must be a full 40-character lowercase hex SHA for verify-main, preflight and tag'
@@ -16,6 +20,31 @@ if ($Stage -in 'verify-main','preflight','tag') {
   throw 'ExpectedSha must be a full 40-character lowercase hex SHA'
 }
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+if ($PSBoundParameters.ContainsKey('TestFixtureOrigin')) {
+  if ($Stage -notin 'verify-main','preflight','tag') {
+    throw 'TestFixtureOrigin is only valid for offline fixture checks with matching local fixture markers'
+  }
+  if (-not $TestFixtureOrigin -or
+      $TestFixtureOrigin -match '\A[a-zA-Z][a-zA-Z0-9+.-]*://|\A[^/\\]+@' -or
+      $TestFixtureOrigin.StartsWith('\\') -or
+      -not [IO.Path]::IsPathRooted($TestFixtureOrigin)) {
+    throw 'TestFixtureOrigin requires a local bare repository path with matching fixture markers'
+  }
+  $checkoutMarker = Join-Path (Join-Path $root '.git') 'filow-release-test-fixture'
+  $remoteMarker = Join-Path $TestFixtureOrigin 'filow-release-test-fixture'
+  $remoteHead = Join-Path $TestFixtureOrigin 'HEAD'
+  if (-not (Test-Path -LiteralPath $TestFixtureOrigin -PathType Container) -or
+      -not (Test-Path -LiteralPath $remoteHead -PathType Leaf) -or
+      -not (Test-Path -LiteralPath $checkoutMarker -PathType Leaf) -or
+      -not (Test-Path -LiteralPath $remoteMarker -PathType Leaf)) {
+    throw 'TestFixtureOrigin requires matching local fixture markers in checkout and bare remote'
+  }
+  $checkoutToken = (Get-Content -LiteralPath $checkoutMarker -Raw).Trim()
+  $remoteToken = (Get-Content -LiteralPath $remoteMarker -Raw).Trim()
+  if ($checkoutToken -cnotmatch '\Afilow-release-test-fixture:[0-9a-f]{16,}\z' -or $checkoutToken -cne $remoteToken) {
+    throw 'TestFixtureOrigin requires matching local fixture markers in checkout and bare remote'
+  }
+}
 $verify = Join-Path $PSScriptRoot 'release-verify.mjs'
 if ($Version -notmatch '\A(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\z') { throw 'Expected a stable version' }
 $Work = [IO.Path]::GetFullPath($Work)
@@ -56,16 +85,41 @@ function Read-Evidence([string]$Path) {
   if ($ExpectedSha -and $ExpectedSha -cne $evidence.tagSha) { throw 'Release evidence differs from the approved SHA' }
   return $evidence
 }
+function Test-FilowOriginUrl([string]$Url) {
+  return $Url -cmatch '\A(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)stefandsl/filow(?:\.git)?\z'
+}
+function Get-OriginUrls([switch]$Push) {
+  $gitArgs = @('remote', 'get-url')
+  if ($Push) { $gitArgs += '--push' }
+  $gitArgs += @('--all', 'origin')
+  $raw = @(git @gitArgs)
+  $kind = if ($Push) { 'push' } else { 'fetch' }
+  if ($LASTEXITCODE -ne 0 -or $raw.Count -eq 0) { throw "Cannot read origin remote $kind URL" }
+  $urls = @($raw | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ -ne '' })
+  if ($urls.Count -eq 0) { throw "Cannot read origin remote $kind URL" }
+  return ,$urls
+}
 function Assert-OriginRemote {
-  $url = git remote get-url origin
-  if ($LASTEXITCODE -ne 0 -or $url -isnot [string]) { throw 'Cannot read origin remote URL' }
-  $url = $url.Trim()
-  if ($env:FILOW_RELEASE_TEST_ORIGIN) {
-    if ($url -cne $env:FILOW_RELEASE_TEST_ORIGIN) { throw "Unexpected origin remote: $url" }
+  $fetchUrls = Get-OriginUrls
+  $pushUrls = Get-OriginUrls -Push
+  if ($TestFixtureOrigin) {
+    foreach ($u in @($fetchUrls)) {
+      if ($u -cne $TestFixtureOrigin) { throw "Unexpected origin fetch URL: $u" }
+    }
+    foreach ($u in @($pushUrls)) {
+      if ($u -cne $TestFixtureOrigin) { throw "Unexpected origin push URL: $u" }
+    }
     return
   }
-  if ($url -cnotmatch '\A(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)stefandsl/filow(?:\.git)?\z') {
-    throw "Origin remote must point to stefandsl/filow, got $url"
+  foreach ($u in @($fetchUrls)) {
+    if (-not (Test-FilowOriginUrl $u)) {
+      throw "Origin fetch URL must point to stefandsl/filow, got $u"
+    }
+  }
+  foreach ($u in @($pushUrls)) {
+    if (-not (Test-FilowOriginUrl $u)) {
+      throw "Origin push URL must point to stefandsl/filow, got $u"
+    }
   }
 }
 function Assert-RemoteMain([string]$Sha) {
