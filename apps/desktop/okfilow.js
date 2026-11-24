@@ -27,6 +27,7 @@ const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { createElementReader, scanForShot, windowHandle } = require("./okfilow-uia");
+const { toScreenBoxes, mergeDetectedElements } = require("./okfilow-detector");
 const { trustedUiSender } = require("./ui-preferences");
 const { createPhoneInbox } = require("./okfilow-phone");
 // Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
@@ -80,6 +81,8 @@ const DEFAULTS = {
   seeScreen: "auto",
   /** Recipients whose yes for questions was given while the notice said "no picture of your screen is sent": that yes does not cover a screenshot. */
   askWordsOnly: [],
+  /** Optional local screen element detector (OmniParser icon_detect_v3 pilot): off by default. */
+  screenDetector: false,
   /** The shortcut that opens and closes the eye, and the one for Pause/Resume (okfilow-stop.js EYE_KEYS, PAUSE_KEYS; "none" for no shortcut). */
   eyeKey: EYE_KEYS[0],
   pauseKey: PAUSE_KEYS[0],
@@ -1537,6 +1540,29 @@ function createOkFilow(deps) {
   ipcMain.handle("okfilow:capture", guard(async (opts) => {
     const t = Date.now();
     const out = await capture(opts && typeof opts === "object" ? { images: opts.images !== false } : {});
+    const detector = typeof deps.detector === "function" ? deps.detector() : deps.detector;
+    if (cfg().screenDetector === true && out.images.length && detector && detector.ready().ok) {
+      const allDisplays = screen.getAllDisplays();
+      const detected = [];
+      for (let i = 0; i < out.images.length; i++) {
+        const disp = out.displays[i];
+        if (!disp) continue;
+        try {
+          const img = nativeImage.createFromDataURL(out.images[i]);
+          const size = img.getSize();
+          if (!(size.width > 0) || !(size.height > 0)) continue;
+          const res = await detector.detect({ data: img.toBitmap(), width: size.width, height: size.height, format: "bgra" });
+          if (res && Array.isArray(res.boxes) && res.boxes.length) {
+            const match = allDisplays.find((d) => d.id === disp.id);
+            const sf = match && match.scaleFactor ? match.scaleFactor : 1;
+            detected.push(...toScreenBoxes(res.boxes, size, disp.bounds, disp.index, sf));
+          }
+        } catch {
+          /* detector errors never break capture */
+        }
+      }
+      if (detected.length) out.elements = mergeDetectedElements(out.elements, detected);
+    }
     logLine(`okfilow: captured ${out.images.length} screen(s) in ${Date.now() - t} ms, ${out.elements.length} named thing(s)`);
     return out;
   }));

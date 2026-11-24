@@ -47,7 +47,8 @@ type Status = {
   /** The Ollama model each feature would call now, from the feature's own picker (lib/modelUse.ts). */
   picks?: { decision: string; translate: string | null; okfilow: string[] };
   models: Array<{
-    name: string; kind: string; runtime: "ollama" | "browser" | "sherpa"; label: string; description: string; downloadGb: number; loadedGb: number; ramGb: number; vramGb?: number;
+    name: string; kind: string; runtime: "ollama" | "browser" | "sherpa" | "onnx"; label: string; description: string; downloadGb: number; loadedGb: number; ramGb: number; vramGb?: number;
+    license?: string; sha256?: string;
     status: "available" | "planned"; fit: "fits" | "tight" | "too big"; installed: boolean; installedSizeGb: number | null; ollamaOk: boolean; owned?: boolean;
   }>;
 };
@@ -152,8 +153,11 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   }, []);
   // S1-mini by Superwhisper for the setup picker: present or not, and a running download, as the desktop app says.
   const [cleanupModel, setCleanupModel] = useState<{ runtime: boolean; model: boolean; downloading: boolean; pct: number } | null>(null);
+  const [detectorState, setDetectorState] = useState<{ runtime: boolean; model: boolean; downloading: boolean; pct: number; bytes: number; error: string } | null>(null);
+  const detectorBridge = () => (globalThis as { filow?: { detector?: { status(): Promise<{ runtime: boolean; model: boolean; downloading: boolean; pct: number; bytes: number; error: string }>; download(): Promise<{ started: boolean; reason: string }> } } }).filow?.detector ?? null;
   const readCleanupModel = useCallback(() => {
     void dictationBridge()?.status().then((v) => setCleanupModel(v?.cleanupState ?? null)).catch(() => {});
+    void detectorBridge()?.status().then(setDetectorState).catch(() => {});
   }, []);
   useEffect(() => {
     readCleanupModel();
@@ -791,6 +795,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                   <div className="hint">{describe(m)}</div>
                   <div className="hint memline">
                     <span>{t("mem.download", { dl: m.installedSizeGb ?? m.downloadGb })}</span>
+                    {m.license && <span>{m.license}</span>}
+                    {m.sha256 && <span title={m.sha256}>SHA256 {m.sha256.slice(0, 12)}</span>}
                     {m.runtime === "ollama" ? (
                       <>
                         <span>{m.vramGb ? t("mem.gpu", { vram: m.loadedGb, min: m.vramGb }) : t("mem.gpuNone")}</span>
@@ -853,6 +859,32 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                           </button>
                         )}
                         {sherpa?.model === "error" && <span className="chip err">{sherpa.error}</span>}
+                      </>
+                    ) : (
+                      <span className="hint">{t("settings.sherpaDesktopOnly")}</span>
+                    ))}
+                  {m.status === "available" && m.runtime === "onnx" &&
+                    (detectorBridge() ? (
+                      <>
+                        {detectorState?.model ? (
+                          <span className="chip live">{t("settings.installed")}</span>
+                        ) : (
+                          <button className="btn primary" disabled={Boolean(detectorState?.downloading) || status.offline || !detectorState?.runtime} onClick={() => { void detectorBridge()?.download().then(readCleanupModel); }}>
+                            {detectorState?.downloading ? <DownloadLabel label={label(m.name)} percent={detectorState.pct} /> : t("settings.download")}
+                          </button>
+                        )}
+                        {detectorState?.downloading && modelsBridge() && (
+                          <StopButton name={label(m.name)} onStop={() => { void modelsBridge()?.cancel("detector").then(readCleanupModel); }} />
+                        )}
+                        {detectorState?.model && modelsBridge() && (
+                          <button type="button" className="btn danger" aria-label={t("settings.deleteLabel", { name: label(m.name) })} onClick={() => {
+                            if (!confirm(deleteQuestion({ name: label(m.name), size: sizeText(detectorState.bytes, t), uses: [], effect: "detector" }, t))) return;
+                            void modelsBridge()?.remove("detector").then(readCleanupModel);
+                          }}>
+                            {t("settings.delete")}
+                          </button>
+                        )}
+                        {detectorState?.error && <span className="chip err">{detectorState.error}</span>}
                       </>
                     ) : (
                       <span className="hint">{t("settings.sherpaDesktopOnly")}</span>

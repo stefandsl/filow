@@ -7,12 +7,12 @@
 import { LANG_LABELS, type I18nKey, type Lang } from "@filow/core";
 import type { SpeechRole } from "./modelRoles/view";
 
-export type UseId = "tracking" | "questions" | "dictation" | "voice" | "cleanup" | "punctuation" | "decision" | "generate" | "translate" | "okfilow" | "whiteboard" | "gate";
+export type UseId = "tracking" | "questions" | "dictation" | "voice" | "cleanup" | "punctuation" | "detector" | "decision" | "generate" | "translate" | "okfilow" | "whiteboard" | "gate";
 export type ModelUseItem = { use: UseId; language?: string };
 
 /** One row of the desktop app's list (window.filow.models.status()). */
 /** `downloading`: this model's own download is in flight (its percent and Stop are where it was started). */
-export type DeviceModel = { id: string; kind: "speech" | "voice" | "cleanup" | "punctuation"; name: string; installed: boolean; bytes: number; uses: ModelUseItem[]; loaded: boolean; downloading?: boolean };
+export type DeviceModel = { id: string; kind: "speech" | "voice" | "cleanup" | "punctuation" | "detector"; name: string; installed: boolean; bytes: number; uses: ModelUseItem[]; loaded: boolean; downloading?: boolean };
 /** `speechRoles`: per speech task, the automatic pick, the model in use and the user's choice (absent from an older desktop app). */
 export type DeviceModels = { models: DeviceModel[]; downloading: string[]; speechRoles?: Partial<Record<"tracking" | "questions" | "dictation", SpeechRole>> };
 
@@ -98,7 +98,7 @@ export function sizeText(bytes: number, t: T): string {
  * The one question before a delete: the model's name and size, and when it is in use, for what and
  * what happens next (which feature falls back or stops).
  */
-export function deleteQuestion(model: { name: string; size: string; uses: ModelUseItem[]; effect: "speech" | "voice" | "cleanup" | "punctuation" | "ollama" | "browser" }, t: T): string {
+export function deleteQuestion(model: { name: string; size: string; uses: ModelUseItem[]; effect: "speech" | "voice" | "cleanup" | "punctuation" | "detector" | "ollama" | "browser" }, t: T): string {
   const question = t("settings.deleteModelConfirm", { name: model.name, size: model.size });
   if (model.uses.length === 0) return question;
   return `${question}\n\n${t("settings.deleteModelInUse", { what: usesText(model.uses, t) })} ${t(`deleteEffect.${model.effect}` as I18nKey)}`;

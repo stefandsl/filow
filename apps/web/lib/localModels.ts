@@ -1,8 +1,8 @@
 // Catalog of local models the Settings page can install, with hardware hints.
 export type LocalModel = {
-  name: string; // Ollama tag, or transformers.js model id for runtime "browser"
+  name: string; // Ollama tag, transformers.js model id for runtime "browser", or desktop ONNX id
   kind: "decision" | "vision" | "stt" | "generate";
-  runtime: "ollama" | "browser" | "sherpa";
+  runtime: "ollama" | "browser" | "sherpa" | "onnx";
   downloadGb: number;
   /** Memory the model occupies while loaded: weights + working context. On a GPU this is VRAM, on CPU it is system RAM. */
   loadedGb: number;
@@ -11,6 +11,9 @@ export type LocalModel = {
   /** Minimum GPU memory (VRAM) for it to run entirely on the graphics card; undefined = runs in the browser worker. */
   vramGb?: number;
   minOllama?: string;
+  /** Optional license identifier and pinned SHA-256 for opt-in ONNX weights. */
+  license?: string;
+  sha256?: string;
   status: "available" | "planned";
 };
 
@@ -104,6 +107,17 @@ export const LOCAL_MODELS: LocalModel[] = [
     loadedGb: 2.5,
     ramGb: 4,
     vramGb: 4,
+    status: "available",
+  },
+  {
+    name: "omniparser-icon-detect-v3",
+    kind: "vision",
+    runtime: "onnx",
+    downloadGb: 0.22,
+    loadedGb: 0.8,
+    ramGb: 4,
+    license: "MIT",
+    sha256: "f630193b6eb035bf2d0efedd2dc97b3328481bd3ac541c3a30878fe13b07a175",
     status: "available",
   },
   {

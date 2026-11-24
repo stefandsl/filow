@@ -223,6 +223,11 @@ contextBridge.exposeInMainWorld("filow", {
     cancel: (id) => ipcRenderer.invoke("models:cancel", id),
     remove: (id) => ipcRenderer.invoke("models:delete", id),
   },
+  /** Optional screen element detector (OmniParser icon_detect_v3 pilot, off by default). */
+  detector: {
+    status: () => ipcRenderer.invoke("detector:status"),
+    download: () => ipcRenderer.invoke("detector:download"),
+  },
   /** Phone on this network: which adapter/IP the QR uses, the Windows Firewall state, and fixes. */
   net: {
     status: () => ipcRenderer.invoke("net:status"),

@@ -59,6 +59,70 @@ NOTICE ship in licenses/truecase-small. It runs on this computer in ONNX Runtime
 License, Copyright (c) Microsoft Corporation) with the tokenizer of @huggingface/tokenizers (Apache-2.0);
 both are listed with their license texts below.
 
+## Screen element detector (optional pilot)
+
+The optional local screen element detector (off by default, downloaded only when chosen by the user,
+not bundled in the installer) uses Microsoft OmniParser `icon_detect_v3`
+(https://github.com/microsoft/OmniParser, commit `354021201345a96178360b28733573e27269f2de`;
+https://huggingface.co/microsoft/OmniParser-v2.0, revision `f55d0750e5b94db2125ef0b45b0fa4a85ddc59b4`,
+`icon_detect_v3/model.pt`, SHA-256 `11c6cbb77f22569fab22d86c76407a83ec81ab89dbfe28279854822d6e3fb00c`).
+The `icon_detect_v3` weights are finetuned from YOLOv9-E using the MIT-licensed
+MultimediaTechLab/YOLO implementation (https://github.com/MultimediaTechLab/YOLO) and are licensed
+under the MIT License (never the AGPL-3.0 Ultralytics `icon_detect` weights). It runs locally in
+ONNX Runtime (`onnxruntime-node`, MIT).
+
+Microsoft OmniParser `icon_detect_v3` license (`icon_detect_v3/LICENSE`):
+
+```
+MIT License
+
+Copyright (c) Microsoft Corporation.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE
+```
+
+MultimediaTechLab/YOLO (YOLOv9 MIT implementation) license:
+
+```
+MIT License
+
+Copyright (c) 2024 Kin-Yiu, Wong and Hao-Tang, Tsui
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 ## Fonts
 
 The whiteboard sets formulas with KaTeX. Its math fonts (the KaTeX_* font files, 20 faces) ship inside the

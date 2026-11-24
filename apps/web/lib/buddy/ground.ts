@@ -8,8 +8,18 @@
 
 import { GRID, normalizePointBoxes } from "./prompt";
 
-/** One thing on screen: its accessible name and its rectangle on the 0-1000 grid of screen `screen` (1-based). */
-export type ScreenElement = { name: string; screen: number; x1: number; y1: number; x2: number; y2: number; type?: string };
+/** One thing on screen: its accessible name (empty for unnamed detector boxes) and its rectangle on the 0-1000 grid of screen `screen` (1-based). */
+export type ScreenElement = {
+  name: string;
+  screen: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  type?: string;
+  source?: "uia" | "detector";
+  score?: number;
+};
 
 export const MAX_ELEMENTS = 600;
 const MAX_NAME = 80;
@@ -21,12 +31,25 @@ export function sanitizeElements(raw: unknown, screens: number): ScreenElement[]
   for (const e of raw) {
     if (out.length >= MAX_ELEMENTS) break;
     if (!e || typeof e !== "object") continue;
-    const { name, screen, x1, y1, x2, y2, type } = e as Record<string, unknown>;
-    if (typeof name !== "string" || !name.trim()) continue;
+    const { name, screen, x1, y1, x2, y2, type, source, score } = e as Record<string, unknown>;
+    const isDetector = source === "detector";
+    if (!isDetector && (typeof name !== "string" || !name.trim())) continue;
+    const cleanName = typeof name === "string" ? name.trim().slice(0, MAX_NAME) : "";
     const nums = [x1, y1, x2, y2].map((v) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(GRID, v)) : NaN));
     if (nums.some(Number.isNaN) || nums[2] <= nums[0] || nums[3] <= nums[1]) continue;
     if (typeof screen !== "number" || !Number.isInteger(screen) || screen < 1 || screen > Math.max(1, screens)) continue;
-    out.push({ name: name.trim().slice(0, MAX_NAME), screen, x1: nums[0], y1: nums[1], x2: nums[2], y2: nums[3], ...(typeof type === "string" ? { type: type.slice(0, 20) } : {}) });
+    const cleanScore = typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1 ? Math.round(score * 1000) / 1000 : undefined;
+    out.push({
+      name: cleanName,
+      screen,
+      x1: nums[0],
+      y1: nums[1],
+      x2: nums[2],
+      y2: nums[3],
+      ...(typeof type === "string" ? { type: type.slice(0, 20) } : {}),
+      ...(isDetector ? { source: "detector" as const } : {}),
+      ...(cleanScore !== undefined ? { score: cleanScore } : {}),
+    });
   }
   return out;
 }
@@ -86,7 +109,7 @@ export function matchElements(label: string, elements: ScreenElement[], screen: 
   let top = 0;
   const scored: Array<[number, ScreenElement]> = [];
   for (const e of elements) {
-    if (e.screen !== screen) continue;
+    if (e.screen !== screen || !e.name) continue;
     const s = nameScore(label, e.name);
     if (s >= MATCH) { scored.push([s, e]); top = Math.max(top, s); }
   }
@@ -124,6 +147,7 @@ export function namedInQuestion(question: string, elements: ScreenElement[]): Sc
   const folded = fold(question), unspaced = UNSPACED.test(question);
   const found = new Map<string, ScreenElement | null>();
   for (const e of elements) {
+    if (!e.name) continue;
     const n = words(plainName(e.name));
     const key = n.join(" ");
     if (!n.length || key.length < 3 || /^[\d ]+$/.test(key) || (n.length === 1 && key.length < 5)) continue;
@@ -170,13 +194,44 @@ const SNAP_MAX_AREA = (GRID * GRID) / 20;
 export type Placed = { x: number; y: number; how: "name" | "name-near" | "snap" | "guess"; on?: ScreenElement };
 
 /**
+ * Snaps a coordinate `guess` on `screen` to the element that contains it (smallest enclosing box)
+ * or the nearest element within `reach`. Returns null when nothing is within range (never snaps
+ * across a large distance and ignores giant container regions).
+ */
+export function snapToDetected(
+  guess: { x: number; y: number },
+  elements: ScreenElement[],
+  screen: number,
+  reach = SNAP_REACH,
+): (Placed & { how: "snap"; on: ScreenElement }) | null {
+  let best: ScreenElement | null = null;
+  let bestDist = Infinity;
+  let bestArea = Infinity;
+  for (const e of elements) {
+    if (e.screen !== screen) continue;
+    const a = area(e);
+    if (a <= 0 || a > SNAP_MAX_AREA) continue;
+    const d = away(guess.x, guess.y, e);
+    if (d > reach) continue;
+    // Containing box (d === 0) wins by smallest area; outside box wins by smallest distance.
+    if (!best || d < bestDist || (d === 0 && bestDist === 0 && a < bestArea) || (d === bestDist && a < bestArea)) {
+      best = e;
+      bestDist = d;
+      bestArea = a;
+    }
+  }
+  return best ? { ...centre(best), how: "snap", on: best } : null;
+}
+
+/**
  * Where a point with this label goes. `guess` is the model's own coordinate (grid), if it gave one.
  * - one element carries exactly that name: its centre, whatever the model guessed;
  * - one carries part of it, or the label says more ("Search bar" for "Search", "Firefox settings" for
  *   "Settings"): its centre only when the guess is in its part of the screen (NAME_REACH), since the
  *   label may mean another thing that Windows does not list;
  * - several do (two "Close" buttons): the one nearest the guess, on the same terms; nothing certain without a guess;
- * - none does: the guess, moved to the centre of the small element it is in or right beside.
+ * - none does: the guess, moved to the centre of the small element it is in or right beside (UIA first,
+ *   then optional detector boxes filling UIA gaps).
  * Without elements (no list on this system, or an app that exposes nothing) the guess is returned as it is.
  */
 export function placePoint(label: string, guess: { x: number; y: number } | null, elements: ScreenElement[], screen: number): Placed | null {
@@ -188,15 +243,11 @@ export function placePoint(label: string, guess: { x: number; y: number } | null
     if (agrees(nearest)) return { ...centre(nearest), how: "name-near", on: nearest };
   }
   if (!guess) return null;
-  let best: ScreenElement | null = null;
-  for (const e of elements) {
-    if (e.screen !== screen || area(e) > SNAP_MAX_AREA) continue;
-    const d = away(guess.x, guess.y, e);
-    if (d > SNAP_REACH) continue;
-    // the nearest; among those the guess is inside, the smallest (the button, not the toolbar around it)
-    if (!best || d < away(guess.x, guess.y, best) || (d === 0 && away(guess.x, guess.y, best) === 0 && area(e) < area(best))) best = e;
-  }
-  return best ? { ...centre(best), how: "snap", on: best } : { ...guess, how: "guess" };
+  // UIA elements take priority; optional detector boxes only fill gaps where UIA has no box in range.
+  const uiaSnap = snapToDetected(guess, elements.filter((e) => e.source !== "detector"), screen);
+  if (uiaSnap) return uiaSnap;
+  const detSnap = snapToDetected(guess, elements.filter((e) => e.source === "detector"), screen);
+  return detSnap ?? { ...guess, how: "guess" };
 }
 
 // ---- when no name fits by its words: a model on this PC chooses from the names ----
@@ -220,13 +271,13 @@ export const PICK_MAX_NAMES = 250;
 export const canPick = (model: string): boolean => /^gemma4:e4b\b/.test(model);
 
 /** The different names on one screen, in the order Windows gave them (topmost first). */
-export const pickNames = (elements: ScreenElement[], screen: number): string[] => [...new Set(elements.filter((e) => e.screen === screen).map((e) => e.name))].slice(0, PICK_MAX_NAMES);
+export const pickNames = (elements: ScreenElement[], screen: number): string[] => [...new Set(elements.filter((e) => e.screen === screen && Boolean(e.name)).map((e) => e.name))].slice(0, PICK_MAX_NAMES);
 /**
  * The names a whole question may be about, when "All my screens" sends several: the screen with the
  * mouse first, then the others. A chosen name counts only when it is on one screen alone (askedElement).
  */
 export const askedNames = (elements: ScreenElement[], first: number): string[] =>
-  [...new Set([...elements.filter((e) => e.screen === first), ...elements.filter((e) => e.screen !== first)].map((e) => e.name))].slice(0, PICK_MAX_NAMES);
+  [...new Set([...elements.filter((e) => e.screen === first && Boolean(e.name)), ...elements.filter((e) => e.screen !== first && Boolean(e.name))].map((e) => e.name))].slice(0, PICK_MAX_NAMES);
 /** The one element with that name on any screen, or null when there is none or it is on screen more than once (the pointing model looks then). */
 export function askedElement(elements: ScreenElement[], name: string | undefined): ScreenElement | null {
   const same = name === undefined ? [] : elements.filter((e) => e.name === name);

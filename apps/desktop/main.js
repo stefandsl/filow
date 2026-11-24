@@ -397,6 +397,15 @@ ipcMain.handle("dictation:punctuation:download", event => {
   if (!uiSender(event)) throw new Error("Denied");
   return wantPunctuationModel("asked in Settings");
 });
+// Optional screen element detector (OmniParser icon_detect_v3 pilot, off by default): downloaded only on user request.
+ipcMain.handle("detector:status", event => {
+  if (!uiSender(event)) throw new Error("Denied");
+  return detectorRuntime().status();
+});
+ipcMain.handle("detector:download", event => {
+  if (!uiSender(event)) throw new Error("Denied");
+  return wantDetectorModel("asked in Settings");
+});
   ipcMain.handle("dictation:settings:configure", (event, patch) => {
     if (!uiSender(event)) throw new Error("Denied");
     if (patch && typeof patch === "object") getDictation().configure(patch);
@@ -1691,6 +1700,24 @@ function truecaseRuntime() {
   return truecase;
 }
 app.on("will-quit", () => { if (truecase) truecase.stop(); });
+let screenDetector = null;
+/** Optional local screen element detector (OmniParser icon_detect_v3 pilot, off by default). */
+function detectorRuntime() {
+  screenDetector ||= require("./okfilow-detector").createDetectorRuntime({
+    userData, logLine,
+    fork: (script) => require("electron").utilityProcess.fork(script, [], { serviceName: "Filow detector", stdio: "ignore" }),
+    download: require("./download").download, sha256File: require("./integrity").sha256File,
+    threads: () => Math.max(2, Math.min(4, Math.floor((require("./qa.js").qaHardware?.()?.cores ?? os.cpus().length) / 2))),
+  });
+  return screenDetector;
+}
+app.on("will-quit", () => { if (screenDetector) screenDetector.stop(); });
+/** Settings asked for the optional screen element detector: routed through s1-runtime wantModel, never auto-resumed. */
+function wantDetectorModel(why) {
+  const result = require("./s1-runtime").wantModel(detectorRuntime(), { set() {} }, () => !offline);
+  logLine(`okfilow-detector: model wanted (${why}): ${result.started ? "download started" : result.reason}`);
+  return result;
+}
 /** Settings asked for the punctuation model: the same kept-until-here path as S1-mini (s1-runtime.js wantModel). */
 function wantPunctuationModel(why) {
   const store = {
@@ -1788,6 +1815,7 @@ function startOkFilow() {
       // a question found Ollama stopped: start it in the background, so the next question is answered
       onAnswerError: (failure) => { if (localAi.isOllamaStopped(failure)) startOllamaIfWanted("OK Filow found Ollama stopped", { needed: true }); },
       dictation: getDictation(),
+      detector: detectorRuntime,
     });
     okFilow.start();
   } catch (err) {
@@ -1938,6 +1966,7 @@ function models() {
     dictation: () => getDictation().cfg(),
     cleanup: s1Runtime,
     punctuation: truecaseRuntime,
+    detector: detectorRuntime,
     clearWish: (kind) => (kind === "cleanup" ? forget("cleanupModelWanted", "s1") : forget("punctuationModelWanted", "truecase")),
   });
   return modelControl;

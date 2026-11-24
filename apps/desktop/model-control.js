@@ -29,13 +29,15 @@ function createModelControl(deps) {
     const voice = deps.voice ? deps.voice() : null;
     const s1 = deps.cleanup().status();
     const tc = deps.punctuation().status();
+    const det = deps.detector ? deps.detector().status() : null;
     const use = modelUse({
       speech: { installed: deps.stt.installedKeys(deps.userData), language: deps.speech.language(), pins: speechPins(deps.userData) },
       // The voice that speaks: a cloud voice while offline is the system voice (the panel shows it so).
-      okFilow: { enabled: Boolean(ok && ok.enabled), voice: ok ? (ok.offline && ok.voice === "cloud" ? "system" : ok.voice) : "off", voiceUsable: Boolean(voice && voice.usable()) },
+      okFilow: { enabled: Boolean(ok && ok.enabled), voice: ok ? (ok.offline && ok.voice === "cloud" ? "system" : ok.voice) : "off", voiceUsable: Boolean(voice && voice.usable()), screenDetector: Boolean(ok && ok.screenDetector) },
       dictation: deps.dictation ? deps.dictation() : {},
       cleanup: { installed: s1.model, runtime: s1.runtime },
       punctuation: { installed: tc.model, runtime: tc.runtime },
+      detector: det ? { installed: det.model, runtime: det.runtime } : { installed: false, runtime: false },
     });
     const loadedSpeech = deps.speech.loaded();
     // `downloading`: this row's own download is in flight. Settings lists a model once it is on disk for
@@ -49,8 +51,9 @@ function createModelControl(deps) {
       { id: "voice", kind: "voice", name: "Supertonic 3", installed: deps.tts.modelReady(deps.userData), bytes: deps.stt.specBytes(deps.userData, deps.tts.MODEL), uses: use.voice, loaded: Boolean(voice && voice.loaded()), downloading: deps.downloads.active("voice") },
       { id: "cleanup", kind: "cleanup", name: "S1-mini by Superwhisper", installed: s1.model, bytes: sizeOf(path.join(models, "s1-mini")), uses: use.cleanup, loaded: s1.running, downloading: Boolean(s1.downloading) },
       { id: "punctuation", kind: "punctuation", name: "Horizon Labs truecase-small", installed: tc.model, bytes: sizeOf(path.join(models, "truecase-small")), uses: use.punctuation, loaded: tc.running, downloading: Boolean(tc.downloading) },
+      ...(det ? [{ id: "detector", kind: "detector", name: det.name || "OmniParser icon_detect_v3", installed: det.model, bytes: sizeOf(path.join(models, "omniparser-icon-detect-v3")), uses: use.detector || [], loaded: det.running, downloading: Boolean(det.downloading) }] : []),
     ].filter((m) => m.bytes > 0);
-    const downloading = [...deps.downloads.ids(), ...(s1.downloading ? ["cleanup"] : []), ...(tc.downloading ? ["punctuation"] : [])];
+    const downloading = [...deps.downloads.ids(), ...(s1.downloading ? ["cleanup"] : []), ...(tc.downloading ? ["punctuation"] : []), ...(det && det.downloading ? ["detector"] : [])];
     // speechRoles: per speech task, what Settings > Advanced shows under "Which model does each task"
     return { models: [...rows, ...others], downloading, speechRoles: use.speechRoles };
   }
@@ -62,6 +65,8 @@ function createModelControl(deps) {
       stopped = deps[id]().cancelFetch();
       // Without this the next start of Filow would resume the download by itself.
       deps.clearWish(id);
+    } else if (id === "detector" && deps.detector) {
+      stopped = deps.detector().cancelFetch();
     } else if (id === "voice" || DOWNLOAD_ONLY.includes(id)) stopped = deps.downloads.cancel(id);
     else return { ok: false, stopped: false, error: "unknown download" };
     log(`models: stop asked for ${id}: ${stopped ? "the download was stopped by the user" : "nothing was downloading"}`);
@@ -93,6 +98,8 @@ function createModelControl(deps) {
       } else if (id === "cleanup" || id === "punctuation") {
         deps.clearWish(id);
         freed = await deps[id]().remove();
+      } else if (id === "detector" && deps.detector) {
+        freed = await deps.detector().remove();
       } else return { ok: false, error: "unknown model" };
       log(`models: ${id} deleted by the user (${mb(freed)} freed)`);
       return { ok: true, freedBytes: freed };

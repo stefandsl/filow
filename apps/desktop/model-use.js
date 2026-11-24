@@ -50,12 +50,14 @@ function modelUse(input = {}) {
   const probe = { language: dict.language || "auto", spokenLanguage: language === "auto" ? "" : language };
   const cleanupOn = Boolean(dict.enabled && input.cleanup && input.cleanup.installed && input.cleanup.runtime && decide({ enabled: Boolean(dict.cleanup), ...probe, text: "word" }).clean);
   const punctuationOn = Boolean(dict.enabled && input.punctuation && input.punctuation.installed && input.punctuation.runtime && wanted("word", { enabled: dict.punctuate !== false, ...probe }).ok);
+  const detectorOn = Boolean(okf.enabled && okf.screenDetector === true && input.detector && input.detector.installed && input.detector.runtime);
   return {
     speech,
     speechRoles,
     voice,
     cleanup: cleanupOn ? [{ use: "cleanup", language: "en" }] : [],
     punctuation: punctuationOn ? [{ use: "punctuation", language: normaliseLanguage(dictLang) }] : [],
+    detector: detectorOn ? [{ use: "detector", language: "auto" }] : [],
   };
 }
 
