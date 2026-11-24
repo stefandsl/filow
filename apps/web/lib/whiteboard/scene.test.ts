@@ -204,3 +204,17 @@ describe("words in boxes", () => {
     expect(checkScene(broken).some((p) => p.kind === "overflow" && p.ids[0] === label.id)).toBe(true);
   });
 });
+
+describe("directed edge metadata", () => {
+  it("marks directed lesson edges with sender, receiver and reveal order", () => {
+    const tcp = lessons[2];
+    const scene = sceneOf(tcp);
+    const edges = scene.elements.filter((e) => e.type === "arrow" && e.customData?.wb?.role === "edge");
+    expect(edges.length).toBe(3);
+    expect(edges.map((e) => [e.customData?.wb?.step, e.customData?.wb?.from, e.customData?.wb?.to, e.customData?.wb?.order])).toEqual([
+      [0, "n-client", "n-server", 0],
+      [1, "n-server", "n-client", 0],
+      [2, "n-client", "n-server", 0],
+    ]);
+  });
+});

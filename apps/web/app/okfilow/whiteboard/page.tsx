@@ -33,7 +33,7 @@ import { BOARD_KEY, MAX_SAVED_BYTES, applyEdits, applyOps, cameraFor, changesToO
 import { teachingChoice, type EditPlan } from "@/lib/whiteboard/edits";
 import { checkScene, countProblems, fixOps, type CheckCounts } from "@/lib/whiteboard/check";
 import { fontCss, prepareScene, scenePng } from "@/lib/whiteboard/excalidraw";
-import { PaceMeter, drawMsFor, stepSchedule } from "@/lib/whiteboard/pace";
+import { PaceMeter, drawMsFor, sceneStepSchedule, stepSchedule } from "@/lib/whiteboard/pace";
 import { initialPlayer, playerReducer, readingMs } from "@/lib/whiteboard/player";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { wbText, type WbKey } from "@/lib/whiteboard/text";
@@ -97,6 +97,8 @@ export default function WhiteboardPage() {
   const meter = useMemo(() => new PaceMeter(), []);
   /** The turn whose sentence has been said to its end: its drawing is complete. */
   const [saidTurn, setSaidTurn] = useState(-1);
+  /** A single-step replay triggered while paused or after the lesson ended: plays this step once without advancing. */
+  const [replayTurn, setReplayTurn] = useState<number | null>(null);
   // A lesson being saved as a video (lib/whiteboard/video.ts).
   const recorderRef = useRef<LessonRecorder | null>(null);
   const [recording, setRecording] = useState(false);
@@ -231,6 +233,7 @@ export default function WhiteboardPage() {
     dispatchLesson({ type: "ask", more });
     jumpTo.current = more ? current!.steps.length : null;
     if (!more) {
+      setReplayTurn(null);
       dispatchPlayer({ type: "reset", expected: 0 });
       // a new board: the question is its title at once, before the model has written anything
       setEdits(noEdits());
@@ -415,13 +418,23 @@ export default function WhiteboardPage() {
   const lessonLang = ls.meta?.lang;
   captionRef.current = say;
   const speaking = player.phase === "showing" && player.playing;
+  const replaying = player.phase === "showing" && !player.playing && replayTurn === player.turn;
+  const activeStep = speaking || replaying;
   useEffect(() => {
-    if (!speaking) return;
+    if (!activeStep) return;
     const turn = player.turn;
+    const autoAdvance = speaking;
     turnRef.current = turn;
     let over = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const finish = () => { if (!over) dispatchPlayer({ type: "spoken", turn }); };
+    const finish = () => {
+      if (over) return;
+      if (autoAdvance) dispatchPlayer({ type: "spoken", turn });
+      else {
+        setSaidTurn(turn);
+        setReplayTurn(null);
+      }
+    };
     // A video with its voice is narrated even when the voice is off (then not heard: video.ts).
     if ((voiceOn || recordVoice) && say) {
       const started = performance.now();
@@ -441,7 +454,7 @@ export default function WhiteboardPage() {
       clearTimeout(timer);
       speaker.stop();
     };
-  }, [speaking, player.turn, say, voiceOn, recordVoice, lessonLang, speaker, meter]);
+  }, [activeStep, speaking, player.turn, say, voiceOn, recordVoice, lessonLang, speaker, meter]);
 
   // How long after its data arrived a step was on the board (only when the board was waiting for it).
   useEffect(() => {
@@ -462,9 +475,8 @@ export default function WhiteboardPage() {
   const busy = ls.phase === "planning" || ls.phase === "drawing";
   const lite = Boolean(ls.meta?.lite);
   // The drawing of the step being said takes the time of its sentence: measured from this voice, or the reading time with the voice off.
-  const stepMs = speaking && say ? (voiceOn ? meter.estimate(say) : readingMs(say)) : 0;
-  const timing = useMemo(() => (layout && stepMs && !lite ? stepSchedule(layout, player.index, drawMsFor(stepMs)) : undefined), [layout, stepMs, lite, player.index]);
-  const rest = !speaking || saidTurn === player.turn;
+  const stepMs = activeStep && say ? (voiceOn ? meter.estimate(say) : readingMs(say)) : 0;
+  const rest = !activeStep || saidTurn === player.turn;
   const offline = Boolean(status?.offline);
 
   // ---- The board as an Excalidraw scene ----
@@ -475,6 +487,12 @@ export default function WhiteboardPage() {
     if (layout) return sceneFromLayout(layout, { plain: lite });
     return busy && pendingTitle ? pendingScene(pendingTitle, BOARD_SIZE[shape]) : null;
   }, [imported, layout, lite, busy, pendingTitle, shape, ls.diagram, ls.lesson, player.index]);
+  const timing = useMemo(() => {
+    if (!stepMs || lite || imported || player.index < 0) return undefined;
+    if ((ls.diagram || layout?.diagram) && compiled) return sceneStepSchedule(compiled, player.index, drawMsFor(stepMs));
+    return layout ? stepSchedule(layout, player.index, drawMsFor(stepMs)) : undefined;
+  }, [layout, ls.diagram, compiled, stepMs, lite, imported, player.index]);
+  const cueActive = activeStep && !rest && !imported && !canvasOpen && !busy;
   // what the user's changes sit on: the lesson as compiled, tidied by the checks
   const fixedBase = useMemo(() => (compiled ? applyEdits(compiled, fixes) : null), [compiled, fixes]);
   const raw = useMemo(() => (fixedBase ? applyEdits(fixedBase, edits) : null), [fixedBase, edits]);
@@ -581,14 +599,18 @@ export default function WhiteboardPage() {
     ev.preventDefault();
     void ask(question, false);
   };
-  /** A change of the board: kept for "Undo", then made. */
+  /** A change of the board: kept for "Undo", then made. Cancels any active cue first. */
   const changeBoard = (next: SceneEdits, nextCamera: Box | null = camera) => {
+    setReplayTurn(null);
+    if (playerRef.current.playing) dispatchPlayer({ type: "pause" });
     undoStack.current.push(edits);
     setUndoCount(undoStack.current.length);
     setEdits(next);
     setCamera(nextCamera);
   };
   const undo = () => {
+    setReplayTurn(null);
+    if (playerRef.current.playing) dispatchPlayer({ type: "pause" });
     const prev = undoStack.current.pop();
     setUndoCount(undoStack.current.length);
     if (prev) setEdits(prev);
@@ -663,6 +685,7 @@ export default function WhiteboardPage() {
     if (!scene || !scene.elements.length) { setNote(t("openFailed")); return; }
     abortRef.current?.abort();
     speaker.stop();
+    setReplayTurn(null);
     dispatchLesson({ type: "cancel" });
     dispatchPlayer({ type: "pause" });
     // framed to what is on it (as a board opened from "the last board" is), not to a default size with empty room below
@@ -726,7 +749,12 @@ export default function WhiteboardPage() {
       board: () => frame.current?.querySelector<SVGSVGElement>("svg.wb-board") ?? null,
       caption: () => captionRef.current,
       colours: () => BOARD_COLOURS[boardRef.current],
-      css: () => { const s = sceneFromLayout(whole); return fontCss(s.elements, s.files); },
+      css: () => {
+        const s = ls.diagram
+          ? sceneFromDiagram(ls.diagram.d, ls.lesson!.steps.map((st) => st.say), ls.lesson!.steps.length - 1, ls.diagram.result)
+          : sceneFromLayout(whole);
+        return fontCss(s.elements, s.files);
+      },
       sound,
       hear: () => voiceOnRef.current,
     });
@@ -861,6 +889,9 @@ export default function WhiteboardPage() {
               videoLabels={{ play: t("play"), pause: t("pause") }}
               scene={prepared}
               current={boardStep}
+              turn={player.turn}
+              stepMs={stepMs}
+              cueActive={cueActive}
               timing={imported ? undefined : timing}
               rest={rest || Boolean(imported)}
               dark={board === "dark"}
@@ -889,10 +920,35 @@ export default function WhiteboardPage() {
               {say}
             </p>
             <div className="wb-controls">
-              <button type="button" className="wb-btn" onClick={() => dispatchPlayer({ type: "back" })} disabled={player.index <= 0}>{t("back")}</button>
-              <button type="button" className="wb-btn primary" onClick={() => dispatchPlayer({ type: player.playing ? "pause" : "play" })} disabled={stepCount === 0}>{player.playing ? t("pause") : t("play")}</button>
-              <button type="button" className="wb-btn" onClick={() => dispatchPlayer({ type: "next" })} disabled={player.index + 1 >= stepCount}>{t("next")}</button>
-              <button type="button" className="wb-btn" onClick={() => dispatchPlayer({ type: "replay" })} disabled={player.index < 0}>{t("replay")}</button>
+              <button type="button" className="wb-btn" onClick={() => { setReplayTurn(null); dispatchPlayer({ type: "back" }); }} disabled={player.index <= 0}>{t("back")}</button>
+              <button
+                type="button"
+                className="wb-btn primary"
+                onClick={() => {
+                  if (player.playing || replaying) {
+                    setReplayTurn(null);
+                    dispatchPlayer({ type: "pause" });
+                  } else {
+                    setReplayTurn(null);
+                    dispatchPlayer({ type: "play" });
+                  }
+                }}
+                disabled={stepCount === 0}
+              >
+                {player.playing || replaying ? t("pause") : t("play")}
+              </button>
+              <button type="button" className="wb-btn" onClick={() => { setReplayTurn(null); dispatchPlayer({ type: "next" }); }} disabled={player.index + 1 >= stepCount}>{t("next")}</button>
+              <button
+                type="button"
+                className="wb-btn"
+                onClick={() => {
+                  setReplayTurn(player.playing ? null : player.turn + 1);
+                  dispatchPlayer({ type: "replay" });
+                }}
+                disabled={player.index < 0}
+              >
+                {t("replay")}
+              </button>
               <button type="button" className="wb-btn" aria-pressed={voiceOn} onClick={() => setVoiceOn((v) => !v)}>{voiceOn ? t("voiceOn") : t("voiceOff")}</button>
               <button type="button" className="wb-btn wb-look" data-action="look" title={t("lookSwitch")} onClick={() => chooseLook(board === "dark" ? "light" : "dark")}>{t(board === "dark" ? "lookBlack" : "lookWhite")}</button>
             </div>
@@ -900,7 +956,20 @@ export default function WhiteboardPage() {
         )}
         {prepared && (ls.lesson || imported) && !busy && (
           <div className="wb-controls" data-tools="board">
-            <button type="button" className="wb-btn" data-action="edit" aria-pressed={canvasOpen} onClick={() => setCanvasOpen((o) => !o)} disabled={canvasOpen}>{t("editHand")}</button>
+            <button
+              type="button"
+              className="wb-btn"
+              data-action="edit"
+              aria-pressed={canvasOpen}
+              onClick={() => {
+                setReplayTurn(null);
+                if (playerRef.current.playing) dispatchPlayer({ type: "pause" });
+                setCanvasOpen((o) => !o);
+              }}
+              disabled={canvasOpen}
+            >
+              {t("editHand")}
+            </button>
             {undoCount > 0 && <button type="button" className="wb-btn" data-action="undo" onClick={undo}>{t("undoEdit")}</button>}
             {camera && <button type="button" className="wb-btn" data-action="show-all" onClick={() => setCamera(null)}>{t("showAll")}</button>}
             {imported && <button type="button" className="wb-btn wb-look" data-action="look" title={t("lookSwitch")} onClick={() => chooseLook(board === "dark" ? "light" : "dark")}>{t(board === "dark" ? "lookBlack" : "lookWhite")}</button>}
