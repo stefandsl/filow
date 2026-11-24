@@ -83,6 +83,6 @@ reverse proxy, SMTP infrastructure, system logs or crash dumps.
 
 This implements identity, billing and account/plan display. It does **not** sell or enforce metered cloud AI usage yet. Any future hosted inference endpoint must verify the session, entitlement and usage quota on the server; never trust a desktop `plan` value. Existing local features stay available without login.
 
-The desktop and browser screens use Filo's shared five-language dictionary. The intro video is an original, silent, captioned 18-second guide; its transcript is localized. Rebuild it with `node scripts/make-intro.mjs` from the repository root (requires ffmpeg). No competitor media is included.
+The desktop and browser screens use Filo's shared five-language dictionary. The intro videos are original localized, narrated, captioned 26-second guides in EN, IT, RU, RO and JA; their transcripts are localized. Rebuild them with `node scripts/make-intro.mjs` from the repository root (requires ffmpeg). No competitor media is included.
 
 Reference APIs: [Better Auth device flow](https://better-auth.com/docs/plugins/device-authorization), [email codes](https://better-auth.com/docs/plugins/email-otp), [Stripe plugin](https://better-auth.com/docs/plugins/stripe).

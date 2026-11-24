@@ -124,8 +124,12 @@ button:disabled { opacity: 0.5; cursor: default; }
 button:not(:disabled):active { transform: translateY(1px); }
 
 /* ---- quick start: compact video + shipped feature guide ---- */
-.intro-media { display: grid; grid-template-columns: 220px 1fr; align-items: center; gap: 14px; }
+.intro-media { display: grid; grid-template-columns: 220px 1fr; align-items: center; gap: 8px 14px; }
 .intro-video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #121212; border-radius: var(--radius); margin: 0; }
+/* Inline playback shows captions in #intro-live-caption below the video so they never cover demo content.
+   In fullscreen, native ::cue renders in the empty bottom band of the 1280x720 frame. */
+.intro-video:not(:fullscreen)::cue { color: transparent; background: transparent; text-shadow: none; }
+.intro-live-caption { grid-column: 1 / -1; margin: 0; padding: 6px 10px; border-radius: var(--radius); background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); color: var(--text); font-size: var(--type-xs); line-height: 1.35; }
 .intro-caption { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .intro-caption .detail { line-height: 1.35; }
 .intro-caption .setup-check { min-height: 36px; }
@@ -145,16 +149,17 @@ button:not(:disabled):active { transform: translateY(1px); }
   .stepper ol { gap: 2px; }
   .stepper li { min-height: 24px; font-size: var(--type-xs); }
   .stepper .dot { width: 18px; height: 18px; }
-  .panel { padding: 16px 28px 0; }
-  .progress { margin-bottom: 4px; }
-  .step { gap: 10px; }
+  .panel { padding: 12px 28px 0; }
+  .progress { margin-bottom: 2px; }
+  .step { gap: 8px; }
   h1 { font-size: var(--type-2xl); }
-  .intro-media { grid-template-columns: 188px 1fr; gap: 12px; }
-  .intro-caption .detail { font-size: var(--type-xs); }
-  .intro-caption .setup-check { min-height: 28px; font-size: var(--type-xs); }
-  .guide-list { gap: 6px 10px; }
-  .guide-list li { padding: 6px 8px; line-height: 1.28; }
-  .actions { padding: 10px 0 14px; }
+  .intro-media { grid-template-columns: 184px 1fr; gap: 6px 12px; }
+  .intro-live-caption { padding: 4px 8px; line-height: 1.25; }
+  .intro-caption .detail { font-size: var(--type-xs); line-height: 1.28; }
+  .intro-caption .setup-check { min-height: 26px; font-size: var(--type-xs); }
+  .guide-list { gap: 5px 8px; }
+  .guide-list li { padding: 5px 8px; line-height: 1.25; }
+  .actions { padding: 8px 0 12px; }
 }
 
 /* ---- narrow or zoomed windows: the rail becomes a slim header ---- */
@@ -185,6 +190,7 @@ button:not(:disabled):active { transform: translateY(1px); }
   input[role="switch"]::after { display: none; }
   .meter { border: 1px solid CanvasText; }
   .meter i { background: Highlight; forced-color-adjust: none; }
+  .intro-live-caption { border: 1px solid CanvasText; }
   .primary { outline: 1px solid ButtonText; }
 }
 

@@ -166,6 +166,26 @@ app.whenReady().then(async () => {
             if (startRect.bottom > window.innerHeight + 1) out.push(\\\`primary CTA below viewport: \\\${Math.round(startRect.bottom)} > \\\${window.innerHeight}\\\`);
 
             if (targetStep === "intro") {
+              const video = document.querySelector("#intro-video");
+              const liveCap = document.querySelector("#intro-live-caption");
+              const expectedSrc = \\\`media/intro.\\\${document.documentElement.lang}.mp4\\\`;
+              if (video?.getAttribute("src") !== expectedSrc) out.push(\\\`wrong video src: \\\${video?.getAttribute("src")}\\\`);
+              if (liveCap) {
+                const tracks = Array.from(video?.textTracks ?? []);
+                const active = tracks.find(t => t.mode === "showing");
+                if (!active || active.language !== document.documentElement.lang) out.push(\\\`wrong caption track: \\\${active?.language}\\\`);
+                if (liveCap.hidden || !liveCap.textContent?.trim()) {
+                  liveCap.textContent = active?.cues?.[0]?.text || document.querySelector('[data-i18n="tour.transcript"]')?.textContent || "Caption";
+                  liveCap.hidden = false;
+                  void document.body.offsetHeight;
+                }
+                const vr = video.getBoundingClientRect();
+                const cr = liveCap.getBoundingClientRect();
+                if (cr.top < vr.bottom - 1) out.push(\\\`caption overlaps video: \\\${Math.round(cr.top)} < \\\${Math.round(vr.bottom)}\\\`);
+                if (panel.scrollHeight > panel.clientHeight + 1) {
+                  out.push(\\\`panel vertical scrollbar with caption: \\\${panel.scrollHeight} > \\\${panel.clientHeight}\\\`);
+                }
+              }
               const guides = [...document.querySelectorAll('[data-step="intro"] .guide-list li')];
               if (guides.length < 7) out.push(\\\`guide list count: \\\${guides.length}\\\`);
               const actionsRect = document.querySelector(".actions").getBoundingClientRect();

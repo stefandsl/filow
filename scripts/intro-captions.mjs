@@ -1,5 +1,7 @@
-// Original English captions and translations. Native-language review is pending.
-// All languages share the video's three six-second scenes.
+// Original English captions and translations for the onboarding intro video.
+// All five languages share the three scene durations below so visuals, narration and captions stay in sync.
+export const SCENE_DURATIONS = [10, 8, 8];
+
 export const captions = {
   en: [
     'Hold the talk shortcut and ask a question. You choose screen sharing.',
@@ -27,8 +29,15 @@ export const captions = {
     '回答はいつでも停止できます。ローカル機能はアカウントなしで使えます。',
   ],
 };
+
 export function captionVtt(lang) {
   const cues = captions[lang] ?? captions.en;
   const time = seconds => `00:${String(seconds).padStart(2, '0')}.000`;
-  return 'WEBVTT\n\n' + cues.map((text, i) => `${time(i * 6)} --> ${time((i + 1) * 6)}\n${text}\n`).join('\n');
+  let cursor = 0;
+  return 'WEBVTT\n\n' + cues.map((text, i) => {
+    const start = cursor;
+    const end = cursor + (SCENE_DURATIONS[i] ?? 8);
+    cursor = end;
+    return `${time(start)} --> ${time(end)}\n${text}\n`;
+  }).join('\n');
 }
