@@ -39,7 +39,7 @@ button, input, select { font-family: var(--font); font-variant-numeric: tabular-
 .stepper li.done .dot { background: var(--surface-2); color: var(--ok); }
 footer { color: var(--muted); font-size: var(--type-xs); line-height: 1.35; flex-shrink: 0; }
 
-.panel { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; background: var(--panel-2); padding: 24px 36px 0; }
+.panel { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; scroll-padding-bottom: 80px; background: var(--panel-2); padding: 24px 36px 0; }
 .progress { margin: 0 0 6px; color: var(--muted); font-size: var(--type-sm); }
 .step { display: flex; flex-direction: column; gap: 12px; max-width: 580px; }
 h1 { text-wrap: balance; margin: 0; font-size: var(--type-3xl); line-height: 1.15; font-weight: 650; letter-spacing: 0; }
@@ -147,7 +147,7 @@ button:not(:disabled):active { transform: translateY(1px); }
   .stepper ol { gap: 2px; }
   .stepper li { min-height: 24px; font-size: var(--type-xs); }
   .stepper .dot { width: 18px; height: 18px; }
-  .panel { padding: 10px 24px 0; }
+  .panel { padding: 10px 24px 0; scroll-padding-bottom: 64px; }
   .progress { margin-bottom: 2px; }
   .step { gap: 7px; }
   .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
@@ -200,5 +200,5 @@ button:not(:disabled):active { transform: translateY(1px); }
 
 /* Japanese: break lines by phrase boundaries everywhere in onboarding. */
 :lang(ja) { line-break: strict; word-break: normal; }
-:lang(ja) :is(h1, h2, h3, button, label, summary, .tagline, .lead, .detail, .features li, .guide-list li) { word-break: auto-phrase; }
+:lang(ja) :is(h1, h2, h3, button, label, summary, .tagline, .lead, .detail, .features li, .guide-list li, .intro-live-caption) { word-break: auto-phrase; }
 .ja-phrase { white-space: nowrap; }

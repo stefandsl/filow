@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as welcomeFlow from "./welcome-flow";
 import { welcomeSteps, micErrorKind, levelFromRms, micTick, MIC_HEARD_MS, MIC_SILENT_MS, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, escapeAction, segmentJaPhrases, type MicState } from "./welcome-flow";
 
 describe("welcome steps", () => {
@@ -159,5 +160,29 @@ describe("Japanese phrase-aware segmentation", () => {
       "OK Filowに",
       "質問します。",
     ]);
+  });
+});
+
+describe("guide disclosure scroll reveal", () => {
+  it("computes the scroll offset needed to keep an opened guide above the sticky action bar without clipping its top", () => {
+    const revealScrollTop = (welcomeFlow as Record<string, unknown>).revealScrollTop as
+      | ((panelScrollTop: number, panelTop: number, visibleBottom: number, targetTop: number, targetBottom: number, pad?: number) => number)
+      | undefined;
+    const scrollBehaviorForMotion = (welcomeFlow as Record<string, unknown>).scrollBehaviorForMotion as
+      | ((reducedMotion: boolean) => ScrollBehavior)
+      | undefined;
+
+    expect(typeof revealScrollTop).toBe("function");
+    expect(typeof scrollBehaviorForMotion).toBe("function");
+
+    // Already completely visible above the action bar -> no scroll.
+    expect(revealScrollTop!(0, 0, 640, 420, 600, 8)).toBe(0);
+    // Partially hidden beneath the sticky action bar -> scroll down to reveal it with padding.
+    expect(revealScrollTop!(0, 0, 518, 480, 700, 8)).toBe(190);
+    // Opened disclosure taller than the viewport (e.g. 200% zoom) -> keep the summary/top visible.
+    expect(revealScrollTop!(0, 0, 298, 260, 700, 8)).toBe(252);
+    // Respects reduced motion preference.
+    expect(scrollBehaviorForMotion!(false)).toBe("smooth");
+    expect(scrollBehaviorForMotion!(true)).toBe("instant");
   });
 });

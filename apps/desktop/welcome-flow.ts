@@ -166,3 +166,26 @@ export function segmentJaPhrases(text: string): string[] {
   }
   return phrases;
 }
+
+/**
+ * Compute the scrollTop needed to bring an opened disclosure cleanly above a sticky bottom action
+ * bar without scrolling the disclosure's own top out of view.
+ */
+export function revealScrollTop(
+  panelScrollTop: number,
+  panelTop: number,
+  visibleBottom: number,
+  targetTop: number,
+  targetBottom: number,
+  pad = 8,
+): number {
+  const neededDown = targetBottom + pad - visibleBottom;
+  if (neededDown <= 0) return panelScrollTop;
+  const maxShift = Math.max(0, targetTop - (panelTop + pad));
+  return Math.max(0, Math.round(panelScrollTop + Math.min(neededDown, maxShift)));
+}
+
+/** Honor prefers-reduced-motion when scrolling UI panels programmatically. */
+export function scrollBehaviorForMotion(reducedMotion: boolean): ScrollBehavior {
+  return reducedMotion ? "instant" : "smooth";
+}

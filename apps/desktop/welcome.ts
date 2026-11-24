@@ -1,8 +1,8 @@
 import { mountIcons } from "../web/components/icons";
 import { t, LANG_LABELS, acceptUiSnapshot, themeFollowing, resolveUiLanguage, type I18nKey, type UiBridge, type UiPatch, type UiSnapshot, type UiResult } from "../../packages/core/src/index";
 import { applyUiPreferences } from "../web/lib/applyUiPreferences";
-import { selectIntroCaptions, selectIntroMedia } from "./intro-captions";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, offerGb, escapeAction, segmentJaPhrases, type MicState, type StepId } from "./welcome-flow";
+import { selectIntroCaptions, selectIntroMedia, resolveIntroCaptionText } from "./intro-captions";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, offerGb, escapeAction, segmentJaPhrases, revealScrollTop, scrollBehaviorForMotion, type MicState, type StepId } from "./welcome-flow";
 import "./welcome.css";
 
 /** The speech-setup offer from the main process (apps/desktop/welcome-setup.js setupOffer). */
@@ -40,6 +40,8 @@ let introLang = "";
 let shortcuts: WelcomeShortcuts = defaultShortcuts();
 const introVideo = $<HTMLVideoElement>("#intro-video");
 const introLiveCaption = $("#intro-live-caption");
+const guideDisclosure = $<HTMLDetailsElement>("#guide-disclosure");
+const actionsBar = $<HTMLElement>(".actions", form);
 const tr = (key: I18nKey, vars?: Record<string, string | number>) => t(key, state?.resolvedLang ?? "en", vars);
 
 function defaultShortcuts(): WelcomeShortcuts {
@@ -68,18 +70,19 @@ function setLocalizedText(el: HTMLElement, text: string, lang: string) {
   el.replaceChildren(wrapper);
 }
 
-function renderIntroCaption() {
+function renderIntroCaption(forceBeforePlay = false) {
   const showing = Array.from(introVideo.textTracks).find(track => track.mode === "showing");
-  const cue = showing?.activeCues?.[0] as VTTCue | undefined;
-  const text = cue?.text?.trim() ?? "";
-  const empty = !showing || !text;
+  const beforePlay = forceBeforePlay || (introVideo.paused && introVideo.currentTime === 0 && !introVideo.ended);
+  const lang = state?.resolvedLang ?? "en";
+  const text = resolveIntroCaptionText(showing, lang, beforePlay);
+  const empty = !text;
   introLiveCaption.dataset.empty = empty ? "true" : "false";
-  setLocalizedText(introLiveCaption, empty ? "" : text, state?.resolvedLang ?? "en");
+  setLocalizedText(introLiveCaption, empty ? "" : text, lang);
 }
 
 function wireIntroTracks() {
   for (const track of Array.from(introVideo.textTracks)) {
-    track.oncuechange = renderIntroCaption;
+    track.oncuechange = () => renderIntroCaption();
   }
 }
 
@@ -88,7 +91,7 @@ introVideo.textTracks.addEventListener("change", () => {
   renderIntroCaption();
 });
 introVideo.querySelectorAll<HTMLTrackElement>("track").forEach(el => {
-  el.addEventListener("load", renderIntroCaption);
+  el.addEventListener("load", () => renderIntroCaption());
 });
 introVideo.addEventListener("loadedmetadata", () => {
   if (!state) return;
@@ -96,7 +99,27 @@ introVideo.addEventListener("loadedmetadata", () => {
   wireIntroTracks();
   renderIntroCaption();
 });
-introVideo.addEventListener("timeupdate", renderIntroCaption);
+introVideo.addEventListener("play", () => renderIntroCaption());
+introVideo.addEventListener("seeked", () => renderIntroCaption());
+introVideo.addEventListener("timeupdate", () => renderIntroCaption());
+
+guideDisclosure.addEventListener("toggle", () => {
+  if (!guideDisclosure.open) return;
+  const panelRect = form.getBoundingClientRect();
+  const actionsRect = actionsBar.getBoundingClientRect();
+  const targetRect = guideDisclosure.getBoundingClientRect();
+  const nextTop = revealScrollTop(
+    form.scrollTop,
+    panelRect.top,
+    Math.min(panelRect.bottom, actionsRect.top),
+    targetRect.top,
+    targetRect.bottom,
+  );
+  if (nextTop !== form.scrollTop) {
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    form.scrollTo({ top: nextTop, behavior: scrollBehaviorForMotion(reduced) });
+  }
+});
 
 // ---- preferences rows (startup, theme, accent): one instance, in the step that shows them ----
 let prefs: { startup: HTMLInputElement; follow: HTMLInputElement; theme: HTMLSelectElement; accent: HTMLInputElement; root: HTMLElement } | null = null;
@@ -127,7 +150,7 @@ function render(next?: UiSnapshot) {
     introVideo.poster = media.poster;
     selectIntroCaptions(Array.from(introVideo.textTracks), state.resolvedLang);
     wireIntroTracks();
-    renderIntroCaption();
+    renderIntroCaption(true);
     introLang = state.resolvedLang;
   }
   const lang = state.resolvedLang;

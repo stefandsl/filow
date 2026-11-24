@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { LANGS } from "@filow/core";
+import { captions } from "../../scripts/intro-captions.mjs";
 
 const require = createRequire(import.meta.url);
 const desktopDir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
@@ -29,6 +30,7 @@ function measureWelcomeLayout(): {
   zoomProblems: string[];
   a11yProblems: string[];
   shortcutProblems: string[];
+  guideRevealProblems: string[];
 } {
   const electronExe = require("electron") as string;
   const tmpRoot = path.join(repoRoot, "tmp");
@@ -92,6 +94,7 @@ app.commandLine.appendSwitch("disable-gpu");
 app.setPath("userData", ${JSON.stringify(userDataDir)});
 
 const LANGS = ${JSON.stringify([...LANGS])};
+const FIRST_CUES = ${JSON.stringify(Object.fromEntries(Object.entries(captions).map(([k, v]) => [k, v[0]])))};
 const THEMES = ["dark", "light"];
 const SIZES = [
   { name: "1000x720", w: 1000, h: 720 },
@@ -122,6 +125,7 @@ app.whenReady().then(async () => {
   const a11yProblems = [];
   const zoomProblems = [];
   const shortcutProblems = [];
+  const guideRevealProblems = [];
 
   for (const size of SIZES) {
     win.setContentSize(size.w, size.h);
@@ -320,29 +324,38 @@ app.whenReady().then(async () => {
                 const tracks = Array.from(video?.textTracks ?? []);
                 const active = tracks.find(t => t.mode === "showing");
                 if (!active || active.language !== document.documentElement.lang) out.push(\\\`wrong caption track: \\\${active?.language}\\\`);
-                // Caption space must be reserved before playback so showing a cue causes zero layout jump.
-                if (liveCap.hidden || getComputedStyle(liveCap).display === "none") {
-                  out.push("caption space not reserved before playback (element is hidden/display:none)");
+                // Caption box must be visible and show the first cue of the UI language before Play, with zero layout jump.
+                const capStyle = getComputedStyle(liveCap);
+                if (liveCap.hidden || capStyle.display === "none" || capStyle.visibility !== "visible") {
+                  out.push(\\\`caption box not visible before Play (hidden=\\\${liveCap.hidden}, display=\\\${capStyle.display}, visibility=\\\${capStyle.visibility})\\\`);
                 }
+                const expectedFirstCue = \${JSON.stringify(FIRST_CUES[lang] || FIRST_CUES.en)};
+                const actualBeforePlay = (liveCap.textContent || "").trim();
+                if (actualBeforePlay !== expectedFirstCue) {
+                  out.push(\\\`caption before Play mismatch: got "\\\${actualBeforePlay}", expected "\\\${expectedFirstCue}"\\\`);
+                }
+                checkJaWordSplits(liveCap, "intro-live-caption");
                 const livePractice = document.querySelector("#live-practice");
                 const beforeTop = livePractice ? livePractice.getBoundingClientRect().top : 0;
-                const prevText = liveCap.textContent;
+                const prevText = liveCap.innerHTML;
                 const prevEmpty = liveCap.dataset.empty;
                 const prevHidden = liveCap.hidden;
-                liveCap.textContent = active?.cues?.[0]?.text || "Hold the talk shortcut and ask a question. You choose screen sharing.";
+                const beforeRect = liveCap.getBoundingClientRect();
+                if (beforeRect.top < vr.bottom - 1) out.push(\\\`caption overlaps video before Play: \\\${Math.round(beforeRect.top)} < \\\${Math.round(vr.bottom)}\\\`);
+                liveCap.textContent = active?.cues?.[1]?.text || "Follow the highlight. The app underneath stays clickable.";
                 liveCap.hidden = false;
                 liveCap.dataset.empty = "false";
                 void document.body.offsetHeight;
                 const afterTop = livePractice ? livePractice.getBoundingClientRect().top : 0;
                 const cr = liveCap.getBoundingClientRect();
                 if (Math.abs(afterTop - beforeTop) > 1) {
-                  out.push(\\\`layout jumped when caption appeared: delta \\\${Math.round(afterTop - beforeTop)}px\\\`);
+                  out.push(\\\`layout jumped when caption changed: delta \\\${Math.round(afterTop - beforeTop)}px\\\`);
                 }
                 if (cr.top < vr.bottom - 1) out.push(\\\`caption overlaps video: \\\${Math.round(cr.top)} < \\\${Math.round(vr.bottom)}\\\`);
                 if (panel.scrollHeight > panel.clientHeight + 1) {
                   out.push(\\\`panel vertical scrollbar with caption: \\\${panel.scrollHeight} > \\\${panel.clientHeight}\\\`);
                 }
-                liveCap.textContent = prevText;
+                liveCap.innerHTML = prevText;
                 liveCap.hidden = prevHidden;
                 if (prevEmpty !== undefined) liveCap.dataset.empty = prevEmpty;
               }
@@ -490,7 +503,107 @@ app.whenReady().then(async () => {
     if (jaStepProblems.length > 0) issues.push({ lang: "ja", theme: "dark", size: size.name, step: "mic/setup", problems: jaStepProblems });
   }
 
-  process.stdout.write("LAYOUT_JSON:" + JSON.stringify({ issues, zoomProblems, a11yProblems, shortcutProblems }) + "\\n");
+  // Verify opening "How to start each feature" scrolls the guide list into view above the sticky action bar,
+  // and respects prefers-reduced-motion.
+  for (const size of [{ name: "1000x720", w: 1000, h: 720 }, { name: "840x580", w: 840, h: 580 }, { name: "824x541", w: 824, h: 541 }]) {
+    win.setContentSize(size.w, size.h);
+    await flushLayout(win.webContents);
+    for (const gLang of ["it", "ja", "ru"]) {
+      win.webContents.send("mock:setState", { lang: gLang, resolvedLang: gLang, theme: "dark", resolvedTheme: "dark" });
+      await flushLayout(win.webContents);
+      const gp = await win.webContents.executeJavaScript(\`(async () => {
+        const out = [];
+        const label = \${JSON.stringify(size.name + " " + gLang)};
+        const current = document.querySelector(".step:not([hidden])")?.dataset.step;
+        if (current !== "intro") document.querySelector("#start").click();
+        const panel = document.querySelector(".panel");
+        const disclosure = document.querySelector("#guide-disclosure");
+        const summary = disclosure.querySelector("summary");
+        const actions = document.querySelector(".actions");
+        disclosure.open = false;
+        panel.scrollTop = 0;
+        await new Promise(r => setTimeout(r, 30));
+
+        // Capture scrollTo behavior for both normal motion and reduced motion.
+        const origScrollTo = panel.scrollTo.bind(panel);
+        const origMatchMedia = window.matchMedia.bind(window);
+        const calls = [];
+        panel.scrollTo = (...args) => {
+          calls.push(args[0]);
+          return origScrollTo(...args);
+        };
+        try {
+          // 1. Reduced motion: must not use smooth scroll and must reveal the guide immediately.
+          window.matchMedia = (q) => q.includes("prefers-reduced-motion")
+            ? { matches: true, media: q, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false; } }
+            : origMatchMedia(q);
+          summary.click();
+          await new Promise(r => setTimeout(r, 60));
+          const panelRectR = panel.getBoundingClientRect();
+          const actionsRectR = actions.getBoundingClientRect();
+          const itemsR = [...disclosure.querySelectorAll(".guide-list li")];
+          const firstR = itemsR[0].getBoundingClientRect();
+          const lastR = itemsR[itemsR.length - 1].getBoundingClientRect();
+          if (firstR.top < panelRectR.top - 1 || firstR.bottom > actionsRectR.top + 1) {
+            out.push(\\\`\\\${label} (reduced-motion): first guide item not visible above actions (item \\\${Math.round(firstR.top)}..\\\${Math.round(firstR.bottom)}, actions.top=\\\${Math.round(actionsRectR.top)})\\\`);
+          }
+          if (lastR.bottom > actionsRectR.top + 1) {
+            out.push(\\\`\\\${label} (reduced-motion): opened guide still hidden under actions (last.bottom=\\\${Math.round(lastR.bottom)} > actions.top=\\\${Math.round(actionsRectR.top)})\\\`);
+          }
+          const reducedBehaviors = calls.map(c => (c && typeof c === "object" ? c.behavior : undefined));
+          if (reducedBehaviors.includes("smooth")) {
+            out.push(\\\`\\\${label} (reduced-motion): used smooth scroll when reduced motion is requested\\\`);
+          }
+
+          // 2. Normal motion: close, reset, reopen and wait for scroll to settle.
+          calls.length = 0;
+          summary.click();
+          panel.scrollTop = 0;
+          await new Promise(r => setTimeout(r, 30));
+          window.matchMedia = (q) => q.includes("prefers-reduced-motion")
+            ? { matches: false, media: q, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false; } }
+            : origMatchMedia(q);
+          summary.click();
+          // Wait for toggle + smooth scroll to settle (up to 700ms).
+          let prevTop = -1;
+          let stable = 0;
+          for (let i = 0; i < 35; i++) {
+            await new Promise(r => setTimeout(r, 20));
+            const curTop = panel.scrollTop;
+            if (curTop === prevTop && curTop > 0) {
+              stable++;
+              if (stable >= 3) break;
+            } else {
+              stable = 0;
+              prevTop = curTop;
+            }
+          }
+          const panelRectN = panel.getBoundingClientRect();
+          const actionsRectN = actions.getBoundingClientRect();
+          const itemsN = [...disclosure.querySelectorAll(".guide-list li")];
+          const firstN = itemsN[0].getBoundingClientRect();
+          const lastN = itemsN[itemsN.length - 1].getBoundingClientRect();
+          if (firstN.top < panelRectN.top - 1 || firstN.bottom > actionsRectN.top + 1) {
+            out.push(\\\`\\\${label} (normal): first guide item not visible above actions (item \\\${Math.round(firstN.top)}..\\\${Math.round(firstN.bottom)}, actions.top=\\\${Math.round(actionsRectN.top)})\\\`);
+          }
+          if (lastN.bottom > actionsRectN.top + 1) {
+            out.push(\\\`\\\${label} (normal): opened guide still hidden under actions (last.bottom=\\\${Math.round(lastN.bottom)} > actions.top=\\\${Math.round(actionsRectN.top)})\\\`);
+          }
+        } finally {
+          panel.scrollTo = origScrollTo;
+          window.matchMedia = origMatchMedia;
+          disclosure.open = false;
+          panel.scrollTop = 0;
+          document.querySelector("#back").click();
+        }
+        return out;
+      })()\`);
+      guideRevealProblems.push(...gp);
+      await flushLayout(win.webContents);
+    }
+  }
+
+  process.stdout.write("LAYOUT_JSON:" + JSON.stringify({ issues, zoomProblems, a11yProblems, shortcutProblems, guideRevealProblems }) + "\\n");
   app.exit(0);
 }).catch(err => {
   console.error(err);
@@ -515,12 +628,13 @@ app.whenReady().then(async () => {
 }
 
 describe("welcome window layout across all languages, themes and sizes", () => {
-  // Explicit 40 s timeout (R31): spawns one Electron instance to measure 5 languages x 2 themes x 4 sizes + 200% zoom + JA word-break geometry.
-  it("fits cleanly with big video, 13px single-line features, phrase-aware JA breaks, no empty grid cells, reserved caption space and platform shortcuts", () => {
-    const { issues, zoomProblems, a11yProblems, shortcutProblems } = measureWelcomeLayout();
-    expect(issues).toEqual([]);
-    expect(shortcutProblems).toEqual([]);
-    expect(zoomProblems).toEqual([]);
-    expect(a11yProblems).toEqual([]);
-  }, 40_000);
+  // Explicit 45 s timeout (R31): spawns one Electron instance to measure 5 languages x 2 themes x 4 sizes + guide reveal + 200% zoom + JA word-break geometry.
+  it("fits cleanly with big video, 13px single-line features, phrase-aware JA breaks, no empty grid cells, pre-Play caption, guide scroll reveal and platform shortcuts", () => {
+    const { issues, zoomProblems, a11yProblems, shortcutProblems, guideRevealProblems } = measureWelcomeLayout();
+    expect.soft(issues).toEqual([]);
+    expect.soft(shortcutProblems).toEqual([]);
+    expect.soft(guideRevealProblems).toEqual([]);
+    expect.soft(zoomProblems).toEqual([]);
+    expect.soft(a11yProblems).toEqual([]);
+  }, 45_000);
 });
