@@ -30,6 +30,8 @@ export const iconPaths = {
   sliders: "M4 6h6m4 0h6M4 12h10m4 0h2M4 18h2m4 0h10M10 3v6m4 0v6m-8 0v6",
   board: "M3 4h18v12H3Zm5 16 4-4 4 4M7 12l3-3 2 2 4-4",
   ask: "M4 5h16v11h-9l-5 4v-4H4ZM8 9h8M8 12h5",
+  mic: "M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM5 11a7 7 0 0 0 14 0M12 18v3m-3 0h6",
+  calendar: "M4 6h16v14H4ZM8 3v3m8-3v3M4 10h16M8 14h4m-4 3h8",
   grip: "M8 5h.01M16 5h.01M8 12h.01M16 12h.01M8 19h.01M16 19h.01",
 } as const;
 export type IconName = keyof typeof iconPaths;

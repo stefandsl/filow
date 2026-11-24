@@ -63,6 +63,9 @@ function render(next?: UiSnapshot) {
   }
   document.querySelectorAll<HTMLElement>("[data-i18n]").forEach(el => { el.textContent = tr(el.dataset.i18n as I18nKey); });
   document.querySelectorAll<HTMLElement>("[data-i18n-label]").forEach(el => el.setAttribute("aria-label", tr(el.dataset.i18nLabel as I18nKey)));
+  const dictationKeys = navigator.platform.startsWith("Mac") ? "Ctrl + Command" : "Ctrl + Win";
+  const dictationGuide = document.querySelector<HTMLElement>('[data-guide="welcome.guideDictation"]');
+  if (dictationGuide) dictationGuide.textContent = tr("welcome.guideDictation", { keys: dictationKeys });
   const systemLang = resolveUiLanguage("", navigator.language);
   $("#lang-auto").textContent = tr("welcome.languageAuto", { name: LANG_LABELS[systemLang] });
   document.querySelectorAll<HTMLInputElement>('input[name="lang"]').forEach(r => { r.checked = r.value === state!.lang; });

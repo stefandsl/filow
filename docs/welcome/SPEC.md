@@ -122,9 +122,22 @@ All new strings belong to `packages/core/src/i18n.ts`, not independent HTML/menu
 | welcome.title | Welcome to Filow | Benvenuto in Filow |
 | welcome.personalize | Make Filow yours | Personalizza Filow |
 | welcome.subtitle | Choose how the app should look and feel. | Scegli l'aspetto e il comportamento dell'app. |
+| welcome.featuresLabel | What Filow includes | Cosa include Filow |
 | welcome.featurePoints | Keep track of your talking points | Tieni il filo dei tuoi punti |
 | welcome.featureSlides | Stay in sync with your slides | Resta al passo con le tue slide |
 | welcome.featurePhone | Follow along on your phone | Segui i punti dal telefono |
+| welcome.featureBuddy | OK Filow sees your screen, points and draws | OK Filow vede lo schermo, indica e disegna |
+| welcome.featureWhiteboard | Explain concepts step by step on a whiteboard | Spiega concetti passo passo alla lavagna |
+| welcome.featureDictation | Dictate into any app | Detta in qualsiasi app |
+| welcome.featureDaily | Track daily tasks in Day-by-day | Gestisci le attività in Giorno per giorno |
+| welcome.guideList | How to start each feature | Come avviare ogni funzione |
+| welcome.guidePoints | Press Start take to track your talking points as you speak. | Premi Avvia per spuntare i tuoi punti mentre parli. |
+| welcome.guideSlides | Start your slide show or add Filow to PowerPoint from the Filow menu. | Avvia le slide o aggiungi Filow a PowerPoint dal menu Filow. |
+| welcome.guidePhone | Open Pair device and scan the QR code to follow on your phone. | Apri Abbina dispositivo e inquadra il QR per seguire dal telefono. |
+| welcome.guideBuddy | Hold Ctrl + Alt or select Talk or type to ask OK Filow about your screen. | Tieni premuto Ctrl + Alt o scegli Parla o scrivi per chiedere a OK Filow. |
+| welcome.guideWhiteboard | Open Whiteboard in the sidebar to see a concept explained step by step. | Apri Lavagna nella barra laterale per vedere un concetto passo passo. |
+| welcome.guideDictation | Hold {keys} in any app to dictate where the cursor is. | Tieni premuto {keys} in qualsiasi app per dettare dove si trova il cursore. |
+| welcome.guideDaily | Open Day-by-day in the top bar to add daily tasks or update them by voice. | Apri Giorno per giorno nella barra in alto per gestire le attività anche a voce. |
 | welcome.footer | Open source · Windows, macOS and Linux | Open source · Windows, macOS e Linux |
 | welcome.note | You can change these options anytime from Filow > Welcome... | Puoi cambiare queste opzioni in qualsiasi momento da Filow > Benvenuto... |
 | welcome.getStarted | Get started | Inizia |
