@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, MIC_HEARD_MS, MIC_SILENT_MS, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, escapeAction, type MicState } from "./welcome-flow";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, MIC_HEARD_MS, MIC_SILENT_MS, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, escapeAction, segmentJaPhrases, type MicState } from "./welcome-flow";
 
 describe("welcome steps", () => {
   it("guides a first run through language, microphone and setup", () => {
@@ -128,5 +128,36 @@ describe("microphone plugged in or out mid-check (review T3 finding 5)", () => {
   });
   it("does not restart a running or passed check, nor a blocked one (a setting, not a device)", () => {
     for (const s of ["listening", "heard", "blocked"] as const) expect(micDeviceChange(s, true)).toBeNull();
+  });
+});
+
+describe("Japanese phrase-aware segmentation", () => {
+  it("keeps Japanese words, katakana compounds, inflections and shortcuts unbroken", () => {
+    expect(segmentJaPhrases("自由に話す。要点は外さない。")).toEqual(["自由に", "話す。", "要点は", "外さない。"]);
+    expect(segmentJaPhrases("「デバイスをペアリング」でQRコードを読み取るとスマホで追えます。")).toEqual([
+      "「デバイスを",
+      "ペアリング」で",
+      "QRコードを",
+      "読み取ると",
+      "スマホで",
+      "追えます。",
+    ]);
+    expect(segmentJaPhrases("サイドバーの「ホワイトボード」で概念を段階的に図解できます。")).toEqual([
+      "サイドバーの",
+      "「ホワイトボード」で",
+      "概念を",
+      "段階的に",
+      "図解できます。",
+    ]);
+    expect(segmentJaPhrases("Control + Optionを長押し、または「話す・入力する」で画面についてOK Filowに質問します。")).toEqual([
+      "Control + Optionを",
+      "長押し、",
+      "または",
+      "「話す・",
+      "入力する」で",
+      "画面について",
+      "OK Filowに",
+      "質問します。",
+    ]);
   });
 });

@@ -418,7 +418,18 @@ ipcMain.handle("dictation:punctuation:download", event => {
   ipcMain.handle("welcome:context", event => {
     if (!uiSender(event, true)) throw new Error("Denied");
     const firstRun = settings.welcomeCompleted !== true;
-    return { firstRun, askSetup: firstRun && !settings.localAiOffered };
+    const dictationCore = require("./dictation-core");
+    const talkRaw = okFilow ? okFilow.status().hotkey : settings.okFilow && settings.okFilow.hotkey;
+    const talkChord = ["ctrl+alt", "ctrl+shift", "alt+shift", "ctrl+meta"].includes(talkRaw) ? talkRaw : "ctrl+alt";
+    const dictationChord = dictationCore.sanitizeConfig(settings.dictation, settings.okFilow && settings.okFilow.dictation).chord;
+    return {
+      firstRun,
+      askSetup: firstRun && !settings.localAiOffered,
+      shortcuts: {
+        talk: dictationCore.chordLabel(talkChord, process.platform),
+        dictation: dictationCore.chordLabel(dictationChord, process.platform),
+      },
+    };
   });
   ipcMain.handle("welcome:setupOffer", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeOfferForStep(); });
   ipcMain.handle("welcome:chooseSetup", (event, accept, cleanup) => {

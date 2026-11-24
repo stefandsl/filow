@@ -74,6 +74,17 @@ describe("onboarding shows every shipped feature and never advertises held ones"
     }
   });
 
+  it("uses dynamic {keys} placeholders for both talk and dictation shortcuts in all five languages", () => {
+    expect(html).toContain('data-guide="welcome.guideBuddy"');
+    expect(html).toContain('data-guide="welcome.guideDictation"');
+    for (const lang of LANGS) {
+      const dict = DICTIONARIES[lang] as Record<string, string | undefined>;
+      expect(dict["welcome.guideBuddy"], `${lang} guideBuddy must use {keys}`).toContain("{keys}");
+      expect(dict["welcome.guideBuddy"], `${lang} guideBuddy must not hard-code Ctrl + Alt`).not.toMatch(/Ctrl\s*\+\s*Alt/i);
+      expect(dict["welcome.guideDictation"], `${lang} guideDictation must use {keys}`).toContain("{keys}");
+    }
+  });
+
   it("ships natural, non-empty, em-dash-free copy in all five languages without held capabilities", () => {
     const allKeys = [
       ...SHIPPED_BRAND_FEATURES.map(f => f.key),
@@ -81,13 +92,14 @@ describe("onboarding shows every shipped feature and never advertises held ones"
       "welcome.featuresLabel",
       "welcome.guideList",
     ];
+    const heldRe = /live lesson generation|generazione.*lezioni.*dal vivo|генерац\S* урок|generare.*lecți|ライブ.*レッスン.*生成|wake word|parola di attivazione|ключев\S* слов|cuvânt.*activare|ウェイクワード|Microsoft To Do/i;
     for (const lang of LANGS) {
       const dict = DICTIONARIES[lang] as Record<string, string | undefined>;
       for (const key of allKeys) {
         const value = dict[key];
         expect(value && value.trim().length > 0, `${lang} missing ${key}`).toBe(true);
         expect(value, `${lang} ${key} em dash`).not.toContain("\u2014");
-        expect(value, `${lang} ${key} held capability`).not.toMatch(/live lesson generation|generazione.*lezioni.*dal vivo|wake word|parola di attivazione|Microsoft To Do/i);
+        expect(value, `${lang} ${key} held capability`).not.toMatch(heldRe);
       }
     }
   });

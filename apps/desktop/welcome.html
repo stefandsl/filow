@@ -62,21 +62,21 @@
             <track kind="captions" src="media/intro.ro.vtt" srclang="ro" label="Română">
             <track kind="captions" src="media/intro.ja.vtt" srclang="ja" label="日本語">
           </video>
-          <div class="intro-caption">
-            <p class="detail" data-i18n="tour.transcript"></p>
-            <label class="setup-check"><input id="live-practice" type="checkbox" checked><span data-i18n="tour.openAfter"></span></label>
-          </div>
-          <p id="intro-live-caption" class="intro-live-caption" aria-live="off" hidden></p>
+          <p id="intro-live-caption" class="intro-live-caption" aria-live="off" data-empty="true"></p>
         </div>
-        <ul class="guide-list" data-i18n-label="welcome.guideList">
-          <li><span aria-hidden="true" data-icon="check"></span><span data-i18n="welcome.guidePoints"></span></li>
-          <li><span aria-hidden="true" data-icon="slides"></span><span data-i18n="welcome.guideSlides"></span></li>
-          <li><span aria-hidden="true" data-icon="phone"></span><span data-i18n="welcome.guidePhone"></span></li>
-          <li><span aria-hidden="true" data-icon="ask"></span><span data-i18n="welcome.guideBuddy"></span></li>
-          <li><span aria-hidden="true" data-icon="board"></span><span data-i18n="welcome.guideWhiteboard"></span></li>
-          <li><span aria-hidden="true" data-icon="mic"></span><span data-guide="welcome.guideDictation"></span></li>
-          <li><span aria-hidden="true" data-icon="calendar"></span><span data-i18n="welcome.guideDaily"></span></li>
-        </ul>
+        <label class="setup-check intro-practice"><input id="live-practice" type="checkbox" checked><span data-i18n="tour.openAfter"></span></label>
+        <details class="more guide-disclosure" id="guide-disclosure">
+          <summary><span data-i18n="welcome.guideList"></span><span aria-hidden="true" data-icon="chevronDown"></span></summary>
+          <ul class="guide-list" data-i18n-label="welcome.guideList">
+            <li><span aria-hidden="true" data-icon="check"></span><span data-i18n="welcome.guidePoints"></span></li>
+            <li><span aria-hidden="true" data-icon="slides"></span><span data-i18n="welcome.guideSlides"></span></li>
+            <li><span aria-hidden="true" data-icon="phone"></span><span data-i18n="welcome.guidePhone"></span></li>
+            <li><span aria-hidden="true" data-icon="ask"></span><span data-guide="welcome.guideBuddy"></span></li>
+            <li><span aria-hidden="true" data-icon="board"></span><span data-i18n="welcome.guideWhiteboard"></span></li>
+            <li><span aria-hidden="true" data-icon="mic"></span><span data-guide="welcome.guideDictation"></span></li>
+            <li><span aria-hidden="true" data-icon="calendar"></span><span data-i18n="welcome.guideDaily"></span></li>
+          </ul>
+        </details>
       </section>
 
       <section class="step" data-step="mic" aria-labelledby="progress h-mic" hidden>

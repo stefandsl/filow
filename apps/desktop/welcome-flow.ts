@@ -101,3 +101,68 @@ export function micTick(state: MicState, level: number, dtMs: number): MicState 
   if (heardMs >= MIC_HEARD_MS) return { status: "heard", heardMs, listenedMs };
   return { status: listenedMs >= MIC_SILENT_MS ? "silent" : "listening", heardMs, listenedMs };
 }
+
+// Japanese phrase-aware breaking: split text into natural bunsetsu chunks so Chromium never breaks
+// inside a kanji/katakana word, a shortcut chord, or before an orphan inflection/particle/punctuation.
+const JA_COMPOUND_RE = /(?:(?:Control|Ctrl|Alt|Option|Shift|Win|Command|Super)(?:\s*\+\s*(?:Control|Ctrl|Alt|Option|Shift|Win|Command|Super))+|OK Filow|QRコード)/g;
+const JA_OPEN_PUNCT = /^[「（『【([{]+$/;
+const JA_CLOSE_PUNCT = /^[。、」）！？・』】.,:;!?)\]}]+$/;
+const JA_KATA = /^[\u30A1-\u30FA\u30FC]+$/;
+const JA_HIRA = /^[\u3041-\u309Fー]+$/;
+const JA_KANJI_SUFFIX = /^的$/;
+const JA_CLAUSE_END = /[。、！？・]$/;
+
+/** Split Japanese text into unbroken phrase chunks aligned with Intl.Segmenter word boundaries. */
+export function segmentJaPhrases(text: string): string[] {
+  if (!text) return [];
+  const rawTokens: string[] = [];
+  const seg = new Intl.Segmenter("ja", { granularity: "word" });
+  let last = 0;
+  for (const match of text.matchAll(JA_COMPOUND_RE)) {
+    const start = match.index ?? 0;
+    if (start > last) {
+      for (const s of seg.segment(text.slice(last, start))) rawTokens.push(s.segment);
+    }
+    rawTokens.push(match[0]);
+    last = start + match[0].length;
+  }
+  if (last < text.length) {
+    for (const s of seg.segment(text.slice(last))) rawTokens.push(s.segment);
+  }
+
+  // Merge consecutive katakana segments (e.g. スマ+ホ -> スマホ, サイド+バー -> サイドバー).
+  const tokens: string[] = [];
+  for (const tok of rawTokens) {
+    if (tokens.length > 0 && JA_KATA.test(tokens[tokens.length - 1]) && JA_KATA.test(tok)) {
+      tokens[tokens.length - 1] += tok;
+    } else {
+      tokens.push(tok);
+    }
+  }
+
+  // Group into natural bunsetsu phrases while respecting opening/closing punctuation.
+  const phrases: string[] = [];
+  let pendingOpen = "";
+  for (const tok of tokens) {
+    if (JA_OPEN_PUNCT.test(tok)) {
+      pendingOpen += tok;
+      continue;
+    }
+    if (pendingOpen) {
+      phrases.push(pendingOpen + tok);
+      pendingOpen = "";
+      continue;
+    }
+    const prev = phrases[phrases.length - 1];
+    if (prev && !JA_CLAUSE_END.test(prev) && (JA_CLOSE_PUNCT.test(tok) || JA_HIRA.test(tok) || JA_KANJI_SUFFIX.test(tok))) {
+      phrases[phrases.length - 1] = prev + tok;
+      continue;
+    }
+    phrases.push(tok);
+  }
+  if (pendingOpen) {
+    if (phrases.length > 0) phrases[phrases.length - 1] += pendingOpen;
+    else phrases.push(pendingOpen);
+  }
+  return phrases;
+}

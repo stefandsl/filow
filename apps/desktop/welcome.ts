@@ -2,14 +2,15 @@ import { mountIcons } from "../web/components/icons";
 import { t, LANG_LABELS, acceptUiSnapshot, themeFollowing, resolveUiLanguage, type I18nKey, type UiBridge, type UiPatch, type UiSnapshot, type UiResult } from "../../packages/core/src/index";
 import { applyUiPreferences } from "../web/lib/applyUiPreferences";
 import { selectIntroCaptions, selectIntroMedia } from "./intro-captions";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, offerGb, escapeAction, type MicState, type StepId } from "./welcome-flow";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, offerGb, escapeAction, segmentJaPhrases, type MicState, type StepId } from "./welcome-flow";
 import "./welcome.css";
 
 /** The speech-setup offer from the main process (apps/desktop/welcome-setup.js setupOffer). */
 type SetupOffer = { ask: boolean; ready: boolean; downloadGb: number; needsOllama: boolean; models: string[]; device: "pc" | "mac"; ramGb: number; online: boolean; profile: string | null; unknown?: boolean; cleanup?: { id: string; bytes: number; gb: number } | null };
+type WelcomeShortcuts = { talk: string; dictation: string };
 type WelcomeBridge = UiBridge & {
   complete: (practice?: boolean) => Promise<UiResult>;
-  context: () => Promise<{ firstRun: boolean; askSetup: boolean }>;
+  context: () => Promise<{ firstRun: boolean; askSetup: boolean; shortcuts?: WelcomeShortcuts }>;
   setupOffer: () => Promise<SetupOffer>;
   chooseSetup: (accept: boolean, cleanup: boolean) => Promise<{ ok: boolean }>;
   openMicSettings: () => void;
@@ -36,16 +37,44 @@ let cleanupTicked = true;
 const counted = (o: SetupOffer) => ({ ...o, downloadGb: offerGb(o, cleanupTicked) });
 let busy = false;
 let introLang = "";
+let shortcuts: WelcomeShortcuts = defaultShortcuts();
 const introVideo = $<HTMLVideoElement>("#intro-video");
 const introLiveCaption = $("#intro-live-caption");
 const tr = (key: I18nKey, vars?: Record<string, string | number>) => t(key, state?.resolvedLang ?? "en", vars);
+
+function defaultShortcuts(): WelcomeShortcuts {
+  const plat = navigator.platform;
+  if (plat.startsWith("Mac")) return { talk: "Control + Option", dictation: "Control + Command" };
+  if (plat.startsWith("Win")) return { talk: "Ctrl + Alt", dictation: "Ctrl + Win" };
+  return { talk: "Ctrl + Alt", dictation: "Ctrl + Super" };
+}
+
+/** Populate element text; for Japanese, wrap natural bunsetsu phrases so no word splits across lines. */
+function setLocalizedText(el: HTMLElement, text: string, lang: string) {
+  if (lang !== "ja" || el instanceof HTMLOptionElement || !text) {
+    el.textContent = text;
+    return;
+  }
+  const phrases = segmentJaPhrases(text);
+  const wrapper = document.createElement("span");
+  wrapper.className = "ja-text";
+  for (let i = 0; i < phrases.length; i++) {
+    if (i > 0) wrapper.append(document.createElement("wbr"));
+    const span = document.createElement("span");
+    span.className = "ja-phrase";
+    span.textContent = phrases[i];
+    wrapper.append(span);
+  }
+  el.replaceChildren(wrapper);
+}
 
 function renderIntroCaption() {
   const showing = Array.from(introVideo.textTracks).find(track => track.mode === "showing");
   const cue = showing?.activeCues?.[0] as VTTCue | undefined;
   const text = cue?.text?.trim() ?? "";
-  introLiveCaption.textContent = text;
-  introLiveCaption.hidden = !showing || !text;
+  const empty = !showing || !text;
+  introLiveCaption.dataset.empty = empty ? "true" : "false";
+  setLocalizedText(introLiveCaption, empty ? "" : text, state?.resolvedLang ?? "en");
 }
 
 function wireIntroTracks() {
@@ -101,13 +130,15 @@ function render(next?: UiSnapshot) {
     renderIntroCaption();
     introLang = state.resolvedLang;
   }
-  document.querySelectorAll<HTMLElement>("[data-i18n]").forEach(el => { el.textContent = tr(el.dataset.i18n as I18nKey); });
+  const lang = state.resolvedLang;
+  document.querySelectorAll<HTMLElement>("[data-i18n]").forEach(el => { setLocalizedText(el, tr(el.dataset.i18n as I18nKey), lang); });
   document.querySelectorAll<HTMLElement>("[data-i18n-label]").forEach(el => el.setAttribute("aria-label", tr(el.dataset.i18nLabel as I18nKey)));
-  const dictationKeys = navigator.platform.startsWith("Mac") ? "Ctrl + Command" : "Ctrl + Win";
+  const buddyGuide = document.querySelector<HTMLElement>('[data-guide="welcome.guideBuddy"]');
+  if (buddyGuide) setLocalizedText(buddyGuide, tr("welcome.guideBuddy", { keys: shortcuts.talk }), lang);
   const dictationGuide = document.querySelector<HTMLElement>('[data-guide="welcome.guideDictation"]');
-  if (dictationGuide) dictationGuide.textContent = tr("welcome.guideDictation", { keys: dictationKeys });
+  if (dictationGuide) setLocalizedText(dictationGuide, tr("welcome.guideDictation", { keys: shortcuts.dictation }), lang);
   const systemLang = resolveUiLanguage("", navigator.language);
-  $("#lang-auto").textContent = tr("welcome.languageAuto", { name: LANG_LABELS[systemLang] });
+  setLocalizedText($("#lang-auto"), tr("welcome.languageAuto", { name: LANG_LABELS[systemLang] }), lang);
   document.querySelectorAll<HTMLInputElement>('input[name="lang"]').forEach(r => { r.checked = r.value === state!.lang; });
   const select = $<HTMLSelectElement>("#language-select");
   select.value = state.lang;
@@ -257,7 +288,7 @@ async function startMicCheck() {
 function renderSetup() {
   if (!state) return;
   const device = offer?.device === "mac" ? "Mac" : "PC";
-  $("#h-setup").textContent = tr("welcome.setupTitle", { device });
+  setLocalizedText($("#h-setup"), tr("welcome.setupTitle", { device }), state.resolvedLang);
   if (!offer) return;
   $("#setup-name").textContent = offer.profile ? tr("welcome.setupProfile", { name: offer.profile }) : tr("welcome.setupLocal");
   $("#setup-facts").textContent = offer.ramGb > 0 ? tr("welcome.setupMemory", { gb: offer.ramGb }) : "";
@@ -373,7 +404,8 @@ $<HTMLSelectElement>("#language-select").addEventListener("change", event => voi
 mountIcons(document);
 const unsubscribe = bridge.onPreferencesChanged(next => render(next));
 window.addEventListener("unload", () => { unsubscribe(); stopMic(); }, { once: true });
-void Promise.all([bridge.getPreferences(), bridge.context().catch(() => ({ firstRun: true, askSetup: false }))]).then(([prefsState, ctx]) => {
+void Promise.all([bridge.getPreferences(), bridge.context().catch(() => ({ firstRun: true, askSetup: false, shortcuts: undefined }))]).then(([prefsState, ctx]) => {
+  if (ctx.shortcuts?.talk && ctx.shortcuts?.dictation) shortcuts = ctx.shortcuts;
   steps = welcomeSteps(ctx);
   mountPrefs(document.querySelector<HTMLElement>(steps[0] === "preferences" ? '[data-step="preferences"] [data-prefs]' : "#more .rows")!);
   render(prefsState);

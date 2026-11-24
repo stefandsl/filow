@@ -1,13 +1,13 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { createRequire } from "node:module";
-import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { LANGS } from "@filow/core";
 
 const require = createRequire(import.meta.url);
 const desktopDir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const repoRoot = path.resolve(desktopDir, "..", "..");
 const welcomeHtml = path.join(desktopDir, "welcome.html");
 
 type LayoutIssue = {
@@ -21,11 +21,19 @@ type LayoutIssue = {
 /**
  * Spawns one hidden Electron process to render the real welcome.html + vendor bundle across
  * all five languages, both themes, and every spec viewport (1000x720, 975x705, 840x580,
- * framed-840x580 inner size 824x541, and 200% zoom). Uses a disposable temp user-data-dir.
+ * framed-840x580 inner size 824x541, and 200% zoom). Uses a repo-local gitignored tmp folder
+ * (never os.tmpdir() on C:).
  */
-function measureWelcomeLayout(): { issues: LayoutIssue[]; zoomProblems: string[]; a11yProblems: string[] } {
+function measureWelcomeLayout(): {
+  issues: LayoutIssue[];
+  zoomProblems: string[];
+  a11yProblems: string[];
+  shortcutProblems: string[];
+} {
   const electronExe = require("electron") as string;
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "filow-welcome-layout-"));
+  const tmpRoot = path.join(repoRoot, "tmp");
+  fs.mkdirSync(tmpRoot, { recursive: true });
+  const tmpDir = fs.mkdtempSync(path.join(tmpRoot, "welcome-layout-"));
   const userDataDir = path.join(tmpDir, "profile");
   const preloadPath = path.join(tmpDir, "mock-preload.js");
   const runnerPath = path.join(tmpDir, "runner.js");
@@ -42,6 +50,11 @@ let state = {
   accentColor: null,
   startup: { supported: true, requested: false, enabled: false, status: "disabled" },
   accentSupported: true,
+};
+let contextData = {
+  firstRun: true,
+  askSetup: true,
+  shortcuts: { talk: "Control + Option", dictation: "Control + Command" },
 };
 const listeners = new Set();
 ipcRenderer.on("mock:setState", (_e, patch) => {
@@ -60,7 +73,7 @@ contextBridge.exposeInMainWorld("filowWelcome", {
     return () => listeners.delete(fn);
   },
   complete: async () => ({ ok: true, state }),
-  context: async () => ({ firstRun: true, askSetup: true }),
+  context: async () => contextData,
   setupOffer: async () => ({
     ask: true, ready: false, downloadGb: 2.5, needsOllama: true,
     models: ["nemotron-streaming"], device: "pc", ramGb: 16, online: true, profile: "Balanced",
@@ -108,6 +121,7 @@ app.whenReady().then(async () => {
   const issues = [];
   const a11yProblems = [];
   const zoomProblems = [];
+  const shortcutProblems = [];
 
   for (const size of SIZES) {
     win.setContentSize(size.w, size.h);
@@ -120,6 +134,8 @@ app.whenReady().then(async () => {
         for (const step of ["language", "intro"]) {
           const problems = await win.webContents.executeJavaScript(\`(() => {
             const targetStep = \${JSON.stringify(step)};
+            const sizeName = \${JSON.stringify(size.name)};
+            const langCode = \${JSON.stringify(lang)};
             const current = document.querySelector(".step:not([hidden])")?.dataset.step;
             if (current !== targetStep) {
               if (targetStep === "intro") document.querySelector("#start").click();
@@ -134,6 +150,64 @@ app.whenReady().then(async () => {
             const stepper = brand.querySelector("#stepper");
             const copy = brand.querySelector(".brand-copy");
             const startBtn = document.querySelector("#start");
+            const tagline = brand.querySelector(".tagline");
+            const activeH1 = document.querySelector(".step:not([hidden]) h1");
+
+            // Check Japanese rendered line breaks against Intl.Segmenter word boundaries,
+            // katakana compounds, and orphan trailing particles/inflections.
+            const jaSegmenter = langCode === "ja" ? new Intl.Segmenter("ja", { granularity: "word" }) : null;
+            function checkJaWordSplits(el, label) {
+              if (!jaSegmenter || !el) return;
+              const style = getComputedStyle(el);
+              if (style.display === "none" || style.visibility === "hidden") return;
+              const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+              const chars = [];
+              let fullText = "";
+              let node;
+              while ((node = walker.nextNode())) {
+                const text = node.nodeValue || "";
+                for (let i = 0; i < text.length; i++) {
+                  chars.push({ node, offset: i, ch: text[i] });
+                }
+                fullText += text;
+              }
+              if (!fullText.trim()) return;
+              const lines = [];
+              const range = document.createRange();
+              for (let i = 0; i < chars.length; i++) {
+                if (/\\s/.test(chars[i].ch)) continue;
+                range.setStart(chars[i].node, chars[i].offset);
+                range.setEnd(chars[i].node, chars[i].offset + 1);
+                const r = range.getBoundingClientRect();
+                if (r.width === 0 && r.height === 0) continue;
+                const lastLine = lines[lines.length - 1];
+                if (!lastLine || Math.abs(r.top - lastLine.top) > Math.max(4, r.height * 0.4)) {
+                  lines.push({ top: r.top, startIdx: i });
+                }
+              }
+              if (lines.length <= 1) return;
+              const segments = [...jaSegmenter.segment(fullText)];
+              const kata = /[\\u30A1-\\u30FA\\u30FC]/;
+              const orphanEnd = /^[。、」）！？すたてるなえま]/;
+              const jaChar = /[\\u3040-\\u30FF\\u4E00-\\u9FFF]/;
+              for (let l = 1; l < lines.length; l++) {
+                const idx = lines[l].startIdx;
+                const splitSeg = segments.find(s => s.isWordLike && s.index < idx && idx < s.index + s.segment.length);
+                if (splitSeg) {
+                  out.push(\\\`JA word split in \\\${label}: "\\\${splitSeg.segment}" broken at "\\\${fullText.slice(Math.max(0, idx - 3), idx)}/\\\${fullText.slice(idx, idx + 3)}"\\\`);
+                  continue;
+                }
+                const prevCh = fullText[idx - 1] || "";
+                const nextCh = fullText[idx] || "";
+                if (kata.test(prevCh) && kata.test(nextCh)) {
+                  out.push(\\\`JA katakana split in \\\${label}: "\\\${fullText.slice(Math.max(0, idx - 3), idx)}/\\\${fullText.slice(idx, idx + 3)}"\\\`);
+                  continue;
+                }
+                if (jaChar.test(prevCh) && orphanEnd.test(nextCh)) {
+                  out.push(\\\`JA phrase/inflection split in \\\${label}: "\\\${fullText.slice(Math.max(0, idx - 3), idx)}/\\\${fullText.slice(idx, idx + 3)}"\\\`);
+                }
+              }
+            }
 
             if (brand.scrollHeight > brand.clientHeight + 1) {
               out.push(\\\`brand vertical overflow: \\\${brand.scrollHeight} > \\\${brand.clientHeight}\\\`);
@@ -141,6 +215,24 @@ app.whenReady().then(async () => {
             if (brand.scrollWidth > brand.clientWidth + 1) {
               out.push(\\\`brand horizontal overflow: \\\${brand.scrollWidth} > \\\${brand.clientWidth}\\\`);
             }
+
+            // Type size invariants: keep base type-sm (13px) for features, type-xl (~23.5px) for tagline, type-3xl (~31.6px) for h1.
+            const featuresEl = brand.querySelector(".features");
+            const featuresFont = parseFloat(getComputedStyle(featuresEl).fontSize);
+            if (featuresFont < 12.9) {
+              out.push(\\\`features font shrunk: \\\${featuresFont.toFixed(1)}px < 13px\\\`);
+            }
+            const taglineFont = parseFloat(getComputedStyle(tagline).fontSize);
+            if (taglineFont < 22.5) {
+              out.push(\\\`tagline font shrunk: \\\${taglineFont.toFixed(1)}px < 23.5px\\\`);
+            }
+            if (activeH1) {
+              const h1Font = parseFloat(getComputedStyle(activeH1).fontSize);
+              if (h1Font < 30.5) {
+                out.push(\\\`h1 font shrunk: \\\${h1Font.toFixed(1)}px < 31.6px\\\`);
+              }
+            }
+
             const features = [...brand.querySelectorAll(".features li")];
             if (features.length < 7) out.push(\\\`brand features count: \\\${features.length}\\\`);
             for (const li of features) {
@@ -148,7 +240,24 @@ app.whenReady().then(async () => {
               if (r.height === 0 || getComputedStyle(li).display === "none") out.push("hidden brand feature");
               if (r.bottom > brandRect.bottom + 1) out.push("brand feature clipped vertically");
               if (r.right > brandRect.right + 1) out.push("brand feature clipped horizontally");
+              const textSpan = li.children[1];
+              if (textSpan) {
+                const range = document.createRange();
+                range.selectNodeContents(textSpan);
+                const tops = new Set();
+                for (const cr of range.getClientRects()) {
+                  if (cr.width > 0 && cr.height > 0) tops.add(Math.round(cr.top / 4));
+                }
+                if (tops.size > 1) {
+                  out.push(\\\`brand feature wrapped to \\\${tops.size} lines: "\\\${textSpan.textContent}"\\\`);
+                }
+              }
             }
+
+            checkJaWordSplits(tagline, "tagline");
+            checkJaWordSplits(activeH1, \\\`h1(\\\${targetStep})\\\`);
+            for (const li of features) checkJaWordSplits(li.children[1], "feature");
+
             const copyRect = copy.getBoundingClientRect();
             const stepperRect = stepper.getBoundingClientRect();
             const footerRect = footer.getBoundingClientRect();
@@ -165,35 +274,93 @@ app.whenReady().then(async () => {
             const startRect = startBtn.getBoundingClientRect();
             if (startRect.bottom > window.innerHeight + 1) out.push(\\\`primary CTA below viewport: \\\${Math.round(startRect.bottom)} > \\\${window.innerHeight}\\\`);
 
+            if (targetStep === "language") {
+              const choicesEl = document.querySelector("#language");
+              const choices = [...choicesEl.querySelectorAll(".choice")];
+              const gridRect = choicesEl.getBoundingClientRect();
+              const rows = new Map();
+              const distinctCols = new Set();
+              for (const c of choices) {
+                const cr = c.getBoundingClientRect();
+                const rowKey = Math.round(cr.top / 6);
+                if (!rows.has(rowKey)) rows.set(rowKey, []);
+                rows.get(rowKey).push(cr);
+                const fullSpan = cr.width >= gridRect.width - 8;
+                if (!fullSpan) distinctCols.add(Math.round(cr.left / 8));
+              }
+              const colCount = Math.max(1, distinctCols.size);
+              if (colCount > 1) {
+                // Every row in a multi-column grid must be completely filled (no empty cells).
+                for (const [, rects] of rows) {
+                  const fullSpan = rects.length === 1 && rects[0].width >= gridRect.width - 8;
+                  if (!fullSpan && rects.length !== colCount) {
+                    out.push(\\\`language grid has empty cell: \\\${rects.length} items in \\\${colCount}-col row\\\`);
+                  }
+                }
+              }
+            }
+
             if (targetStep === "intro") {
               const video = document.querySelector("#intro-video");
               const liveCap = document.querySelector("#intro-live-caption");
               const expectedSrc = \\\`media/intro.\\\${document.documentElement.lang}.mp4\\\`;
               if (video?.getAttribute("src") !== expectedSrc) out.push(\\\`wrong video src: \\\${video?.getAttribute("src")}\\\`);
+              const vr = video.getBoundingClientRect();
+              if (sizeName === "1000x720" && vr.width < 560 - 1) {
+                out.push(\\\`video too small at 1000x720: \\\${Math.round(vr.width)}x\\\${Math.round(vr.height)} (need width >= 560)\\\`);
+              }
+              if ((sizeName === "840x580" || sizeName === "824x541") && vr.width < 420 - 1) {
+                out.push(\\\`video too small at \\\${sizeName}: \\\${Math.round(vr.width)}x\\\${Math.round(vr.height)} (need width >= 420)\\\`);
+              }
+              // Native Chromium video controls bar (~56-68px) must leave clear demo space above it.
+              if (vr.height < 210) {
+                out.push(\\\`video too short for native controls: height \\\${Math.round(vr.height)}px < 210px\\\`);
+              }
               if (liveCap) {
                 const tracks = Array.from(video?.textTracks ?? []);
                 const active = tracks.find(t => t.mode === "showing");
                 if (!active || active.language !== document.documentElement.lang) out.push(\\\`wrong caption track: \\\${active?.language}\\\`);
-                if (liveCap.hidden || !liveCap.textContent?.trim()) {
-                  liveCap.textContent = active?.cues?.[0]?.text || document.querySelector('[data-i18n="tour.transcript"]')?.textContent || "Caption";
-                  liveCap.hidden = false;
-                  void document.body.offsetHeight;
+                // Caption space must be reserved before playback so showing a cue causes zero layout jump.
+                if (liveCap.hidden || getComputedStyle(liveCap).display === "none") {
+                  out.push("caption space not reserved before playback (element is hidden/display:none)");
                 }
-                const vr = video.getBoundingClientRect();
+                const livePractice = document.querySelector("#live-practice");
+                const beforeTop = livePractice ? livePractice.getBoundingClientRect().top : 0;
+                const prevText = liveCap.textContent;
+                const prevEmpty = liveCap.dataset.empty;
+                const prevHidden = liveCap.hidden;
+                liveCap.textContent = active?.cues?.[0]?.text || "Hold the talk shortcut and ask a question. You choose screen sharing.";
+                liveCap.hidden = false;
+                liveCap.dataset.empty = "false";
+                void document.body.offsetHeight;
+                const afterTop = livePractice ? livePractice.getBoundingClientRect().top : 0;
                 const cr = liveCap.getBoundingClientRect();
+                if (Math.abs(afterTop - beforeTop) > 1) {
+                  out.push(\\\`layout jumped when caption appeared: delta \\\${Math.round(afterTop - beforeTop)}px\\\`);
+                }
                 if (cr.top < vr.bottom - 1) out.push(\\\`caption overlaps video: \\\${Math.round(cr.top)} < \\\${Math.round(vr.bottom)}\\\`);
                 if (panel.scrollHeight > panel.clientHeight + 1) {
                   out.push(\\\`panel vertical scrollbar with caption: \\\${panel.scrollHeight} > \\\${panel.clientHeight}\\\`);
                 }
+                liveCap.textContent = prevText;
+                liveCap.hidden = prevHidden;
+                if (prevEmpty !== undefined) liveCap.dataset.empty = prevEmpty;
               }
+              // Check all 7 guide items (open disclosure if wrapped in <details>).
+              const disclosure = document.querySelector('[data-step="intro"] details');
+              const wasOpen = disclosure ? disclosure.open : false;
+              if (disclosure) { disclosure.open = true; void document.body.offsetHeight; }
               const guides = [...document.querySelectorAll('[data-step="intro"] .guide-list li')];
               if (guides.length < 7) out.push(\\\`guide list count: \\\${guides.length}\\\`);
-              const actionsRect = document.querySelector(".actions").getBoundingClientRect();
               for (const li of guides) {
                 const r = li.getBoundingClientRect();
                 if (r.height === 0) out.push("hidden guide item");
-                if (r.bottom > actionsRect.top + 1) out.push("guide item overlaps actions");
+                checkJaWordSplits(li.children[1], "guide-item");
               }
+              if (panel.scrollWidth > panel.clientWidth + 1) {
+                out.push(\\\`panel horizontal overflow with guide open: \\\${panel.scrollWidth} > \\\${panel.clientWidth}\\\`);
+              }
+              if (disclosure) { disclosure.open = wasOpen; void document.body.offsetHeight; }
             }
             return out;
           })()\`);
@@ -207,39 +374,61 @@ app.whenReady().then(async () => {
     }
   }
 
-  // Check 200% zoom at 1000x720 (effective 500x360 viewport): no horizontal overflow, primary CTA visible.
+  // Verify bridge-supplied platform/configured shortcuts render in both buddy and dictation guide lines.
+  win.setContentSize(1000, 720);
+  win.webContents.send("mock:setState", { lang: "en", resolvedLang: "en", theme: "dark", resolvedTheme: "dark" });
+  await flushLayout(win.webContents);
+  const scCheck = await win.webContents.executeJavaScript(\`(() => {
+    const out = [];
+    document.querySelector("#start").click();
+    const buddy = document.querySelector('[data-guide="welcome.guideBuddy"]')?.textContent
+      || document.querySelector('[data-i18n="welcome.guideBuddy"]')?.textContent || "";
+    const dict = document.querySelector('[data-guide="welcome.guideDictation"]')?.textContent || "";
+    if (!buddy.includes("Control + Option")) out.push(\\\`buddy guide did not use bridge talk shortcut: "\\\${buddy}"\\\`);
+    if (!dict.includes("Control + Command")) out.push(\\\`dictation guide did not use bridge dictation shortcut: "\\\${dict}"\\\`);
+    document.querySelector("#back").click();
+    return out;
+  })()\`);
+  shortcutProblems.push(...scCheck);
+
+  // Check 200% zoom at 1000x720 (effective 500x360 viewport) in IT and JA: no horizontal overflow, primary CTA visible.
   win.setContentSize(1000, 720);
   win.webContents.setZoomFactor(2);
-  win.webContents.send("mock:setState", { lang: "it", resolvedLang: "it", theme: "dark", resolvedTheme: "dark" });
-  await flushLayout(win.webContents);
-  for (const step of ["language", "intro"]) {
-    const zp = await win.webContents.executeJavaScript(\`(() => {
-      const targetStep = \${JSON.stringify(step)};
-      const current = document.querySelector(".step:not([hidden])")?.dataset.step;
-      if (current !== targetStep) {
-        if (targetStep === "intro") document.querySelector("#start").click();
-        else document.querySelector("#back").click();
-      }
-      void document.body.offsetHeight;
-      const out = [];
-      const panel = document.querySelector(".panel");
-      const startRect = document.querySelector("#start").getBoundingClientRect();
-      if (document.documentElement.scrollWidth > window.innerWidth + 1) out.push(\\\`\\\${targetStep}: root horizontal overflow at 200%\\\`);
-      if (panel.scrollWidth > panel.clientWidth + 1) out.push(\\\`\\\${targetStep}: panel horizontal overflow at 200%\\\`);
-      if (startRect.bottom > window.innerHeight + 1) out.push(\\\`\\\${targetStep}: primary CTA clipped at 200%\\\`);
-      return out;
-    })()\`);
-    zoomProblems.push(...zp);
+  for (const zLang of ["it", "ja"]) {
+    win.webContents.send("mock:setState", { lang: zLang, resolvedLang: zLang, theme: "dark", resolvedTheme: "dark" });
+    await flushLayout(win.webContents);
+    for (const step of ["language", "intro"]) {
+      const zp = await win.webContents.executeJavaScript(\`(() => {
+        const targetStep = \${JSON.stringify(step)};
+        const current = document.querySelector(".step:not([hidden])")?.dataset.step;
+        if (current !== targetStep) {
+          if (targetStep === "intro") document.querySelector("#start").click();
+          else document.querySelector("#back").click();
+        }
+        void document.body.offsetHeight;
+        const out = [];
+        const panel = document.querySelector(".panel");
+        const startRect = document.querySelector("#start").getBoundingClientRect();
+        if (document.documentElement.scrollWidth > window.innerWidth + 1) out.push(\\\`\\\${\${JSON.stringify(zLang)}} \\\${targetStep}: root horizontal overflow at 200%\\\`);
+        if (panel.scrollWidth > panel.clientWidth + 1) out.push(\\\`\\\${\${JSON.stringify(zLang)}} \\\${targetStep}: panel horizontal overflow at 200%\\\`);
+        if (startRect.bottom > window.innerHeight + 1) out.push(\\\`\\\${\${JSON.stringify(zLang)}} \\\${targetStep}: primary CTA clipped at 200%\\\`);
+        return out;
+      })()\`);
+      zoomProblems.push(...zp);
+    }
+    await win.webContents.executeJavaScript('document.querySelector("#back").click()');
+    await flushLayout(win.webContents);
   }
   win.webContents.setZoomFactor(1);
 
-  // Check keyboard focus and accessible names (Narrator).
+  // Check keyboard focus and accessible names (Narrator), plus JA headings on all 4 steps (mic & setup included).
   const a11y = await win.webContents.executeJavaScript(\`(() => {
     const out = [];
     const features = document.querySelector(".features");
     if (!features?.getAttribute("aria-label")?.trim()) out.push("features list missing aria-label");
     const guideList = document.querySelector('[data-step="intro"] .guide-list');
     if (!guideList?.getAttribute("aria-label")?.trim()) out.push("guide list missing aria-label");
+    document.querySelector("#start").click();
     if (document.activeElement?.id !== "h-intro") out.push(\\\`expected focus on h-intro, got \\\${document.activeElement?.id}\\\`);
     document.querySelector("#back").click();
     if (document.activeElement?.id !== "h-language") out.push(\\\`expected focus on h-language, got \\\${document.activeElement?.id}\\\`);
@@ -247,7 +436,61 @@ app.whenReady().then(async () => {
   })()\`);
   a11yProblems.push(...a11y);
 
-  process.stdout.write("LAYOUT_JSON:" + JSON.stringify({ issues, zoomProblems, a11yProblems }) + "\\n");
+  // Verify JA headings on mic and setup steps have no word splits at 840x580 and 1000x720.
+  for (const size of [{ name: "1000x720", w: 1000, h: 720 }, { name: "840x580", w: 840, h: 580 }]) {
+    win.setContentSize(size.w, size.h);
+    win.webContents.send("mock:setState", { lang: "ja", resolvedLang: "ja", theme: "dark", resolvedTheme: "dark" });
+    await flushLayout(win.webContents);
+    const jaStepProblems = await win.webContents.executeJavaScript(\`(() => {
+      const out = [];
+      const jaSegmenter = new Intl.Segmenter("ja", { granularity: "word" });
+      function checkJa(el, label) {
+        if (!el) return;
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        const chars = [];
+        let fullText = "";
+        let node;
+        while ((node = walker.nextNode())) {
+          const text = node.nodeValue || "";
+          for (let i = 0; i < text.length; i++) chars.push({ node, offset: i, ch: text[i] });
+          fullText += text;
+        }
+        const lines = [];
+        const range = document.createRange();
+        for (let i = 0; i < chars.length; i++) {
+          if (/\\s/.test(chars[i].ch)) continue;
+          range.setStart(chars[i].node, chars[i].offset);
+          range.setEnd(chars[i].node, chars[i].offset + 1);
+          const r = range.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) continue;
+          const last = lines[lines.length - 1];
+          if (!last || Math.abs(r.top - last.top) > Math.max(4, r.height * 0.4)) lines.push({ top: r.top, startIdx: i });
+        }
+        if (lines.length <= 1) return;
+        const segments = [...jaSegmenter.segment(fullText)];
+        for (let l = 1; l < lines.length; l++) {
+          const idx = lines[l].startIdx;
+          const splitSeg = segments.find(s => s.isWordLike && s.index < idx && idx < s.index + s.segment.length);
+          if (splitSeg) out.push(\\\`JA split in \\\${label}: \\\${splitSeg.segment}\\\`);
+        }
+      }
+      // Step 1 -> 2 (intro) -> 3 (mic) -> 4 (setup), then back to 1.
+      document.querySelector("#start").click();
+      document.querySelector("#start").click();
+      void document.body.offsetHeight;
+      checkJa(document.querySelector("#h-mic"), "h-mic");
+      document.querySelector("#start").click();
+      void document.body.offsetHeight;
+      checkJa(document.querySelector("#h-setup"), "h-setup");
+      document.querySelector("#back").click();
+      document.querySelector("#back").click();
+      document.querySelector("#back").click();
+      return out;
+    })()\`);
+    if (jaStepProblems.length > 0) issues.push({ lang: "ja", theme: "dark", size: size.name, step: "mic/setup", problems: jaStepProblems });
+  }
+
+  process.stdout.write("LAYOUT_JSON:" + JSON.stringify({ issues, zoomProblems, a11yProblems, shortcutProblems }) + "\\n");
   app.exit(0);
 }).catch(err => {
   console.error(err);
@@ -261,7 +504,7 @@ app.whenReady().then(async () => {
     const raw = execFileSync(electronExe, [runnerPath], {
       env,
       encoding: "utf8",
-      timeout: 25_000,
+      timeout: 35_000,
     });
     const line = raw.split(/\r?\n/).find(l => l.startsWith("LAYOUT_JSON:"));
     if (!line) throw new Error(`No layout output from Electron:\n${raw}`);
@@ -272,11 +515,12 @@ app.whenReady().then(async () => {
 }
 
 describe("welcome window layout across all languages, themes and sizes", () => {
-  // Explicit 30 s timeout (R31): spawns one Electron instance to measure 5 languages x 2 themes x 4 sizes + 200% zoom.
-  it("fits cleanly with no brand clipping, no vertical scrollbar at 1000x720..840x580, and works at 200% scale", () => {
-    const { issues, zoomProblems, a11yProblems } = measureWelcomeLayout();
+  // Explicit 40 s timeout (R31): spawns one Electron instance to measure 5 languages x 2 themes x 4 sizes + 200% zoom + JA word-break geometry.
+  it("fits cleanly with big video, 13px single-line features, phrase-aware JA breaks, no empty grid cells, reserved caption space and platform shortcuts", () => {
+    const { issues, zoomProblems, a11yProblems, shortcutProblems } = measureWelcomeLayout();
     expect(issues).toEqual([]);
+    expect(shortcutProblems).toEqual([]);
     expect(zoomProblems).toEqual([]);
     expect(a11yProblems).toEqual([]);
-  }, 30_000);
+  }, 40_000);
 });

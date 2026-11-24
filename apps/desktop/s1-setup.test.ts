@@ -165,7 +165,7 @@ describe("S1-mini: one name and one size everywhere", () => {
     const main = here("main.js");
     expect(main.includes("installChoicesFound")).toBe(false);
     expect(main.includes("readInstallChoices")).toBe(false);
-    expect(main.includes("return { firstRun, askSetup: firstRun && !settings.localAiOffered };")).toBe(true);
+    expect(/return \{\s*firstRun,\s*askSetup: firstRun && !settings\.localAiOffered\b/.test(main)).toBe(true);
     expect(/function dropInstallerChoices\(\) \{\s*try \{\s*fs\.rmSync\(path\.join\(userData, "install-choices\.json"\), \{ force: true \}\);/.test(main)).toBe(true);
     expect(/loadSettings\(\);[\s\S]{0,300}dropInstallerChoices\(\);/.test(main)).toBe(true);
     expect(main.includes("if (!choices && !settings.localAiOffered) choices = await offerLocalAi();")).toBe(true);

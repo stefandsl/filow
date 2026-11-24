@@ -95,6 +95,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   modules["./updater-policy.js"] = createRequire(import.meta.url)("./updater-policy.js");
   // the old seeded model ids loadEnv reads as unset
   modules["./env-defaults.js"] = createRequire(import.meta.url)("./env-defaults.js");
+  modules["./dictation-core"] = createRequire(import.meta.url)("./dictation-core.js");
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },

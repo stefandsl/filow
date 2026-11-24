@@ -68,8 +68,12 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./integrity": { sha256File: async () => "" },
     "./vendor/i18n": { t: recordingT, isLang, langFromLocale }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./slideshow": {},
-    // the real sender rule, so the window buttons are checked as in the app
-    "./ui-preferences": { trustedUiSender: createRequire(import.meta.url)("./ui-preferences.js").trustedUiSender },
+    // the real sender rule, so the window buttons and welcome IPC are checked as in the app
+    "./ui-preferences": {
+      trustedUiSender: createRequire(import.meta.url)("./ui-preferences.js").trustedUiSender,
+      createUiPreferences: () => ({ get: () => ({}), update: async () => ({ ok: true }), complete: async () => ({ ok: true }), migrateLegacy: async () => ({ ok: true }), subscribe: () => () => {}, refresh() {} }),
+      createWelcomeController: () => ({ show: async () => {}, finish: async () => ({ ok: true }) }),
+    },
     "./window-controls": createRequire(import.meta.url)("./window-controls.js"),
     "./ollama-runtime": createRequire(import.meta.url)("./ollama-runtime.js"),
     "./local-ownership": { ownership: () => ({ beginRuntime() {}, completeRuntime() {} }) },
@@ -92,6 +96,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   modules["./updater-policy.js"] = createRequire(import.meta.url)("./updater-policy.js");
   // the old seeded model ids loadEnv reads as unset
   modules["./env-defaults.js"] = createRequire(import.meta.url)("./env-defaults.js");
+  modules["./dictation-core"] = createRequire(import.meta.url)("./dictation-core.js");
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ registerPptManifest, migrateLegacyProfile, serverHost, firewallStatus, applyOffline, loadSettings, wireScreenSense, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
@@ -99,7 +104,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
        guardNavigation, endTakeWithPage, APP_URL, publicSession: () => currentSession, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
        setTrackingSession: session => { sttSession = session; },
        offerLocalAi, offerFirewall, welcomeSetup, registerHotkey, permissionFor, copyText: text => clipboard.writeText(text), settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
-       onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; }, buildMenu, st,
+       onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; }, buildMenu, st, initializeUiPreferences,
        setLocalAiHardware: hw => { localAiHardware = Promise.resolve(hw); } });`, {
     require: (id: string) => {
       if (id.endsWith("electron-updater.js")) { updaterLoad(); return { autoUpdater: { on(event: string, fn: (info: any) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall, downloadedUpdateHelper: { clear: clearDownloadedCache } } }; }
@@ -758,6 +763,24 @@ describe("welcome setup step, main process", () => {
     await f.api.welcomeOfferForStep();
     f.api.chooseWelcomeSetup(true);
     expect(f.api.welcomeSetup.choice?.models?.length).toBeGreaterThan(0);
+  });
+  it.each([
+    ["win32", "Ctrl + Alt", "Ctrl + Win"],
+    ["darwin", "Control + Option", "Control + Command"],
+    ["linux", "Ctrl + Alt", "Ctrl + Super"],
+  ] as const)("welcome:context reports real %s talk and dictation shortcut labels from settings", async (platform, talk, dictation) => {
+    const f = fixture({}, { platform });
+    f.api.initializeUiPreferences();
+    const welcomeUrl = pathToFileURL(path.join("G:/fake", "welcome.html")).href;
+    const welcomeWin = { isDestroyed: () => false, webContents: { isDestroyed: () => false, mainFrame: { url: welcomeUrl }, getURL: () => welcomeUrl } };
+    f.api.setWelcomeWin(welcomeWin);
+    const ctx = await f.ipcHandlers["welcome:context"]({ sender: welcomeWin.webContents, senderFrame: welcomeWin.webContents.mainFrame });
+    expect(ctx.shortcuts).toEqual({ talk, dictation });
+    f.api.patchSettings({ okFilow: { hotkey: "ctrl+shift" }, dictation: { chord: "alt+shift" } });
+    const custom = await f.ipcHandlers["welcome:context"]({ sender: welcomeWin.webContents, senderFrame: welcomeWin.webContents.mainFrame });
+    const expectedTalk = platform === "darwin" ? "Control + Shift" : "Ctrl + Shift";
+    const expectedDict = platform === "darwin" ? "Option + Shift" : "Alt + Shift";
+    expect(custom.shortcuts).toEqual({ talk: expectedTalk, dictation: expectedDict });
   });
 });
 

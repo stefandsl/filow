@@ -17,8 +17,8 @@ button, input, select { font-family: var(--font); font-variant-numeric: tabular-
 .icon { display: inline-block; width: 1.25rem; height: 1.25rem; vertical-align: middle; flex-shrink: 0; }
 
 /* ---- layout: brand rail + one step at a time ---- */
-.welcome { display: grid; grid-template-columns: minmax(272px, 32%) 1fr; height: 100vh; }
-.brand { display: flex; flex-direction: column; gap: 18px; padding: 24px 24px; background: var(--panel); min-height: 0; overflow: hidden; }
+.welcome { display: grid; grid-template-columns: minmax(272px, 31%) 1fr; height: 100vh; }
+.brand { display: flex; flex-direction: column; gap: 18px; padding: 24px 22px; background: var(--panel); min-height: 0; overflow: hidden; }
 .wordmark { width: 144px; max-width: 100%; height: auto; flex-shrink: 0; }
 .black { display: none; }
 [data-theme="light"] .white { display: none; }
@@ -39,9 +39,9 @@ button, input, select { font-family: var(--font); font-variant-numeric: tabular-
 .stepper li.done .dot { background: var(--surface-2); color: var(--ok); }
 footer { color: var(--muted); font-size: var(--type-xs); line-height: 1.35; flex-shrink: 0; }
 
-.panel { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; background: var(--panel-2); padding: 28px 40px 0; }
-.progress { margin: 0 0 8px; color: var(--muted); font-size: var(--type-sm); }
-.step { display: flex; flex-direction: column; gap: 14px; max-width: 600px; }
+.panel { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; background: var(--panel-2); padding: 24px 36px 0; }
+.progress { margin: 0 0 6px; color: var(--muted); font-size: var(--type-sm); }
+.step { display: flex; flex-direction: column; gap: 12px; max-width: 580px; }
 h1 { text-wrap: balance; margin: 0; font-size: var(--type-3xl); line-height: 1.15; font-weight: 650; letter-spacing: 0; }
 /* The title takes focus on each step so screen readers announce it; it is not a control, so no ring. */
 h1:focus, h1:focus-visible { outline: none; }
@@ -51,9 +51,8 @@ h1:focus, h1:focus-visible { outline: none; }
 .detail { margin: 0; color: var(--muted); font-size: var(--type-sm); }
 #first-task { align-self: flex-start; }
 
-/* ---- language: large choices instead of a drop-down ---- */
-.choices { margin: 0; padding: 0; border: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.choices .choice:first-of-type { grid-column: 1 / -1; }
+/* ---- language: original one-column list at full height; 2x3 with no empty cell at compact height ---- */
+.choices { margin: 0; padding: 0; border: 0; display: grid; grid-template-columns: 1fr; gap: 6px; }
 .choice { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 14px; border-radius: var(--radius); background: var(--surface); cursor: pointer; box-shadow: inset 0 0 0 1px var(--border); transition: background 160ms ease-out, box-shadow 160ms ease-out; }
 .choice:hover { background: var(--control-hover); }
 .choice:has(input:checked) { box-shadow: inset 0 0 0 2px var(--ring); }
@@ -62,14 +61,14 @@ h1:focus, h1:focus-visible { outline: none; }
 .choice input:focus-visible { outline: none; }
 .choice:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
 
-/* ---- disclosure (appearance and startup, what gets installed) ---- */
+/* ---- disclosure (appearance and startup, how to start each feature, what gets installed) ---- */
 .more { border-radius: var(--radius); }
-.more summary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; cursor: pointer; color: var(--muted); font-size: var(--type-sm); list-style: none; border-radius: 6px; }
+.more summary { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; cursor: pointer; color: var(--muted); font-size: var(--type-sm); list-style: none; border-radius: 6px; }
 .more summary::-webkit-details-marker { display: none; }
 .more summary:hover { color: var(--text); }
 .more summary .icon { width: 16px; height: 16px; transition: transform 160ms ease-out; }
 .more[open] summary .icon { transform: rotate(180deg); }
-.more ul { margin: 4px 0 0; padding-left: 20px; color: var(--muted); font-size: var(--type-sm); display: grid; gap: 4px; }
+.more ul:not(.guide-list) { margin: 4px 0 0; padding-left: 20px; color: var(--muted); font-size: var(--type-sm); display: grid; gap: 4px; }
 
 .rows { display: grid; }
 .option-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 20px; min-height: 56px; padding: 6px 0; border-top: 1px solid var(--border); }
@@ -111,7 +110,7 @@ input[role="switch"]:checked::after { transform: translateX(20px); background: v
 /* ---- actions: always visible at the bottom, also at 150 % zoom ---- */
 #error { margin: 16px 0 0; min-height: 0; color: var(--warn); font-size: var(--type-sm); }
 #error:empty { display: none; }
-.actions { position: sticky; bottom: 0; display: flex; align-items: center; gap: 12px; margin-top: auto; padding: 16px 0 22px; background: linear-gradient(to bottom, transparent, var(--panel-2) 20px); }
+.actions { position: sticky; bottom: 0; display: flex; align-items: center; gap: 12px; margin-top: auto; padding: 14px 0 18px; background: linear-gradient(to bottom, transparent, var(--panel-2) 20px); }
 .spacer { flex: 1; }
 button { font: inherit; min-height: 44px; border: 0; border-radius: var(--radius); color: var(--text); padding: 10px 18px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: background 160ms ease-out, opacity 160ms ease-out; }
 .primary { background: var(--action-background); color: var(--action-foreground); font-weight: 650; padding: 12px 22px; }
@@ -123,43 +122,48 @@ button { font: inherit; min-height: 44px; border: 0; border-radius: var(--radius
 button:disabled { opacity: 0.5; cursor: default; }
 button:not(:disabled):active { transform: translateY(1px); }
 
-/* ---- quick start: compact video + shipped feature guide ---- */
-.intro-media { display: grid; grid-template-columns: 220px 1fr; align-items: center; gap: 8px 14px; }
-.intro-video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #121212; border-radius: var(--radius); margin: 0; }
+/* ---- quick start: main intro video + reserved live caption + feature guide disclosure ---- */
+.intro-media { display: flex; flex-direction: column; gap: 6px; }
+.intro-video { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 326px; background: #121212; border-radius: var(--radius); margin: 0; }
 /* Inline playback shows captions in #intro-live-caption below the video so they never cover demo content.
    In fullscreen, native ::cue renders in the empty bottom band of the 1280x720 frame. */
 .intro-video:not(:fullscreen)::cue { color: transparent; background: transparent; text-shadow: none; }
-.intro-live-caption { grid-column: 1 / -1; margin: 0; padding: 6px 10px; border-radius: var(--radius); background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); color: var(--text); font-size: var(--type-xs); line-height: 1.35; }
-.intro-caption { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.intro-caption .detail { line-height: 1.35; }
-.intro-caption .setup-check { min-height: 36px; }
-.guide-list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+.intro-live-caption { margin: 0; padding: 6px 10px; min-height: calc(2 * 1.35em + 12px); display: flex; align-items: center; border-radius: var(--radius); background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); color: var(--text); font-size: var(--type-xs); line-height: 1.35; }
+.intro-live-caption[data-empty="true"] { visibility: hidden; }
+.intro-practice { min-height: 36px; }
+.guide-disclosure summary { min-height: 36px; }
+.guide-list { margin: 6px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
 .guide-list li { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: var(--radius); background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); color: var(--text); font-size: var(--type-xs); line-height: 1.35; }
 .guide-list li:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .guide-list li > span:first-child { display: inline-flex; color: var(--muted); margin-top: 1px; flex-shrink: 0; }
 .guide-list .icon { width: 1rem; height: 1rem; }
 
-/* ---- compact desktop height (840x580 and framed inner height ~541px) ---- */
+/* ---- compact desktop height (840x580 and framed inner height ~541px): keep original type scale ---- */
 @media (max-height: 640px) {
-  .brand { gap: 10px; padding: 16px 20px; }
+  .brand { gap: 10px; padding: 14px 18px; }
   .wordmark { width: 118px; }
-  .tagline { font-size: var(--type-lg); margin-bottom: 8px; }
-  .features { gap: 5px; font-size: var(--type-xs); line-height: 1.25; }
-  .features .icon { width: 0.9rem; height: 0.9rem; }
+  .tagline { margin-bottom: 8px; }
+  .features { gap: 5px; line-height: 1.25; }
   .stepper ol { gap: 2px; }
   .stepper li { min-height: 24px; font-size: var(--type-xs); }
   .stepper .dot { width: 18px; height: 18px; }
-  .panel { padding: 12px 28px 0; }
+  .panel { padding: 10px 24px 0; }
   .progress { margin-bottom: 2px; }
-  .step { gap: 8px; }
-  h1 { font-size: var(--type-2xl); }
-  .intro-media { grid-template-columns: 184px 1fr; gap: 6px 12px; }
-  .intro-live-caption { padding: 4px 8px; line-height: 1.25; }
-  .intro-caption .detail { font-size: var(--type-xs); line-height: 1.28; }
-  .intro-caption .setup-check { min-height: 26px; font-size: var(--type-xs); }
+  .step { gap: 7px; }
+  .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; }
+  .choice { min-height: 44px; padding: 6px 12px; }
+  .more summary { min-height: 32px; }
+  .intro-media { gap: 4px; }
+  .intro-video { width: min(100%, 460px); max-height: 259px; }
+  .intro-live-caption { padding: 4px 8px; min-height: calc(2 * 1.28em + 8px); line-height: 1.28; }
+  .intro-practice { min-height: 28px; }
+  .guide-disclosure summary { min-height: 28px; }
   .guide-list { gap: 5px 8px; }
   .guide-list li { padding: 5px 8px; line-height: 1.25; }
-  .actions { padding: 8px 0 12px; }
+  .actions { padding: 8px 0 10px; }
+}
+@media (max-height: 560px) {
+  .intro-video { width: min(100%, 426px); max-height: 240px; }
 }
 
 /* ---- narrow or zoomed windows: the rail becomes a slim header ---- */
@@ -172,7 +176,7 @@ button:not(:disabled):active { transform: translateY(1px); }
   h1 { font-size: var(--type-2xl); }
   .step { gap: 12px; }
   .choices { grid-template-columns: 1fr; }
-  .intro-media { grid-template-columns: 1fr; }
+  .intro-video { width: 100%; max-height: none; }
   .guide-list { grid-template-columns: 1fr; }
   .actions { padding: 12px 0 14px; }
 }
@@ -194,6 +198,7 @@ button:not(:disabled):active { transform: translateY(1px); }
   .primary { outline: 1px solid ButtonText; }
 }
 
-/* Japanese: break lines by its own rules and keep phrases whole in headings and buttons. */
+/* Japanese: break lines by phrase boundaries everywhere in onboarding. */
 :lang(ja) { line-break: strict; word-break: normal; }
-:lang(ja) :is(h1, h2, h3, button, label, summary) { word-break: auto-phrase; }
+:lang(ja) :is(h1, h2, h3, button, label, summary, .tagline, .lead, .detail, .features li, .guide-list li) { word-break: auto-phrase; }
+.ja-phrase { white-space: nowrap; }
