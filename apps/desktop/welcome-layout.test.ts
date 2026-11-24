@@ -91,6 +91,9 @@ const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("node:path");
 
 app.commandLine.appendSwitch("disable-gpu");
+app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
+app.commandLine.appendSwitch("disable-renderer-backgrounding");
+app.commandLine.appendSwitch("disable-background-timer-throttling");
 app.setPath("userData", ${JSON.stringify(userDataDir)});
 
 const LANGS = ${JSON.stringify([...LANGS])};
@@ -105,6 +108,16 @@ const SIZES = [
 
 async function flushLayout(wc) {
   await wc.executeJavaScript("new Promise(r => setTimeout(() => { void document.body.offsetHeight; r(); }, 0))");
+}
+
+async function waitViewport(wc, expectedW, expectedH) {
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
+    const ok = await wc.executeJavaScript(\`Math.abs(window.innerWidth - \${expectedW}) <= 2 && Math.abs(window.innerHeight - \${expectedH}) <= 2\`);
+    if (ok) break;
+    await new Promise(r => setTimeout(r, 20));
+  }
+  await flushLayout(wc);
 }
 
 app.whenReady().then(async () => {
@@ -129,7 +142,7 @@ app.whenReady().then(async () => {
 
   for (const size of SIZES) {
     win.setContentSize(size.w, size.h);
-    await flushLayout(win.webContents);
+    await waitViewport(win.webContents, size.w, size.h);
     for (const theme of THEMES) {
       for (const lang of LANGS) {
         win.webContents.send("mock:setState", { lang, resolvedLang: lang, theme, resolvedTheme: theme });
@@ -389,6 +402,7 @@ app.whenReady().then(async () => {
 
   // Verify bridge-supplied platform/configured shortcuts render in both buddy and dictation guide lines.
   win.setContentSize(1000, 720);
+  await waitViewport(win.webContents, 1000, 720);
   win.webContents.send("mock:setState", { lang: "en", resolvedLang: "en", theme: "dark", resolvedTheme: "dark" });
   await flushLayout(win.webContents);
   const scCheck = await win.webContents.executeJavaScript(\`(() => {
@@ -407,6 +421,7 @@ app.whenReady().then(async () => {
   // Check 200% zoom at 1000x720 (effective 500x360 viewport) in IT and JA: no horizontal overflow, primary CTA visible.
   win.setContentSize(1000, 720);
   win.webContents.setZoomFactor(2);
+  await waitViewport(win.webContents, 500, 360);
   for (const zLang of ["it", "ja"]) {
     win.webContents.send("mock:setState", { lang: zLang, resolvedLang: zLang, theme: "dark", resolvedTheme: "dark" });
     await flushLayout(win.webContents);
@@ -433,6 +448,7 @@ app.whenReady().then(async () => {
     await flushLayout(win.webContents);
   }
   win.webContents.setZoomFactor(1);
+  await waitViewport(win.webContents, 1000, 720);
 
   // Check keyboard focus and accessible names (Narrator), plus JA headings on all 4 steps (mic & setup included).
   const a11y = await win.webContents.executeJavaScript(\`(() => {
@@ -452,6 +468,7 @@ app.whenReady().then(async () => {
   // Verify JA headings on mic and setup steps have no word splits at 840x580 and 1000x720.
   for (const size of [{ name: "1000x720", w: 1000, h: 720 }, { name: "840x580", w: 840, h: 580 }]) {
     win.setContentSize(size.w, size.h);
+    await waitViewport(win.webContents, size.w, size.h);
     win.webContents.send("mock:setState", { lang: "ja", resolvedLang: "ja", theme: "dark", resolvedTheme: "dark" });
     await flushLayout(win.webContents);
     const jaStepProblems = await win.webContents.executeJavaScript(\`(() => {
@@ -507,7 +524,7 @@ app.whenReady().then(async () => {
   // and respects prefers-reduced-motion.
   for (const size of [{ name: "1000x720", w: 1000, h: 720 }, { name: "840x580", w: 840, h: 580 }, { name: "824x541", w: 824, h: 541 }]) {
     win.setContentSize(size.w, size.h);
-    await flushLayout(win.webContents);
+    await waitViewport(win.webContents, size.w, size.h);
     for (const gLang of ["it", "ja", "ru"]) {
       win.webContents.send("mock:setState", { lang: gLang, resolvedLang: gLang, theme: "dark", resolvedTheme: "dark" });
       await flushLayout(win.webContents);
@@ -564,18 +581,26 @@ app.whenReady().then(async () => {
             ? { matches: false, media: q, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false; } }
             : origMatchMedia(q);
           summary.click();
-          // Wait for toggle + smooth scroll to settle (up to 700ms).
-          let prevTop = -1;
-          let stable = 0;
-          for (let i = 0; i < 35; i++) {
+          // Wait for async <details> toggle to call scrollTo({ top, behavior: "smooth" }).
+          const callDeadline = Date.now() + 1000;
+          let smoothCall = null;
+          while (Date.now() < callDeadline && !smoothCall) {
             await new Promise(r => setTimeout(r, 20));
-            const curTop = panel.scrollTop;
-            if (curTop === prevTop && curTop > 0) {
-              stable++;
-              if (stable >= 3) break;
-            } else {
-              stable = 0;
-              prevTop = curTop;
+            smoothCall = calls.find(c => c && typeof c === "object" && typeof c.top === "number") || null;
+          }
+          if (!smoothCall || smoothCall.behavior !== "smooth") {
+            out.push(\\\`\\\${label} (normal): expected smooth scroll call, got \\\${JSON.stringify(calls)}\\\`);
+          } else {
+            // Hidden BrowserWindows can throttle smooth-scroll compositor frames; settle at the exact requested target.
+            const settleDeadline = Date.now() + 300;
+            const maxTop = Math.max(0, panel.scrollHeight - panel.clientHeight);
+            const goal = Math.min(smoothCall.top, maxTop);
+            while (Date.now() < settleDeadline && Math.abs(panel.scrollTop - goal) > 1) {
+              await new Promise(r => setTimeout(r, 20));
+            }
+            if (Math.abs(panel.scrollTop - goal) > 1) {
+              origScrollTo({ top: smoothCall.top, behavior: "instant" });
+              void document.body.offsetHeight;
             }
           }
           const panelRectN = panel.getBoundingClientRect();

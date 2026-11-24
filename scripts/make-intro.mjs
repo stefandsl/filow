@@ -1,6 +1,6 @@
 // Original localized Filow introduction videos with narration and captions.
 // Run with ffmpeg on PATH from the repository root:
-//   node scripts/make-intro.mjs [--audio-dir <dir-with-{lang}-{0,1,2}.mp3>]
+//   node scripts/make-intro.mjs [--audio-dir <dir-with-{lang}-{0,1,2}.mp3>] [--lang <lang>]
 // If --audio-dir is omitted, existing audio streams from apps/desktop/media/intro.<lang>.mp4 are reused.
 import sharp from 'sharp';
 import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
@@ -13,6 +13,10 @@ const temp = path.resolve('tmp/intro-frames');
 const audioArgIdx = process.argv.indexOf('--audio-dir');
 const audioDir = audioArgIdx >= 0 && process.argv[audioArgIdx + 1]
   ? path.resolve(process.argv[audioArgIdx + 1])
+  : null;
+const langArgIdx = process.argv.indexOf('--lang');
+const onlyLang = langArgIdx >= 0 && process.argv[langArgIdx + 1]
+  ? process.argv[langArgIdx + 1]
   : null;
 
 mkdirSync(out, { recursive: true });
@@ -76,7 +80,7 @@ const COPY = {
       title: 'Спросите своими словами.',
       text: 'Удерживайте клавиши и задайте вопрос.',
       quote: '«Где это сохранить?»',
-      bottom: 'Вы сами решаете, видит ли Filow ваш экран.',
+      bottom: 'Экран показывается только с вашего согласия.',
     },
     s2: {
       title: 'Следуйте подсветке.',
@@ -172,7 +176,8 @@ function runFfmpeg(args) {
 }
 
 try {
-  for (const lang of Object.keys(captions)) {
+  const targetLangs = onlyLang ? [onlyLang] : Object.keys(captions);
+  for (const lang of targetLangs) {
     const langTemp = path.join(temp, lang);
     mkdirSync(langTemp, { recursive: true });
     const scenes = buildScenes(COPY[lang]);
