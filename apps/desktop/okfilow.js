@@ -27,7 +27,7 @@ const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { createElementReader, scanForShot, windowHandle } = require("./okfilow-uia");
-const { toScreenBoxes, mergeDetectedElements } = require("./okfilow-detector");
+const { runCaptureDetection } = require("./okfilow-detector");
 const { trustedUiSender } = require("./ui-preferences");
 const { createPhoneInbox } = require("./okfilow-phone");
 // Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
@@ -183,6 +183,7 @@ function nextCfg(was, patch) {
   next.pauseKey = keyChoice(next.pauseKey, PAUSE_KEYS);
   next.answerLog = next.answerLog === true;
   next.memory = next.memory === true;
+  next.screenDetector = next.screenDetector === true;
   next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
   if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";
   next.consent = sanitizeConsent(next.consent);
@@ -941,7 +942,12 @@ function createOkFilow(deps) {
     // The panel's dictation switch writes dictation.js's setting (it used to live in okFilow.dictation).
     const { dictation: dictationOn, ...rest } = patch || {};
     if (typeof dictationOn === "boolean") dictation.configure({ enabled: dictationOn });
+    const wasDetector = cfg().screenDetector === true;
     const c = setCfg(rest);
+    if (patch?.screenDetector === true && !wasDetector) {
+      const det = typeof deps.detector === "function" ? deps.detector() : deps.detector;
+      det?.resetSession?.();
+    }
     if (bareChanged) void wake?.setBare(c.wakeSensitivity, c.wakeBare);
     else wake?.reconcile();
     // OK Filow or its eye turned on: the screen names helper is ready by the next question
@@ -1524,8 +1530,9 @@ function createOkFilow(deps) {
     if (!c.voiceChosen && c.voice === "system" && tts?.usable()) c.voice = "natural";
     // Dictation keeps its own settings (dictation.js); the panel shows its switch and keys from here.
     const d = dictation.status({ talkHotkey: c.hotkey, hook: Boolean(hook) });
+    const det = typeof deps.detector === "function" ? deps.detector() : deps.detector;
     // answerDir: the folder the log writes to, also when the user has not picked one (the panel shows its name).
-    return { ...c, wakeWord: wake?.status().enabled === true, wake: wake?.status(), answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d, ...(QA_MIC_DELAY ? { qaMicDelayMs: QA_MIC_DELAY } : {}) };
+    return { ...c, detector: det ? det.status() : null, wakeWord: wake?.status().enabled === true, wake: wake?.status(), answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d, ...(QA_MIC_DELAY ? { qaMicDelayMs: QA_MIC_DELAY } : {}) };
   }
 
   // ---- IPC (only OK Filow's own windows) ----
@@ -1541,28 +1548,17 @@ function createOkFilow(deps) {
     const t = Date.now();
     const out = await capture(opts && typeof opts === "object" ? { images: opts.images !== false } : {});
     const detector = typeof deps.detector === "function" ? deps.detector() : deps.detector;
-    if (cfg().screenDetector === true && out.images.length && detector && detector.ready().ok) {
-      const allDisplays = screen.getAllDisplays();
-      const detected = [];
-      for (let i = 0; i < out.images.length; i++) {
-        const disp = out.displays[i];
-        if (!disp) continue;
-        try {
-          const img = nativeImage.createFromDataURL(out.images[i]);
-          const size = img.getSize();
-          if (!(size.width > 0) || !(size.height > 0)) continue;
-          const res = await detector.detect({ data: img.toBitmap(), width: size.width, height: size.height, format: "bgra" });
-          if (res && Array.isArray(res.boxes) && res.boxes.length) {
-            const match = allDisplays.find((d) => d.id === disp.id);
-            const sf = match && match.scaleFactor ? match.scaleFactor : 1;
-            detected.push(...toScreenBoxes(res.boxes, size, disp.bounds, disp.index, sf));
-          }
-        } catch {
-          /* detector errors never break capture */
-        }
-      }
-      if (detected.length) out.elements = mergeDetectedElements(out.elements, detected);
-    }
+    await runCaptureDetection({
+      out,
+      enabled: cfg().screenDetector === true,
+      detector,
+      getAllDisplays: () => screen.getAllDisplays(),
+      decodeImage: (dataUrl) => {
+        const img = nativeImage.createFromDataURL(dataUrl);
+        const size = img.getSize();
+        return { data: img.toBitmap(), width: size.width, height: size.height, format: "bgra" };
+      },
+    });
     logLine(`okfilow: captured ${out.images.length} screen(s) in ${Date.now() - t} ms, ${out.elements.length} named thing(s)`);
     return out;
   }));

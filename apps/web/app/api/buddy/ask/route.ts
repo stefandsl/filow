@@ -198,14 +198,15 @@ export async function POST(req: Request) {
   const named = elements.length && !drawing && !carryOn && !isPointOnly(question) ? namedInQuestion(question, elements) : [];
   const asked: BuddyAskRequest = provider === "local" && named.length ? { ...ask, question: question + screenHint(named, screens.length), knownTarget: !quoted && isSimpleLocatorQuestion(question) } : ask;
   // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
+  const screenSizes = Object.fromEntries(screens.map((s) => [s.index, { width: s.width, height: s.height }]));
   const pieces = () => drawing
     ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal, model: drawModel, maxTokens: provider === "local" ? undefined : DRAW_MAX_TOKENS[drawing] })
     : pointer
       // boxes and circles are placed as they stream; the points wait for the pointing model, which is asked only for what Windows does not name
-      ? withNamedPoint(withPointer(withPlacedTags(askBuddy(provider, asked, abort.signal, helper, undefined, timing), elements, { points: false }), whereIs, () => abort.signal.aborted, elements, helper && canPick(helper.model) ? whichOf : undefined), named, screens.length)
+      ? withNamedPoint(withPointer(withPlacedTags(askBuddy(provider, asked, abort.signal, helper, undefined, timing), elements, { points: false, screenSizes }), whereIs, () => abort.signal.aborted, elements, helper && canPick(helper.model) ? whichOf : undefined), named, screens.length)
       : provider === "local" && elements.length && helper?.pictures && isPointOnly(question)
-        ? askedThing(() => withPlacedTags(askBuddy(provider, ask, abort.signal, helper, undefined, timing), elements))
-        : withNamedPoint(withPlacedTags(askBuddy(provider, asked, abort.signal, helper, undefined, timing), elements), named, screens.length);
+        ? askedThing(() => withPlacedTags(askBuddy(provider, ask, abort.signal, helper, undefined, timing), elements, { screenSizes }))
+        : withNamedPoint(withPlacedTags(askBuddy(provider, asked, abort.signal, helper, undefined, timing), elements, { screenSizes }), named, screens.length);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {

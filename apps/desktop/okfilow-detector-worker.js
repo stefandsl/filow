@@ -9,10 +9,13 @@
 
 const IMGSZ = 1280;
 const STRIDES = [8, 16, 32];
-const DEFAULT_CONF = 0.05;
+const DEFAULT_CONF = 0.25;
 const DEFAULT_IOU = 0.45;
 const DEFAULT_MAX_BOXES = 300;
 const PAD_NORM = 114 / 255;
+// Minimal 62-byte valid ONNX Relu model (opset 11, float32[1]) used to probe DirectML GPU
+// availability before ever loading the 232 MB / multi-GB OmniParser model into memory.
+const DML_PROBE_ONNX_HEX = "08073a330a0c0a0178120179220452656c751201705a0f0a0178120a0a08080112040a020801620f0a0179120a0a08080112040a02080142040a00100b";
 
 let ort = null;
 let session = null;
@@ -159,26 +162,55 @@ function decodeOutputs(outputs, outputNames, { scale, width, height, confThresho
   return nms(candidates, iouThreshold, maxBoxes);
 }
 
-async function init({ modelPath, threads = 4, provider = "cpu" }) {
+/**
+ * Probes DirectML GPU usability with a 62-byte in-memory ONNX Relu graph before loading weights.
+ * Never loads the 232 MB detector model if DirectML cannot execute on this computer.
+ */
+async function probeDirectMl() {
+  if (process.platform !== "win32") return { ok: false, reason: "needs DirectML" };
+  const t0 = Date.now();
+  try {
+    ort ||= require("onnxruntime-node");
+    const probeBytes = Buffer.from(DML_PROBE_ONNX_HEX, "hex");
+    const s = await ort.InferenceSession.create(probeBytes, { executionProviders: ["dml"] });
+    try {
+      await s.run({ x: new ort.Tensor("float32", new Float32Array([-1]), [1]) });
+    } finally {
+      await s.release();
+    }
+    return { ok: true, ms: Date.now() - t0, reason: "" };
+  } catch (e) {
+    return { ok: false, ms: Date.now() - t0, reason: "needs DirectML", error: String((e && e.message) || e).slice(0, 160) };
+  }
+}
+
+async function init({ modelPath, threads = 4, provider = "dml" }) {
   const t0 = Date.now();
   ort = require("onnxruntime-node");
   const nThreads = Math.max(1, Math.min(8, Number(threads) || 4));
-  const wanted = provider === "dml" ? ["dml", "cpu"] : ["cpu"];
-  let lastErr = null;
-  for (const ep of wanted) {
-    try {
-      const opts = ep === "dml"
-        ? { executionProviders: ["dml"], graphOptimizationLevel: "all" }
-        : { executionProviders: ["cpu"], intraOpNumThreads: nThreads, interOpNumThreads: 1, graphOptimizationLevel: "all" };
-      session = await ort.InferenceSession.create(modelPath, opts);
-      inputName = session.inputNames[0] || "images";
-      activeProvider = ep;
-      return { ms: Date.now() - t0, provider: activeProvider };
-    } catch (e) {
-      lastErr = e;
+  // Never silently fall back from DirectML to CPU (CPU inference takes ~3.5 s and ~6.1 GB RSS).
+  if (provider === "dml") {
+    const probe = await probeDirectMl();
+    if (!probe.ok) {
+      const err = new Error(probe.reason || "needs DirectML");
+      err.reason = "needs DirectML";
+      throw err;
     }
+    session = await ort.InferenceSession.create(modelPath, { executionProviders: ["dml"], graphOptimizationLevel: "all" });
+    inputName = session.inputNames[0] || "images";
+    activeProvider = "dml";
+    return { ms: Date.now() - t0, provider: activeProvider };
   }
-  throw lastErr || new Error("failed to create onnxruntime session");
+  if (provider !== "cpu") throw new Error(`unsupported detector provider: ${provider}`);
+  session = await ort.InferenceSession.create(modelPath, {
+    executionProviders: ["cpu"],
+    intraOpNumThreads: nThreads,
+    interOpNumThreads: 1,
+    graphOptimizationLevel: "all",
+  });
+  inputName = session.inputNames[0] || "images";
+  activeProvider = "cpu";
+  return { ms: Date.now() - t0, provider: activeProvider };
 }
 
 async function detect({ data, width, height, format = "rgba", confThreshold = DEFAULT_CONF, iouThreshold = DEFAULT_IOU, maxBoxes = DEFAULT_MAX_BOXES }) {
@@ -197,10 +229,15 @@ if (port) {
   port.on("message", (event) => {
     const m = event.data;
     if (!m || typeof m !== "object") return;
-    if (m.type === "init") {
+    if (m.type === "probe") {
+      probeDirectMl().then(
+        (r) => port.postMessage({ type: "probeResult", ...r }),
+        (e) => port.postMessage({ type: "probeResult", ok: false, reason: "needs DirectML", error: String((e && e.message) || e).slice(0, 200) }),
+      );
+    } else if (m.type === "init") {
       init(m).then(
         (r) => port.postMessage({ type: "ready", ms: r.ms, provider: r.provider }),
-        (e) => port.postMessage({ type: "failed", error: String((e && e.message) || e).slice(0, 200) }),
+        (e) => port.postMessage({ type: "failed", reason: (e && e.reason) || "", error: String((e && e.message) || e).slice(0, 200) }),
       );
     } else if (m.type === "detect") {
       detect(m).then(
@@ -211,4 +248,4 @@ if (port) {
   });
 }
 
-module.exports = { IMGSZ, STRIDES, DEFAULT_CONF, DEFAULT_IOU, DEFAULT_MAX_BOXES, preprocessLetterbox, decodeOutputs, nms, init, detect };
+module.exports = { IMGSZ, STRIDES, DEFAULT_CONF, DEFAULT_IOU, DEFAULT_MAX_BOXES, DML_PROBE_ONNX_HEX, preprocessLetterbox, decodeOutputs, nms, probeDirectMl, init, detect };

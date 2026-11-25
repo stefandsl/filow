@@ -99,6 +99,27 @@ export type OkFilowStatus = {
   hookPermission?: "accessibility" | "inputMonitoring" | "";
   /** Test builds only (FILOW_OKF_QA_MIC_DELAY): the microphone is handed to the panel this many ms late. Absent otherwise. */
   qaMicDelayMs?: number;
+  /** Optional local screen element detector (OmniParser icon_detect_v3 pilot): off by default. */
+  screenDetector?: boolean;
+  /** Runtime status of the optional screen element detector (null on older builds). */
+  detector?: {
+    id: string;
+    name: string;
+    license: string;
+    hosted: boolean;
+    runtime: boolean;
+    model: boolean;
+    gpuAvailable: boolean;
+    disabledForSession: boolean;
+    disabledReason: string;
+    ready: boolean;
+    reason: string;
+    running: boolean;
+    error: string;
+    downloading: boolean;
+    pct: number;
+    bytes: number;
+  } | null;
   mode: OkFilowMode;
 };
 

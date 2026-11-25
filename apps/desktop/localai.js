@@ -54,8 +54,8 @@ const CATALOG = {
   "lfm3-vl": { dl: 1.5, ram: 4, ollama: true },
   // S1-mini by Superwhisper (s1-runtime.js): cleans up English dictation; 484,219,808 bytes, on every tier.
   "s1-mini": { dl: 0.46, ram: 2, ollama: false },
-  // Optional OmniParser icon_detect_v3 (MIT, okfilow-detector.js): opt-in only, never auto-recommended.
-  "omniparser-icon-detect-v3": { dl: 0.22, ram: 4, ollama: false },
+  // Optional OmniParser icon_detect_v3 (MIT, okfilow-detector.js): DirectML GPU-only, opt-in only, never auto-recommended (CPU fallback disallowed: ~6.1 GB RSS, ~3.5 s).
+  "omniparser-icon-detect-v3": { dl: 0.22, ram: 8, ollama: false },
 };
 
 /** Runs a probe as a child process: resolves its output, or "" on failure. The main process never waits on it. */

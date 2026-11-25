@@ -13,6 +13,7 @@ const MAX_ELEMENTS = 600;
 const MODEL_ID = "omniparser-icon-detect-v3";
 const MODEL_NAME = "OmniParser icon_detect_v3";
 const MODEL_FILE = "icon_detect_v3.onnx";
+const LICENSE_FILE = "LICENSE.txt";
 const MODEL_LICENSE = "MIT";
 const SOURCE_REPO = "microsoft/OmniParser-v2.0";
 const SOURCE_REVISION = "f55d0750e5b94db2125ef0b45b0fa4a85ddc59b4";
@@ -24,11 +25,14 @@ const ONNX_BYTES = 232285620;
 const ONNX_SHA256 = "f630193b6eb035bf2d0efedd2dc97b3328481bd3ac541c3a30878fe13b07a175";
 
 // Pinned ONNX export derived from microsoft/OmniParser-v2.0 icon_detect_v3/model.pt (MIT).
+// `hosted: false` until the verified ONNX asset is published on a release feed (prevents dead 404 download UI).
 const MODEL = {
   id: MODEL_ID,
   name: MODEL_NAME,
   file: MODEL_FILE,
+  licenseFile: LICENSE_FILE,
   license: MODEL_LICENSE,
+  hosted: false,
   bytes: ONNX_BYTES,
   sha256: ONNX_SHA256,
   sourceRepo: SOURCE_REPO,
@@ -39,12 +43,59 @@ const MODEL = {
   url: `https://github.com/stefandsl/filow-releases/releases/download/models-omniparser-v3/${MODEL_FILE}`,
 };
 
-const DETECT_TIMEOUT_MS = 500;
+const MIT_LICENSE_TEXT = [
+  "Microsoft OmniParser icon_detect_v3 (ONNX export)",
+  `Source: https://huggingface.co/${SOURCE_REPO} (revision ${SOURCE_REVISION}, icon_detect_v3/model.pt)`,
+  "",
+  "MIT License",
+  "Copyright (c) Microsoft Corporation.",
+  "",
+  "Permission is hereby granted, free of charge, to any person obtaining a copy",
+  "of this software and associated documentation files (the \"Software\"), to deal",
+  "in the Software without restriction, including without limitation the rights",
+  "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+  "copies of the Software, and to permit persons to whom the Software is",
+  "furnished to do so, subject to the following conditions:",
+  "",
+  "The above copyright notice and this permission notice shall be included in all",
+  "copies or substantial portions of the Software.",
+  "",
+  "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+  "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+  "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+  "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+  "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+  "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+  "SOFTWARE.",
+  "",
+  "Upstream YOLOv9-E base (MultimediaTechLab/YOLO):",
+  "MIT License",
+  "Copyright (c) 2024 Kin-Yiu Wong and Hao-Tang Tsui",
+  "",
+].join("\n");
+
+const DETECT_TIMEOUT_MS = 1500;
+const START_TIMEOUT_MS = 10_000;
 const IDLE_UNLOAD_MS = 10 * 60_000;
 const OVERLAP_IOU = 0.4;
 
 const modelDir = (userData) => path.join(userData, "models", MODEL_ID);
 const modelPath = (userData) => path.join(modelDir(userData), MODEL_FILE);
+const licensePath = (userData) => path.join(modelDir(userData), LICENSE_FILE);
+
+/**
+ * Quick synchronous host check for DirectML availability before any worker starts:
+ * DirectML exists only on Windows with DirectML.dll either next to the bundled runtime or in System32.
+ */
+function defaultProbeGpu(rtFile, platform = process.platform) {
+  if (platform !== "win32") return { ok: false, reason: "needs DirectML" };
+  const sysDml = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "DirectML.dll");
+  const localDml = rtFile ? path.join(path.dirname(rtFile), "DirectML.dll") : "";
+  if ((localDml && fs.existsSync(localDml)) || fs.existsSync(sysDml)) {
+    return { ok: true, reason: "" };
+  }
+  return { ok: false, reason: "needs DirectML" };
+}
 
 const r1 = (v) => Math.round(v * 10) / 10;
 const clampGrid = (v) => Math.max(0, Math.min(GRID, r1(v)));
@@ -131,21 +182,58 @@ function mergeDetectedElements(uiaElements, detectedElements, opts = {}) {
 }
 
 /**
+ * Runs optional detector inference over captured screenshots and merges UIA-first elements.
+ * Never throws; stops immediately if disabled, unready, or timed out for the session.
+ */
+async function runCaptureDetection({ out, enabled, detector, allDisplays, getAllDisplays, decodeImage }) {
+  if (!enabled || !out || !Array.isArray(out.images) || !out.images.length) return out;
+  if (!detector || !detector.ready().ok) return out;
+  const displays = Array.isArray(allDisplays) ? allDisplays : (typeof getAllDisplays === "function" ? getAllDisplays() : []);
+  const detected = [];
+  for (let i = 0; i < out.images.length; i++) {
+    if (!detector.ready().ok) break;
+    const disp = out.displays && out.displays[i];
+    if (!disp) continue;
+    try {
+      const frame = decodeImage(out.images[i]);
+      if (!frame || !frame.data || !(frame.width > 0) || !(frame.height > 0)) continue;
+      const res = await detector.detect({ data: frame.data, width: frame.width, height: frame.height, format: frame.format || "bgra" });
+      if (res && Array.isArray(res.boxes) && res.boxes.length) {
+        const match = displays.find((d) => d && d.id === disp.id);
+        const sf = match && match.scaleFactor ? match.scaleFactor : 1;
+        detected.push(...toScreenBoxes(res.boxes, { width: frame.width, height: frame.height }, disp.bounds, disp.index, sf));
+      }
+    } catch {
+      /* detector errors never break capture */
+    }
+  }
+  if (detected.length) out.elements = mergeDetectedElements(out.elements, detected);
+  return out;
+}
+
+/**
  * deps: { userData, logLine?, fork(script), download, sha256File, threads?, provider?,
- *         runtimeFile?(), modelExists?(file), startTimeoutMs?, idleMs?, fileUrl?(model) }
+ *         runtimeFile?(), modelExists?(file), probeGpu?(), platform?, startTimeoutMs?, idleMs?, fileUrl?(model) }
  */
 function createDetectorRuntime(deps) {
   const log = deps.logLine || (() => {});
   const dir = () => modelDir(deps.userData);
   const file = () => modelPath(deps.userData);
-  const hasRuntime = () => Boolean(deps.runtimeFile ? deps.runtimeFile() : runtimeFile());
+  const rtPath = () => (deps.runtimeFile ? deps.runtimeFile() : runtimeFile());
+  const hasRuntime = () => Boolean(rtPath());
   const hasModel = () => (deps.modelExists ? deps.modelExists(file()) : fs.existsSync(file()));
   const st = deps.setTimeout || setTimeout;
   const ct = deps.clearTimeout || clearTimeout;
 
+  const initialProbe = deps.probeGpu ? deps.probeGpu() : defaultProbeGpu(rtPath(), deps.platform || process.platform);
+  let gpuAvailable = Boolean(initialProbe && initialProbe.ok);
+  let gpuReason = gpuAvailable ? "" : (initialProbe && initialProbe.reason) || "needs DirectML";
+
   let child = null;
   let starting = null;
   let lastError = "";
+  let disabledForSession = false;
+  let disabledReason = "";
   let startedMs = 0;
   let activeProvider = "";
   let idleTimer = null;
@@ -162,9 +250,25 @@ function createDetectorRuntime(deps) {
     if (idleTimer && idleTimer.unref) idleTimer.unref();
   }
 
+  function disableSession(reason) {
+    disabledForSession = true;
+    disabledReason = reason || "too slow on this computer";
+    lastError = disabledReason;
+  }
+
+  function resetSession() {
+    if (!gpuAvailable) return false;
+    disabledForSession = false;
+    disabledReason = "";
+    lastError = "";
+    return true;
+  }
+
   function ready() {
     if (!hasRuntime()) return { ok: false, reason: "runtime not in this build" };
     if (!hasModel()) return { ok: false, reason: "model not on this computer" };
+    if (!gpuAvailable) return { ok: false, reason: gpuReason || "needs DirectML" };
+    if (disabledForSession) return { ok: false, reason: disabledReason || "too slow on this computer" };
     if (lastError && !child) return { ok: false, reason: `runtime did not start: ${lastError}` };
     return { ok: true, reason: "" };
   }
@@ -181,7 +285,7 @@ function createDetectorRuntime(deps) {
   function start() {
     if (child) return Promise.resolve(true);
     if (starting) return starting;
-    if (!hasRuntime() || !hasModel()) return Promise.resolve(false);
+    if (!ready().ok) return Promise.resolve(false);
     starting = new Promise((resolve) => {
       const t0 = Date.now();
       const script = path.join(__dirname, "okfilow-detector-worker.js").replace(/([\\/])app\.asar([\\/])/, "$1app.asar.unpacked$2");
@@ -189,7 +293,7 @@ function createDetectorRuntime(deps) {
       try {
         c = deps.fork(script);
       } catch (e) {
-        lastError = String((e && e.message) || e).slice(0, 100);
+        disableSession(String((e && e.message) || e).slice(0, 100));
         return resolve(false);
       }
       let settled = false;
@@ -200,10 +304,10 @@ function createDetectorRuntime(deps) {
         resolve(ok);
       };
       const timer = st(() => {
-        lastError = "worker did not load in time";
+        disableSession("too slow on this computer");
         try { c.kill(); } catch { /* gone */ }
         done(false);
-      }, deps.startTimeoutMs || 30_000);
+      }, deps.startTimeoutMs || START_TIMEOUT_MS);
 
       c.on("message", (m) => {
         if (!m || typeof m !== "object") return;
@@ -211,12 +315,17 @@ function createDetectorRuntime(deps) {
           child = c;
           lastError = "";
           startedMs = Date.now() - t0;
-          activeProvider = m.provider || "cpu";
+          activeProvider = m.provider || "dml";
           touch();
           log(`okfilow-detector: loaded in ${startedMs} ms (${activeProvider})`);
           done(true);
         } else if (m.type === "failed") {
-          lastError = String(m.error || "worker init failed").slice(0, 120);
+          const reason = String(m.reason || m.error || "worker init failed").slice(0, 120);
+          if (/directml/i.test(reason)) {
+            gpuAvailable = false;
+            gpuReason = "needs DirectML";
+          }
+          disableSession(reason);
           try { c.kill(); } catch { /* gone */ }
           done(false);
         } else if ((m.type === "done" || m.type === "error") && waiting.has(m.id)) {
@@ -238,7 +347,7 @@ function createDetectorRuntime(deps) {
       });
 
       const threads = Math.max(1, Math.min(4, Number(deps.threads ? deps.threads() : 4) || 4));
-      const provider = deps.provider || (process.platform === "win32" ? "dml" : "cpu");
+      const provider = deps.provider || "dml";
       c.postMessage({ type: "init", modelPath: file(), threads, provider });
     }).finally(() => {
       starting = null;
@@ -248,10 +357,11 @@ function createDetectorRuntime(deps) {
 
   /**
    * Runs detection on one raw RGBA/BGRA image frame in the worker.
-   * Resolves `{ boxes, ms }` or `null` on missing weights, error, or timeout (never throws).
+   * Resolves `{ boxes, ms }` or `null` on missing weights, missing DirectML GPU, error, or timeout.
+   * On timeout, kills the worker and disables detection for the rest of the session (no restart loop).
    */
   async function detect(frame, opts = {}) {
-    if (!hasRuntime() || !hasModel()) return null;
+    if (!ready().ok) return null;
     if (!frame || !frame.data || !(frame.width > 0) || !(frame.height > 0)) return null;
     const timeoutMs = Math.max(20, Math.round(opts.timeoutMs || DETECT_TIMEOUT_MS));
     const ok = await start();
@@ -263,7 +373,8 @@ function createDetectorRuntime(deps) {
       const timer = st(() => {
         if (!waiting.has(id)) return;
         waiting.delete(id);
-        log(`okfilow-detector: timed out after ${timeoutMs} ms, restarting worker`);
+        disableSession("too slow on this computer");
+        log(`okfilow-detector: timed out after ${timeoutMs} ms, disabled for this session`);
         if (child === c) child = null;
         try { c.kill(); } catch { /* gone */ }
         resolve(null);
@@ -322,6 +433,8 @@ function createDetectorRuntime(deps) {
       });
       await verifyDownload(part, MODEL.sha256);
       fs.renameSync(part, dest);
+      // Keep the MIT license notices beside the redistributed derived ONNX artifact.
+      fs.writeFileSync(licensePath(deps.userData), MIT_LICENSE_TEXT, "utf8");
       pct = 100;
       lastError = "";
       log("okfilow-detector: model downloaded and pinned SHA-256 verified");
@@ -334,6 +447,7 @@ function createDetectorRuntime(deps) {
           log("okfilow-detector: download stopped by the user");
           return false;
         }
+        try { fs.rmSync(`${file()}.part`, { force: true }); } catch { /* ignore */ }
         fetchError = String((e && e.message) || e).slice(0, 140);
         log(`okfilow-detector: download failed (${fetchError})`);
         return false;
@@ -373,29 +487,40 @@ function createDetectorRuntime(deps) {
     await exited(c);
     lastError = "";
     fetchError = "";
+    disabledForSession = false;
+    disabledReason = "";
     pct = 0;
     const freed = removeInside(path.join(deps.userData, "models"), dir());
     log(`okfilow-detector: model deleted by the user (${Math.round(freed / 1024 / 1024)} MB freed)`);
     return freed;
   }
 
-  const status = () => ({
-    id: MODEL_ID,
-    name: MODEL_NAME,
-    license: MODEL_LICENSE,
-    sha256: MODEL.sha256,
-    runtime: hasRuntime(),
-    model: hasModel(),
-    running: Boolean(child),
-    provider: activeProvider,
-    startedMs,
-    error: lastError || fetchError,
-    downloading: Boolean(fetching),
-    pct,
-    bytes: MODEL.bytes,
-  });
+  const status = () => {
+    const r = ready();
+    return {
+      id: MODEL_ID,
+      name: MODEL_NAME,
+      license: MODEL_LICENSE,
+      hosted: Boolean(MODEL.hosted),
+      sha256: MODEL.sha256,
+      runtime: hasRuntime(),
+      model: hasModel(),
+      gpuAvailable,
+      disabledForSession,
+      disabledReason,
+      ready: r.ok,
+      reason: r.reason,
+      running: Boolean(child),
+      provider: activeProvider,
+      startedMs,
+      error: lastError || fetchError,
+      downloading: Boolean(fetching),
+      pct,
+      bytes: MODEL.bytes,
+    };
+  };
 
-  return { ready, detect, stop, status, fetchModel, cancelFetch, remove };
+  return { ready, detect, stop, status, fetchModel, cancelFetch, remove, resetSession };
 }
 
 module.exports = {
@@ -403,6 +528,8 @@ module.exports = {
   MODEL_ID,
   MODEL_NAME,
   MODEL_FILE,
+  LICENSE_FILE,
+  MIT_LICENSE_TEXT,
   MODEL_LICENSE,
   SOURCE_REPO,
   SOURCE_REVISION,
@@ -410,9 +537,13 @@ module.exports = {
   SOURCE_PT_SHA256,
   SOURCE_PT_BYTES,
   DETECT_TIMEOUT_MS,
+  START_TIMEOUT_MS,
   modelDir,
   modelPath,
+  licensePath,
+  defaultProbeGpu,
   toScreenBoxes,
   mergeDetectedElements,
+  runCaptureDetection,
   createDetectorRuntime,
 };

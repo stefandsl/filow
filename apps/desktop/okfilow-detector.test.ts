@@ -126,6 +126,7 @@ describe("OmniParser icon_detect_v3 desktop detector", () => {
         userData,
         fork: () => w.c,
         runtimeFile: () => "onnxruntime_binding.node",
+        probeGpu: () => ({ ok: true, reason: "" }),
         download: vi.fn(),
         sha256File: vi.fn(),
       });
@@ -141,7 +142,7 @@ describe("OmniParser icon_detect_v3 desktop detector", () => {
   });
 
   it("verifies pinned SHA-256 on download, deletes mismatched files, and supports user deletion", async () => {
-    const { createDetectorRuntime, MODEL, MODEL_FILE, modelDir } = require("./okfilow-detector.js");
+    const { createDetectorRuntime, MODEL, MODEL_FILE, MIT_LICENSE_TEXT, modelDir } = require("./okfilow-detector.js");
     const userData = freshProfile("sha-and-delete");
     const rtBad = createDetectorRuntime({
       userData,
@@ -164,7 +165,7 @@ describe("OmniParser icon_detect_v3 desktop detector", () => {
     expect(await rtGood.fetchModel()).toBe(true);
     expect(rtGood.status().model).toBe(true);
     expect(MODEL.license).toBe("MIT");
-    expect(await rtGood.remove()).toBe(128);
+    expect(await rtGood.remove()).toBe(128 + Buffer.byteLength(MIT_LICENSE_TEXT, "utf8"));
     expect(rtGood.status().model).toBe(false);
   });
 
@@ -191,5 +192,160 @@ describe("OmniParser icon_detect_v3 desktop detector", () => {
     expect(boxes).toHaveLength(1);
     expect(boxes[0]).toMatchObject({ x1: 432, y1: 240, x2: 576, y2: 288 });
     expect(boxes[0].score).toBeGreaterThan(0.85);
+  });
+
+  // Round 2 regression tests for review findings (must fail on eb554952, then pass):
+  it("refuses to load without a usable DirectML GPU and never spawns a worker", async () => {
+    const { createDetectorRuntime, MODEL_FILE, modelDir } = require("./okfilow-detector.js");
+    const userData = freshProfile("no-dml-gpu");
+    const dir = modelDir(userData);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, MODEL_FILE), Buffer.alloc(64));
+
+    const fork = vi.fn();
+    const rt = createDetectorRuntime({
+      userData,
+      fork,
+      runtimeFile: () => "onnxruntime_binding.node",
+      probeGpu: () => ({ ok: false, reason: "needs DirectML" }),
+      download: vi.fn(),
+      sha256File: vi.fn(),
+    });
+    expect(rt.ready()).toEqual({ ok: false, reason: "needs DirectML" });
+    expect(rt.status()).toMatchObject({ gpuAvailable: false, reason: "needs DirectML" });
+    const res = await rt.detect({ data: Buffer.alloc(16), width: 2, height: 2, format: "rgba" });
+    expect(res).toBeNull();
+    expect(fork).not.toHaveBeenCalled();
+  });
+
+  it("disables the detector for the session after one timeout instead of restarting the worker in a loop", async () => {
+    vi.useFakeTimers();
+    try {
+      const { createDetectorRuntime, MODEL_FILE, modelDir } = require("./okfilow-detector.js");
+      const userData = freshProfile("timeout-no-restart-loop");
+      const dir = modelDir(userData);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, MODEL_FILE), Buffer.alloc(64));
+
+      const fork = vi.fn(() => fakeWorker().c);
+      const rt = createDetectorRuntime({
+        userData,
+        fork,
+        runtimeFile: () => "onnxruntime_binding.node",
+        probeGpu: () => ({ ok: true, reason: "" }),
+        download: vi.fn(),
+        sha256File: vi.fn(),
+      });
+
+      const p1 = rt.detect({ data: Buffer.alloc(16), width: 2, height: 2, format: "rgba" }, { timeoutMs: 100 });
+      const w1 = fork.mock.results[0].value;
+      w1.emit("message", { type: "ready", ms: 10, provider: "dml" });
+      await vi.advanceTimersByTimeAsync(150);
+      await expect(p1).resolves.toBeNull();
+
+      // After one timeout: disabled for the session, ready() is false with clear reason, next detect() does NOT fork again
+      expect(rt.ready().ok).toBe(false);
+      expect(rt.ready().reason).toMatch(/too slow/i);
+      expect(rt.status().disabledForSession).toBe(true);
+
+      const p2 = await rt.detect({ data: Buffer.alloc(16), width: 2, height: 2, format: "rgba" }, { timeoutMs: 100 });
+      expect(p2).toBeNull();
+      expect(fork).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("handles 404 download cleanly, writes MIT LICENSE beside verified weights, and marks unhosted asset hidden", async () => {
+    const { createDetectorRuntime, MODEL, MODEL_FILE, LICENSE_FILE, modelDir } = require("./okfilow-detector.js");
+    expect(MODEL.hosted).toBe(false);
+    expect(typeof LICENSE_FILE).toBe("string");
+
+    // 404 download failure leaves no file and surfaces clear error
+    const userData404 = freshProfile("download-404");
+    const rt404 = createDetectorRuntime({
+      userData: userData404,
+      fork: vi.fn(),
+      runtimeFile: () => "onnxruntime_binding.node",
+      download: async () => { throw new Error("HTTP 404 Not Found"); },
+      sha256File: vi.fn(),
+    });
+    expect(await rt404.fetchModel()).toBe(false);
+    expect(rt404.status().error).toMatch(/404/);
+    expect(fs.existsSync(path.join(modelDir(userData404), MODEL_FILE))).toBe(false);
+
+    // Verified download writes LICENSE.txt next to model
+    const userDataOk = freshProfile("download-with-license");
+    const rtOk = createDetectorRuntime({
+      userData: userDataOk,
+      fork: vi.fn(),
+      runtimeFile: () => "onnxruntime_binding.node",
+      download: async (_url: string, dest: string) => { fs.writeFileSync(dest, Buffer.alloc(64, 3)); },
+      sha256File: async () => MODEL.sha256,
+    });
+    expect(await rtOk.fetchModel()).toBe(true);
+    const licPath = path.join(modelDir(userDataOk), LICENSE_FILE);
+    expect(fs.existsSync(licPath)).toBe(true);
+    expect(fs.readFileSync(licPath, "utf8")).toContain("MIT License");
+  });
+
+  it("integrates with okfilow:capture (off, merge UIA-first, and timeout disables without breaking capture)", async () => {
+    const { runCaptureDetection } = require("./okfilow-detector.js");
+    expect(typeof runCaptureDetection).toBe("function");
+
+    const baseOut = () => ({
+      images: ["data:image/png;base64,AAAA"],
+      displays: [{ index: 1, id: 10, bounds: { x: 0, y: 0, width: 1920, height: 1080 } }],
+      elements: [{ name: "Save", type: "Button", screen: 1, x1: 100, y1: 100, x2: 160, y2: 140 }],
+    });
+    const fakeDecode = () => ({ data: Buffer.alloc(16), width: 1920, height: 1080 });
+    const allDisplays = [{ id: 10, scaleFactor: 1 }];
+
+    // Off by default: detector not called
+    const detectSpy = vi.fn(async () => ({
+      boxes: [{ x1: 960, y1: 540, x2: 1056, y2: 594, score: 0.88 }],
+      ms: 42,
+    }));
+    const det = { ready: () => ({ ok: true, reason: "" }), detect: detectSpy };
+    const offOut = baseOut();
+    await runCaptureDetection({ out: offOut, enabled: false, detector: det, allDisplays, decodeImage: fakeDecode });
+    expect(detectSpy).not.toHaveBeenCalled();
+    expect(offOut.elements).toHaveLength(1);
+
+    // Enabled: merges UIA first, then detector gap box
+    const onOut = baseOut();
+    await runCaptureDetection({ out: onOut, enabled: true, detector: det, allDisplays, decodeImage: fakeDecode });
+    expect(detectSpy).toHaveBeenCalledTimes(1);
+    expect(onOut.elements).toHaveLength(2);
+    expect(onOut.elements[0]).toMatchObject({ name: "Save" });
+    expect(onOut.elements[1]).toMatchObject({ source: "detector", screen: 1, x1: 500, y1: 500 });
+
+    // Timeout (detect returns null and ready becomes false): capture keeps UIA elements and stops calling
+    let timedOut = false;
+    const slowDetect = vi.fn(async () => { timedOut = true; return null; });
+    const slowDet = {
+      ready: () => (timedOut ? { ok: false, reason: "too slow on this computer" } : { ok: true, reason: "" }),
+      detect: slowDetect,
+    };
+    const out1 = baseOut();
+    await runCaptureDetection({ out: out1, enabled: true, detector: slowDet, allDisplays, decodeImage: fakeDecode });
+    expect(out1.elements).toHaveLength(1);
+    const out2 = baseOut();
+    await runCaptureDetection({ out: out2, enabled: true, detector: slowDet, allDisplays, decodeImage: fakeDecode });
+    expect(slowDetect).toHaveBeenCalledTimes(1);
+  });
+
+  it("exposes screenDetector toggle in OK Filow settings (5 languages) and hides unhosted download row in Local Models", () => {
+    const { readFileSync } = require("node:fs");
+    const okf = require("./okfilow.js");
+    expect(okf.nextCfg({}, { screenDetector: true }).screenDetector).toBe(true);
+    expect(okf.nextCfg({}, { screenDetector: "yes" }).screenDetector).toBe(false);
+
+    const panelSrc = readFileSync(new URL("../web/app/okfilow/panel/page.tsx", import.meta.url), "utf8");
+    expect(panelSrc).toContain("screenDetector");
+    expect(panelSrc).toContain("screenDetectorNoGpu");
+
+    const localPageSrc = readFileSync(new URL("../web/app/settings/local/page.tsx", import.meta.url), "utf8");
+    expect(localPageSrc).toContain("detectorState?.hosted");
   });
 });

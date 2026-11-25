@@ -115,10 +115,11 @@ export const LOCAL_MODELS: LocalModel[] = [
     runtime: "onnx",
     downloadGb: 0.22,
     loadedGb: 0.8,
-    ramGb: 4,
+    ramGb: 8,
+    vramGb: 2,
     license: "MIT",
     sha256: "f630193b6eb035bf2d0efedd2dc97b3328481bd3ac541c3a30878fe13b07a175",
-    status: "available",
+    status: "planned",
   },
   {
     name: "qwen3-vl",

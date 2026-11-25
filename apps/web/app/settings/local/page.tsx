@@ -153,8 +153,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   }, []);
   // S1-mini by Superwhisper for the setup picker: present or not, and a running download, as the desktop app says.
   const [cleanupModel, setCleanupModel] = useState<{ runtime: boolean; model: boolean; downloading: boolean; pct: number } | null>(null);
-  const [detectorState, setDetectorState] = useState<{ runtime: boolean; model: boolean; downloading: boolean; pct: number; bytes: number; error: string } | null>(null);
-  const detectorBridge = () => (globalThis as { filow?: { detector?: { status(): Promise<{ runtime: boolean; model: boolean; downloading: boolean; pct: number; bytes: number; error: string }>; download(): Promise<{ started: boolean; reason: string }> } } }).filow?.detector ?? null;
+  const [detectorState, setDetectorState] = useState<{ runtime: boolean; model: boolean; hosted?: boolean; gpuAvailable?: boolean; disabledForSession?: boolean; reason?: string; downloading: boolean; pct: number; bytes: number; error: string } | null>(null);
+  const detectorBridge = () => (globalThis as { filow?: { detector?: { status(): Promise<{ runtime: boolean; model: boolean; hosted?: boolean; gpuAvailable?: boolean; disabledForSession?: boolean; reason?: string; downloading: boolean; pct: number; bytes: number; error: string }>; download(): Promise<{ started: boolean; reason: string }> } } }).filow?.detector ?? null;
   const readCleanupModel = useCallback(() => {
     void dictationBridge()?.status().then((v) => setCleanupModel(v?.cleanupState ?? null)).catch(() => {});
     void detectorBridge()?.status().then(setDetectorState).catch(() => {});
@@ -777,7 +777,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
           <section className="strip" id="models">
             <div className="label">{t("settings.models")}</div>
             <div className="hint">{t("settings.ramNote")}</div>
-            {status.models.map((m) => (
+            {status.models.filter((m) => !(m.runtime === "onnx" && !detectorState?.hosted && !detectorState?.model)).map((m) => (
               <div key={m.name} className="model">
                 <div>
                   <strong>{label(m.name)}</strong> <span className="chip">{t(`plan.task.${m.kind}` as I18nKey)}</span>{" "}
@@ -863,13 +863,13 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                     ) : (
                       <span className="hint">{t("settings.sherpaDesktopOnly")}</span>
                     ))}
-                  {m.status === "available" && m.runtime === "onnx" &&
+                  {m.runtime === "onnx" && (detectorState?.hosted || detectorState?.model) &&
                     (detectorBridge() ? (
                       <>
                         {detectorState?.model ? (
                           <span className="chip live">{t("settings.installed")}</span>
                         ) : (
-                          <button className="btn primary" disabled={Boolean(detectorState?.downloading) || status.offline || !detectorState?.runtime} onClick={() => { void detectorBridge()?.download().then(readCleanupModel); }}>
+                          <button className="btn primary" disabled={Boolean(detectorState?.downloading) || status.offline || !detectorState?.runtime || detectorState?.gpuAvailable === false} onClick={() => { void detectorBridge()?.download().then(readCleanupModel); }}>
                             {detectorState?.downloading ? <DownloadLabel label={label(m.name)} percent={detectorState.pct} /> : t("settings.download")}
                           </button>
                         )}
@@ -884,6 +884,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                             {t("settings.delete")}
                           </button>
                         )}
+                        {detectorState?.gpuAvailable === false && <span className="hint">{detectorState.reason || "needs DirectML"}</span>}
                         {detectorState?.error && <span className="chip err">{detectorState.error}</span>}
                       </>
                     ) : (

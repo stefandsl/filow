@@ -183,22 +183,33 @@ const area = (e: ScreenElement) => (e.x2 - e.x1) * (e.y2 - e.y1);
 /** Distance from a point to a rectangle, 0 inside it. */
 const away = (x: number, y: number, e: ScreenElement) => Math.hypot(Math.max(e.x1 - x, 0, x - e.x2), Math.max(e.y1 - y, 0, y - e.y2));
 
-/** A guess this close to an element (on the grid: 30 = 3% of the screen, about 40 pixels on a 1360 screen) was meant for it. */
+/** A guess this close to a UIA element (on the grid: 30 = 3% of the screen, about 40 pixels on a 1360 screen) was meant for it. */
 export const SNAP_REACH = 30;
+/** Detector boxes snap only within this physical-pixel distance (matches snap.ts SNAP_REACH_PX). */
+export const DETECTOR_SNAP_REACH_PX = 24;
+/** Minimum detector confidence score required before snapping (filters low-confidence false boxes). */
+export const DETECTOR_MIN_SCORE = 0.25;
+/** Reject detector snap when a second candidate is nearly as close (avoids snapping onto a neighbour). */
+export const DETECTOR_AMBIGUITY_RATIO = 1.5;
+const DETECTOR_AMBIGUITY_MARGIN_PX = 8;
+const DEFAULT_SCREEN_SIZE = { width: 1920, height: 1080 };
 /** A partial name match counts when the guess is within this of the element (a fifth of the screen). */
 export const NAME_REACH = 200;
 /** Things larger than this (a twentieth of the screen) are regions, not targets a point snaps to. */
 const SNAP_MAX_AREA = (GRID * GRID) / 20;
 
+export type ScreenSize = { width: number; height: number };
+export type SnapOptions = {
+  reachPx?: number;
+  minScore?: number;
+  screenSize?: ScreenSize;
+};
+
 /** `on`: the element the point was put on (absent for a bare guess). */
 export type Placed = { x: number; y: number; how: "name" | "name-near" | "snap" | "guess"; on?: ScreenElement };
 
-/**
- * Snaps a coordinate `guess` on `screen` to the element that contains it (smallest enclosing box)
- * or the nearest element within `reach`. Returns null when nothing is within range (never snaps
- * across a large distance and ignores giant container regions).
- */
-export function snapToDetected(
+/** UIA snapping: keeps exact pre-pilot behavior for named Windows UI Automation elements. */
+function snapToUia(
   guess: { x: number; y: number },
   elements: ScreenElement[],
   screen: number,
@@ -213,7 +224,6 @@ export function snapToDetected(
     if (a <= 0 || a > SNAP_MAX_AREA) continue;
     const d = away(guess.x, guess.y, e);
     if (d > reach) continue;
-    // Containing box (d === 0) wins by smallest area; outside box wins by smallest distance.
     if (!best || d < bestDist || (d === 0 && bestDist === 0 && a < bestArea) || (d === bestDist && a < bestArea)) {
       best = e;
       bestDist = d;
@@ -224,6 +234,46 @@ export function snapToDetected(
 }
 
 /**
+ * Snaps a coordinate `guess` on `screen` to a high-confidence detected element within `reachPx`
+ * physical pixels. Never moves a guess that is already inside a detected box (prevents dragging
+ * correct points off target onto overlapping/larger boxes), rejects low-confidence detections, and
+ * refuses ambiguous snaps when a second candidate is nearly as close.
+ */
+export function snapToDetected(
+  guess: { x: number; y: number },
+  elements: ScreenElement[],
+  screen: number,
+  opts: SnapOptions = {},
+): (Placed & { how: "snap"; on: ScreenElement }) | null {
+  const reachPx = typeof opts.reachPx === "number" && opts.reachPx > 0 ? opts.reachPx : DETECTOR_SNAP_REACH_PX;
+  const minScore = typeof opts.minScore === "number" ? opts.minScore : DETECTOR_MIN_SCORE;
+  const size = opts.screenSize && opts.screenSize.width > 0 && opts.screenSize.height > 0 ? opts.screenSize : DEFAULT_SCREEN_SIZE;
+
+  const candidates: Array<{ e: ScreenElement; dPx: number; a: number }> = [];
+  for (const e of elements) {
+    if (e.screen !== screen) continue;
+    if (e.source === "detector" && (e.score ?? 0) < minScore) continue;
+    const a = area(e);
+    if (a <= 0 || a > SNAP_MAX_AREA) continue;
+    const dxPx = (Math.max(e.x1 - guess.x, 0, guess.x - e.x2) / GRID) * size.width;
+    const dyPx = (Math.max(e.y1 - guess.y, 0, guess.y - e.y2) / GRID) * size.height;
+    const dPx = Math.hypot(dxPx, dyPx);
+    // Already inside a detected box: leave the guess untouched so we never move a correct point off its target.
+    if (dPx === 0) return null;
+    if (dPx <= reachPx) candidates.push({ e, dPx, a });
+  }
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => a.dPx - b.dPx || a.a - b.a);
+  if (candidates.length >= 2) {
+    const first = candidates[0].dPx;
+    const second = candidates[1].dPx;
+    if (second <= Math.max(first * DETECTOR_AMBIGUITY_RATIO, first + DETECTOR_AMBIGUITY_MARGIN_PX)) return null;
+  }
+  const best = candidates[0].e;
+  return { ...centre(best), how: "snap", on: best };
+}
+
+/**
  * Where a point with this label goes. `guess` is the model's own coordinate (grid), if it gave one.
  * - one element carries exactly that name: its centre, whatever the model guessed;
  * - one carries part of it, or the label says more ("Search bar" for "Search", "Firefox settings" for
@@ -231,10 +281,16 @@ export function snapToDetected(
  *   label may mean another thing that Windows does not list;
  * - several do (two "Close" buttons): the one nearest the guess, on the same terms; nothing certain without a guess;
  * - none does: the guess, moved to the centre of the small element it is in or right beside (UIA first,
- *   then optional detector boxes filling UIA gaps).
+ *   then optional detector boxes filling UIA gaps within physical-pixel reach).
  * Without elements (no list on this system, or an app that exposes nothing) the guess is returned as it is.
  */
-export function placePoint(label: string, guess: { x: number; y: number } | null, elements: ScreenElement[], screen: number): Placed | null {
+export function placePoint(
+  label: string,
+  guess: { x: number; y: number } | null,
+  elements: ScreenElement[],
+  screen: number,
+  screenSize?: ScreenSize,
+): Placed | null {
   const named = matchElements(label, elements, screen);
   const agrees = (e: ScreenElement) => isExact(label, e) || (guess !== null && away(guess.x, guess.y, e) <= NAME_REACH);
   if (named.length === 1 && agrees(named[0])) return { ...centre(named[0]), how: "name", on: named[0] };
@@ -244,9 +300,9 @@ export function placePoint(label: string, guess: { x: number; y: number } | null
   }
   if (!guess) return null;
   // UIA elements take priority; optional detector boxes only fill gaps where UIA has no box in range.
-  const uiaSnap = snapToDetected(guess, elements.filter((e) => e.source !== "detector"), screen);
+  const uiaSnap = snapToUia(guess, elements.filter((e) => e.source !== "detector"), screen);
   if (uiaSnap) return uiaSnap;
-  const detSnap = snapToDetected(guess, elements.filter((e) => e.source === "detector"), screen);
+  const detSnap = snapToDetected(guess, elements.filter((e) => e.source === "detector"), screen, { screenSize });
   return detSnap ?? { ...guess, how: "guess" };
 }
 
@@ -307,20 +363,21 @@ const MAX_TAG_CHARS = 120;
 const r1 = (v: number) => String(Math.round(v));
 
 /** One finished answer (or piece of one): its POINT, CIRCLE and BOX tags put where the things really are. */
-export function placeTags(text: string, elements: ScreenElement[], opts: { points?: boolean } = {}): string {
+export function placeTags(text: string, elements: ScreenElement[], opts: { points?: boolean; screenSizes?: Record<number, ScreenSize> } = {}): string {
   text = normalizePointBoxes(text);
   if (!elements.length) return text;
   return text.replace(PLACE_TAG, (tag, point, px, py, circle, cx, cy, cr, _box, x1, y1, x2, y2, label: string | undefined, screen: string | undefined) => {
     const name = (label ?? "").trim();
     const on = screen ? Number(screen) : 1;
+    const screenSize = opts.screenSizes?.[on];
     const tail = `${name ? `:${name}` : ""}${screen ? `:screen${screen}` : ""}]`;
     if (point) {
       if (opts.points === false) return tag;
-      const p = placePoint(name, { x: Number(px), y: Number(py) }, elements, on);
+      const p = placePoint(name, { x: Number(px), y: Number(py) }, elements, on, screenSize);
       return p && p.how !== "guess" ? `[POINT:${r1(p.x)},${r1(p.y)}${tail}` : tag;
     }
     if (circle) {
-      const p = placePoint(name, { x: Number(cx), y: Number(cy) }, elements, on);
+      const p = placePoint(name, { x: Number(cx), y: Number(cy) }, elements, on, screenSize);
       if (!p || p.how === "guess" || !p.on) return tag;
       // round the thing itself: half its longer side and a little air, inside the sizes the overlay draws
       const r = Math.max(15, Math.min(150, Math.max(p.on.x2 - p.on.x1, p.on.y2 - p.on.y1) * 0.6));
@@ -337,7 +394,7 @@ export function placeTags(text: string, elements: ScreenElement[], opts: { point
  * waits for its other half; everything before it goes out at once. `points: false` leaves POINT tags
  * alone (a pointing model places them afterwards, lib/buddy/pointer.ts).
  */
-export async function* withPlacedTags(answer: AsyncIterable<string>, elements: ScreenElement[], opts: { points?: boolean } = {}): AsyncGenerator<string> {
+export async function* withPlacedTags(answer: AsyncIterable<string>, elements: ScreenElement[], opts: { points?: boolean; screenSizes?: Record<number, ScreenSize> } = {}): AsyncGenerator<string> {
   if (!elements.length) { yield* answer; return; }
   let held = "";
   for await (const piece of answer) {

@@ -1875,6 +1875,22 @@ export default function OkFilowPanel() {
             <span>{t("answerLog")}</span>
             <input type="checkbox" checked={c.answerLog === true} onChange={(e) => void configure({ answerLog: e.target.checked })} />
           </label>
+          {(c.detector?.model || c.screenDetector === true) && (
+            <>
+              <label className="okf-row">
+                <span>{t("screenDetector")}</span>
+                <input
+                  type="checkbox"
+                  data-testid="screen-detector-on"
+                  checked={c.screenDetector === true}
+                  disabled={c.detector?.gpuAvailable === false}
+                  onChange={(e) => void configure({ screenDetector: e.target.checked })}
+                />
+              </label>
+              {c.detector?.gpuAvailable === false && <p className="okf-note" data-testid="screen-detector-note">{t("screenDetectorNoGpu")}</p>}
+              {c.detector?.gpuAvailable !== false && c.detector?.disabledForSession && <p className="okf-note" data-testid="screen-detector-note">{t("screenDetectorTooSlow")}</p>}
+            </>
+          )}
           <MemorySettings bridge={bridge} status={c} t={t} configure={configure} lang={lang} learned={learned} />
           {c.answerLog && <div className="okf-row">
             <button type="button" className="okf-link" onClick={() => void okFilowBridge()?.deleteAnswers().then((n) => setNote(t("answersDeleted").replace("{n}", String(n))))}>{t("deleteAnswers")}</button>
