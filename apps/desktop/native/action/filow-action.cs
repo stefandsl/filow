@@ -513,7 +513,29 @@ public static class FilowActionHelper {
     return i;
   }
 
-  static uint SendAll(List<INPUT> list) {
+  sealed class DispatchRefusal : Exception {
+    public DispatchRefusal(string reason) : base(reason) {}
+  }
+
+  const uint GA_ROOT = 2;
+  [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(POINT point);
+
+  static void CheckTarget(IntPtr hwnd, Dictionary<string, object> bounds, List<POINT> points) {
+    IntPtr root = GetAncestor(hwnd, GA_ROOT);
+    if (root == IntPtr.Zero || IsIconic(hwnd) || GetAncestor(GetForegroundWindow(), GA_ROOT) != root)
+      throw new DispatchRefusal("target_not_foreground");
+    RECT rect = WindowBounds(hwnd);
+    if (bounds == null || GetInt(bounds, "x", int.MinValue) != rect.L || GetInt(bounds, "y", int.MinValue) != rect.T ||
+        GetInt(bounds, "width", -1) != rect.R - rect.L || GetInt(bounds, "height", -1) != rect.B - rect.T)
+      throw new DispatchRefusal("target_changed");
+    foreach (POINT point in points) {
+      if (point.X < rect.L || point.X >= rect.R || point.Y < rect.T || point.Y >= rect.B ||
+          GetAncestor(WindowFromPoint(point), GA_ROOT) != root) throw new DispatchRefusal("target_not_foreground");
+    }
+  }
+
+  static uint SendAll(List<INPUT> list, Action check) {
     if (list.Count == 0) return 0;
     int cb = Marshal.SizeOf(typeof(INPUT));
     uint total = 0;
@@ -521,6 +543,7 @@ public static class FilowActionHelper {
       int n = Math.Min(64, list.Count - at);
       var slice = new INPUT[n];
       list.CopyTo(at, slice, 0, n);
+      check();
       uint sent = SendInput((uint)n, slice, cb);
       total += sent;
       if (sent != (uint)n) break;
@@ -567,18 +590,18 @@ public static class FilowActionHelper {
     if (req == null) return new Dictionary<string, object> { { "ok", false }, { "error", "bad_json" } };
     string action = GetStr(req, "action");
     long hwndVal = req.ContainsKey("hwnd") && req["hwnd"] != null ? Convert.ToInt64(req["hwnd"], CultureInfo.InvariantCulture) : 0;
-    if (hwndVal > 0) {
-      IntPtr h = new IntPtr(hwndVal);
-      if (IsWindow(h)) {
-        if (IsIconic(h)) ShowWindow(h, 9);
-        SetForegroundWindow(h);
-        Thread.Sleep(25);
-      }
+    var hwnd = new IntPtr(hwndVal);
+    var bounds = req.ContainsKey("bounds") ? req["bounds"] as Dictionary<string, object> : null;
+    var points = new List<POINT>();
+    if (req.ContainsKey("physX") || req.ContainsKey("physY")) {
+      points.Add(new POINT { X = GetInt(req, "physX", int.MinValue), Y = GetInt(req, "physY", int.MinValue) });
     }
+    Action check = delegate { CheckTarget(hwnd, bounds, points); };
     var inputs = new List<INPUT>();
     if (action == "move" || action == "click" || action == "double_click" || action == "triple_click" ||
         action == "right_click" || action == "middle_click" || action == "mouse_down" || action == "mouse_up") {
       int px = GetInt(req, "physX", 0), py = GetInt(req, "physY", 0);
+      if (points.Count == 0) throw new DispatchRefusal("target_not_foreground");
       int dx, dy; ToVirtualAbs(px, py, out dx, out dy);
       uint moveFlag = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
       inputs.Add(MakeMouse(dx, dy, moveFlag, 0));
@@ -599,7 +622,7 @@ public static class FilowActionHelper {
       } else if (action == "mouse_up") {
         inputs.Add(MakeMouse(dx, dy, moveFlag | MOUSEEVENTF_LEFTUP, 0));
       }
-      uint sent = SendAll(inputs);
+      uint sent = SendAll(inputs, check);
       return new Dictionary<string, object> { { "ok", sent > 0 }, { "sent", (int)sent }, { "latencyMs", sw.ElapsedMilliseconds } };
     }
     if (action == "drag_and_drop") {
@@ -609,20 +632,25 @@ public static class FilowActionHelper {
       ToVirtualAbs(sx, sy, out sdx, out sdy);
       ToVirtualAbs(ex, ey, out edx, out edy);
       uint moveFlag = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
-      SendAll(new List<INPUT> { MakeMouse(sdx, sdy, moveFlag, 0), MakeMouse(sdx, sdy, moveFlag | MOUSEEVENTF_LEFTDOWN, 0) });
+      inputs.Add(MakeMouse(sdx, sdy, moveFlag, 0));
+      inputs.Add(MakeMouse(sdx, sdy, moveFlag | MOUSEEVENTF_LEFTDOWN, 0));
+      points.Add(new POINT { X = sx, Y = sy });
       for (int step = 1; step <= 8; step++) {
-        int ix = sdx + ((edx - sdx) * step) / 8;
-        int iy = sdy + ((edy - sdy) * step) / 8;
-        SendAll(new List<INPUT> { MakeMouse(ix, iy, moveFlag, 0) });
-        Thread.Sleep(15);
+        var point = new POINT { X = sx + (ex - sx) * step / 8, Y = sy + (ey - sy) * step / 8 };
+        points.Add(point);
+        int ix, iy;
+        ToVirtualAbs(point.X, point.Y, out ix, out iy);
+        inputs.Add(MakeMouse(ix, iy, moveFlag, 0));
       }
-      uint sent = SendAll(new List<INPUT> { MakeMouse(edx, edy, moveFlag | MOUSEEVENTF_LEFTUP, 0) });
+      inputs.Add(MakeMouse(edx, edy, moveFlag | MOUSEEVENTF_LEFTUP, 0));
+      uint sent = SendAll(inputs, check);
       return new Dictionary<string, object> { { "ok", sent > 0 }, { "sent", (int)sent }, { "latencyMs", sw.ElapsedMilliseconds } };
     }
     if (action == "scroll") {
       int px = GetInt(req, "physX", 0), py = GetInt(req, "physY", 0);
       string dir = GetStr(req, "direction");
       int mag = Math.Max(60, Math.Min(2400, GetInt(req, "magnitude", 300)));
+      if (points.Count == 0) throw new DispatchRefusal("target_not_foreground");
       int dx, dy; ToVirtualAbs(px, py, out dx, out dy);
       uint moveFlag = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
       inputs.Add(MakeMouse(dx, dy, moveFlag, 0));
@@ -633,7 +661,7 @@ public static class FilowActionHelper {
       else if (dir == "right") inputs.Add(MakeMouse(dx, dy, MOUSEEVENTF_HWHEEL, unchecked((uint)delta)));
       else if (dir == "left") inputs.Add(MakeMouse(dx, dy, MOUSEEVENTF_HWHEEL, unchecked((uint)(-delta))));
       else return new Dictionary<string, object> { { "ok", false }, { "error", "bad_direction" } };
-      uint sent = SendAll(inputs);
+      uint sent = SendAll(inputs, check);
       return new Dictionary<string, object> { { "ok", sent > 0 }, { "sent", (int)sent }, { "latencyMs", sw.ElapsedMilliseconds } };
     }
     if (action == "type") {
@@ -641,7 +669,7 @@ public static class FilowActionHelper {
         int px = GetInt(req, "physX", 0), py = GetInt(req, "physY", 0);
         int dx, dy; ToVirtualAbs(px, py, out dx, out dy);
         uint moveFlag = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
-        SendAll(new List<INPUT> { MakeMouse(dx, dy, moveFlag, 0), MakeMouse(dx, dy, moveFlag | MOUSEEVENTF_LEFTDOWN, 0), MakeMouse(dx, dy, moveFlag | MOUSEEVENTF_LEFTUP, 0) });
+        SendAll(new List<INPUT> { MakeMouse(dx, dy, moveFlag, 0), MakeMouse(dx, dy, moveFlag | MOUSEEVENTF_LEFTDOWN, 0), MakeMouse(dx, dy, moveFlag | MOUSEEVENTF_LEFTUP, 0) }, check);
         Thread.Sleep(25);
       }
       string text = GetStr(req, "text");
@@ -662,7 +690,7 @@ public static class FilowActionHelper {
         inputs.Add(MakeKey(0x0D, sc, 0));
         inputs.Add(MakeKey(0x0D, sc, KEYEVENTF_KEYUP));
       }
-      uint sent = SendAll(inputs);
+      uint sent = SendAll(inputs, check);
       return new Dictionary<string, object> { { "ok", inputs.Count == 0 || sent > 0 }, { "sent", (int)sent }, { "latencyMs", sw.ElapsedMilliseconds } };
     }
     if (action == "press_key" || action == "key_down" || action == "key_up") {
@@ -672,7 +700,7 @@ public static class FilowActionHelper {
       uint ext = EXTENDED_VKS.Contains(vk) ? KEYEVENTF_EXTENDEDKEY : 0;
       if (action == "press_key" || action == "key_down") inputs.Add(MakeKey(vk, sc, ext));
       if (action == "press_key" || action == "key_up") inputs.Add(MakeKey(vk, sc, ext | KEYEVENTF_KEYUP));
-      uint sent = SendAll(inputs);
+      uint sent = SendAll(inputs, check);
       return new Dictionary<string, object> { { "ok", sent > 0 }, { "sent", (int)sent }, { "latencyMs", sw.ElapsedMilliseconds } };
     }
     if (action == "hotkey") {
@@ -697,7 +725,7 @@ public static class FilowActionHelper {
         uint ext = EXTENDED_VKS.Contains(vk) ? KEYEVENTF_EXTENDEDKEY : 0;
         inputs.Add(MakeKey(vk, sc, ext | KEYEVENTF_KEYUP));
       }
-      uint sent = SendAll(inputs);
+      uint sent = SendAll(inputs, check);
       if (sent > 0 && sent != (uint)inputs.Count) {
         // Release all keys so nothing stays stuck down
         var up = new List<INPUT>();
@@ -706,7 +734,7 @@ public static class FilowActionHelper {
           uint ext = EXTENDED_VKS.Contains(vk) ? KEYEVENTF_EXTENDEDKEY : 0;
           up.Add(MakeKey(vk, (ushort)MapVirtualKey(vk, 0), ext | KEYEVENTF_KEYUP));
         }
-        SendAll(up);
+        SendAll(up, check);
       }
       return new Dictionary<string, object> { { "ok", sent == (uint)inputs.Count }, { "sent", (int)sent }, { "latencyMs", sw.ElapsedMilliseconds } };
     }
@@ -755,6 +783,8 @@ public static class FilowActionHelper {
           res = new Dictionary<string, object> { { "ok", false }, { "error", "unknown_command" } };
         }
         output.WriteLine(SER.Serialize(res));
+      } catch (DispatchRefusal ex) {
+        output.WriteLine(SER.Serialize(new Dictionary<string, object> { { "ok", false }, { "refused", true }, { "error", ex.Message } }));
       } catch (Exception ex) {
         output.WriteLine(SER.Serialize(new Dictionary<string, object> { { "ok", false }, { "error", ex.Message } }));
       }

@@ -285,7 +285,7 @@ export const it: Record<OkfKey, string> = {
   resizeItem: "Ridimensiona",
   computerUse: "Agisci in un'altra app (sperimentale, Gemini)",
   computerUseHint: "Spento per impostazione predefinita. Invia solo gli screenshot della finestra di destinazione a Google per pianificare un passaggio alla volta. Filow controlla ogni passaggio e si ferma subito con Esc.",
-  notice_computeruse: "La tua richiesta e gli screenshot della finestra di destinazione vanno a {who} per permettere a Filow di pianificare ogni passaggio. Viene inviata solo quella finestra, mai l'intero desktop. Filow controlla ogni passaggio prima di qualsiasi clic o tasto.",
+  notice_computeruse: "La tua richiesta e gli screenshot della finestra di destinazione vanno a {who} per permettere a Filow di pianificare ogni passaggio. Viene inviata solo quella finestra, mai l'intero desktop. Filow controlla ogni passaggio prima di qualsiasi clic o tasto. Con il piano gratuito, Google può usare questi contenuti per migliorare i suoi prodotti.",
   kind_computeruse: "Screenshot della finestra di destinazione (uso del computer)",
   kept_computeruse: "Resta su questo PC. Filow non ha inviato alcuno screenshot e non ha agito nella finestra.",
   mode_acting: "Filow sta agendo",

@@ -287,7 +287,7 @@ export const ja: Record<OkfKey, string> = {
   whiteboardHint: "難しい概念を、図を描きながら一歩ずつ説明します。声でも：「ホワイトボード：光合成」。",
   computerUse: "別のアプリを操作する（試験機能、Gemini）",
   computerUseHint: "既定ではオフです。対象ウィンドウのみのスクリーンショットをGoogleへ送り、一歩ずつ計画します。Filowが各操作を確認し、Escで即座に停止します。",
-  notice_computeruse: "依頼内容と対象ウィンドウのスクリーンショットが{who}に送られ、Filowが次の操作を計画します。送信されるのは対象ウィンドウのみで、デスクトップ全体は送りません。Filowはすべてのクリックや入力の前に確認します。",
+  notice_computeruse: "依頼内容と対象ウィンドウのスクリーンショットが{who}に送られ、Filowが次の操作を計画します。送信されるのは対象ウィンドウのみで、デスクトップ全体は送りません。Filowはすべてのクリックや入力の前に確認します。無料枠では、Google が製品の改善にこの内容を使用する場合があります。",
   kind_computeruse: "対象ウィンドウのスクリーンショット（アプリ操作）",
   kept_computeruse: "このPCに残しました。スクリーンショットは送信されず、操作も行っていません。",
   mode_acting: "Filowが操作中",

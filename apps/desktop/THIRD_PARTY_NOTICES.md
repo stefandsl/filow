@@ -25,6 +25,23 @@ Apache-2.0); each keeps its authors' license:
 - Dolphin base (sherpa-onnx-dolphin-base-ctc-multi-lang-int8-2025-04-02): Apache-2.0
 - Silero voice detector (silero_vad.onnx): MIT
 
+
+## Experimental wake word (downloaded only after explicit enable consent)
+
+The sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20 keyword model is downloaded from the official
+k2-fsa/sherpa-onnx GitHub kws-models release. Apache-2.0 is declared by the author at
+https://www.modelscope.cn/models/pkufool/icefall-kws-zipformer-zh-en-3M-2025-12-20 .
+Training data not stated: the model's training-data provenance remains an owner review item.
+The Google speech_embedding feature models melspectrogram.onnx and embedding_model.onnx are
+downloaded from dscripka/openWakeWord v0.5.1 on GitHub. Its README declares these embedding
+models Apache-2.0 (https://github.com/dscripka/openWakeWord#license). The original Google model
+card has not been verified; review it before shipping. No openWakeWord ready wake-word model
+(CC BY-NC-SA) is used. No model weights are bundled in the installer.
+The bundled background consists only of quantized speech embeddings derived from Common Voice
+22 dev recordings (CC0-1.0); no audio is bundled. wake-data/background.json records the split
+and source/checksum facts. tools/wake/export-background.cjs reproduces the feature file.
+The personal logistic head is trained locally by Filow from five user-accepted recordings.
+
 ## Voice model
 
 The natural voice that Filow downloads on request is Supertonic 3 by Supertone Inc., in the int8 export
@@ -118,15 +135,6 @@ THE SOFTWARE.
 
 Filow adapts the explicit identity used for shared thread references in bb
 to scope presenter, phone and recovered point references to the same script.
-
-## Computer Use loop reference (google-gemini/computer-use-preview)
-
-Filow's X-14 Gemini Computer Use planner adapter (`apps/desktop/gemini-cu-planner.js`) and
-safety confirmation handling (`apps/desktop/action-loop.js`) are written in Filow's own
-JavaScript, referencing the interaction loop and `safety_decision` / `safety_acknowledgement`
-protocol documented in https://github.com/google-gemini/computer-use-preview
-(pinned commit `77c9797e943aad63bbc963b7fd092a9e51c07863`, Copyright 2025 Google LLC,
-Apache License 2.0, http://www.apache.org/licenses/LICENSE-2.0).
 Source: https://github.com/get-bb/bb/blob/28cdd915db441933646c0e07543ddc05efa1b43f/packages/templates/src/templates/bb-guide-thread-messaging.md
 Copyright (c) 2026 Michael Yong. Used under the MIT License.
 
@@ -153,6 +161,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Computer Use loop reference (google-gemini/computer-use-preview)
+
+Filow's X-14 Gemini Computer Use planner adapter (`apps/desktop/gemini-cu-planner.js`) and
+safety confirmation handling (`apps/desktop/action-loop.js`) are written in Filow's own
+JavaScript, referencing the interaction loop and `safety_decision` / `safety_acknowledgement`
+protocol documented in https://github.com/google-gemini/computer-use-preview
+(pinned commit `77c9797e943aad63bbc963b7fd092a9e51c07863`, Copyright 2025 Google LLC,
+Apache License 2.0, http://www.apache.org/licenses/LICENSE-2.0).
 
 ## npm packages
 
@@ -570,7 +587,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### browser 0.9.42
+### browser 0.9.44
 
 License: GPL-3.0-or-later
 
@@ -1415,7 +1432,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### client 0.9.42
+### client 0.9.44
 
 License: GPL-3.0-or-later
 
@@ -1444,7 +1461,7 @@ WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
 ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-### cloud 0.9.42
+### cloud 0.9.44
 
 License: GPL-3.0-or-later
 
@@ -1715,7 +1732,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### core 0.9.42
+### core 0.9.44
 
 License: GPL-3.0-or-later
 
@@ -3959,7 +3976,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### desktop 0.9.42
+### desktop 0.9.44
 
 License: GPL-3.0-or-later
 
@@ -9836,7 +9853,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### powerpoint 0.9.42
+### powerpoint 0.9.44
 
 License: GPL-3.0-or-later
 
@@ -11855,7 +11872,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### server 0.9.42
+### server 0.9.44
 
 License: GPL-3.0-or-later
 
@@ -12775,7 +12792,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### stt 0.9.42
+### stt 0.9.44
 
 License: GPL-3.0-or-later
 
@@ -14097,7 +14114,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### ui 0.9.42
+### ui 0.9.44
 
 License: GPL-3.0-or-later
 
@@ -17616,7 +17633,7 @@ Repository: git+https://github.com/websockets/ws.git
 > CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### web 0.9.42
+### web 0.9.44
 
 License: GPL-3.0-or-later
 

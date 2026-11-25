@@ -92,7 +92,9 @@ function evaluateActionGate({ binding, target, action, elements = [], confirmedG
   if (target.elevated === true) {
     return { allowed: false, confirmable: false, requiresConfirmation: false, category: "elevated_target", reason: "Target window is elevated (administrator)" };
   }
-  if (Number(target.hwnd) !== Number(binding.targetHwnd)) {
+  const changedBounds = "bounds" in binding && ["x", "y", "width", "height"].some((field) =>
+    !Number.isFinite(binding.bounds?.[field]) || binding.bounds[field] !== target.bounds?.[field]);
+  if (Number(target.hwnd) !== Number(binding.targetHwnd) || changedBounds) {
     return { allowed: false, confirmable: false, requiresConfirmation: false, category: "target_changed", reason: "Target window changed since capture" };
   }
 

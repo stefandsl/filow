@@ -133,6 +133,12 @@ function snapToUiaElement(normX, normY, elements, maxRadius = 24) {
   return best || { x: normX, y: normY, snapped: false };
 }
 
+function snapAction(action, elements) {
+  if (!POINT_ACTIONS.has(action.name)) return action;
+  const { x, y, snapped } = snapToUiaElement(action.args.x, action.args.y, elements);
+  return snapped ? { ...action, args: { ...action.args, x, y } } : action;
+}
+
 function helperPath(dir = __dirname) {
   return path.join(dir, "native", "action", "bin", "filow-action.exe").replace(/app\.asar([\\/])/, "app.asar.unpacked$1");
 }
@@ -217,11 +223,10 @@ function createActionDriver(transport = {}) {
       return { ok: false, refused: true, reason: "driver_unavailable", latencyMs: Date.now() - start };
     }
 
-    const payload = { action: action.name, hwnd: Number(context.hwnd) || 0 };
+    const payload = { action: action.name, hwnd: Number(context.hwnd) || 0, bounds: targetRect };
 
     if (POINT_ACTIONS.has(action.name)) {
-      const snapped = context.snapElements ? snapToUiaElement(args.x, args.y, context.snapElements) : { x: args.x, y: args.y };
-      const pt = mapNormalizedToPhysical(snapped.x, snapped.y, targetRect);
+      const pt = mapNormalizedToPhysical(args.x, args.y, targetRect);
       payload.physX = pt.x;
       payload.physY = pt.y;
     } else if (action.name === "drag_and_drop") {
@@ -251,7 +256,7 @@ function createActionDriver(transport = {}) {
       payload.keys = args.keys.map(String);
     }
 
-    const res = await sendCommand("exec", payload);
+    const res = await sendCommand("exec", payload, context.signal);
     return {
       ok: Boolean(res && res.ok),
       refused: Boolean(res && res.refused),
@@ -361,9 +366,11 @@ function createWindowsActionDriver(opts = {}) {
     });
   }
 
-  function sendCommand(cmd, data = {}) {
+  function sendCommand(cmd, data = {}, signal) {
     const run = async () => {
+      if (signal?.aborted) throw new Error("aborted");
       await ensureStarted();
+      if (signal?.aborted) throw new Error("aborted");
       let line;
       if (cmd === "inspect") line = `inspect ${Number(data.hwnd) || 0} ${parentPid}`;
       else if (cmd === "capture") line = `capture ${Number(data.hwnd) || 0} ${Number(data.maxWidth) || 1280} ${parentPid}`;
@@ -408,6 +415,7 @@ module.exports = {
   mapNormalizedToPhysical,
   physicalToVirtualAbsolute,
   snapToUiaElement,
+  snapAction,
   helperPath,
   createActionDriver,
   createWindowsActionDriver,

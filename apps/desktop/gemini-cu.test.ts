@@ -487,7 +487,7 @@ describe("X-14 Gemini Computer Use: require_confirmation, Stop, and log safety",
     expect(nextCfg(DEFAULTS, { computerUse: true }).computerUse).toBe(true);
   });
 
-  it("refuses a window containing a visible password element BEFORE sending any screenshot to the planner (R307)", async () => {
+  it("refuses a window containing a visible password element BEFORE sending any screenshot to the planner (R322)", async () => {
     const { runComputerUseTask } = require("./action-loop.js");
     const planner = { start: vi.fn(), continueWithResult: vi.fn() };
     const driver = {
@@ -519,5 +519,103 @@ describe("X-14 Gemini Computer Use: require_confirmation, Stop, and log safety",
     expect(res.bytesSent).toBe(0);
     expect(planner.start).not.toHaveBeenCalled();
     expect(driver.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe("X-14 dispatch boundaries", () => {
+  const bounds = { x: 0, y: 0, width: 1000, height: 1000 };
+  const target = { hwnd: 42, bounds };
+  const click = { id: "c1", name: "click", args: { x: 490, y: 500 }, intent: "Choose option" };
+  const pay = { name: "Pay now", x1: 495, x2: 505, y1: 495, y2: 505 };
+  const opts = { enabled: true, consentGranted: true, task: "Choose option", targetHwnd: 42 };
+
+  function setup(elements: object[] = [], calls = [click]) {
+    const { createComputerUseController } = require("./action-loop.js");
+    const driver = {
+      inspectTarget: vi.fn(async () => target),
+      captureTarget: vi.fn(async () => ({ bounds, elements, snapshotId: "s1" })),
+      execute: vi.fn(async () => ({ ok: true })),
+      readBack: vi.fn(async () => ({})),
+    };
+    const planner = {
+      start: async () => ({ ok: true, calls }),
+      continueWithResult: vi.fn(async () => ({ ok: true, calls: [] })),
+    };
+    return { controller: createComputerUseController({ driver, planner }), driver, planner };
+  }
+
+  it("refuses the payment element at the snapped point", async () => {
+    const { controller, driver } = setup([pay]);
+    expect(await controller.run(opts)).toMatchObject({ category: "payment", reason: "confirmation_declined" });
+    expect(driver.execute).not.toHaveBeenCalled();
+  });
+
+  it("dispatches the approved center and ignores any legacy driver snap hints", async () => {
+    const { controller, driver } = setup([{ ...pay, name: "Open" }]);
+    await controller.run(opts);
+    expect(driver.execute).toHaveBeenCalledWith({ ...click, args: { x: 500, y: 500 } }, expect.anything());
+    const sendCommand = vi.fn(async () => ({ ok: true }));
+    await require("./action-driver.js").createActionDriver({ sendCommand }).execute(click, {
+      hwnd: 42, targetRect: bounds, snapElements: [pay],
+    });
+    expect(sendCommand).toHaveBeenCalledWith("exec", expect.objectContaining({ physX: 490, physY: 500 }), undefined);
+  });
+
+  it.each(["x", "y", "width", "height"])("rejects changed capture %s", async (field) => {
+    const { controller, driver } = setup();
+    driver.inspectTarget.mockResolvedValue({ ...target, bounds: { ...bounds, [field]: 123 } });
+    expect(await controller.run(opts)).toMatchObject({ reason: "target_changed" });
+    expect(driver.execute).not.toHaveBeenCalled();
+  });
+
+  it("refuses a resize while awaiting the payment click", async () => {
+    const { controller, driver } = setup([pay]);
+    const confirmStep = ({ nonce }: { nonce: string }) => {
+      driver.inspectTarget.mockResolvedValue({ ...target, bounds: { ...bounds, width: 999 } });
+      return { nonce, clicked: true, confirmed: true };
+    };
+    expect(await controller.run({ ...opts, confirmStep })).toMatchObject({ reason: "target_changed" });
+    expect(driver.execute).not.toHaveBeenCalled();
+  });
+
+  it("declines a stale panel nonce for the snapped payment", async () => {
+    const { controller, driver, planner } = setup([pay]);
+    const confirmStep = () => ({ nonce: "previous", clicked: true, confirmed: true });
+    expect(await controller.run({ ...opts, confirmStep })).toMatchObject({ reason: "confirmation_declined" });
+    expect(driver.execute).not.toHaveBeenCalled();
+    expect(planner.continueWithResult).not.toHaveBeenCalled();
+  });
+
+  it.each(["stop", "reuse"])("checks %s at grant consumption before dispatch", async (mode) => {
+    const { controller, driver } = setup([pay]);
+    const gate = require("./action-gate.js");
+    const consume = gate.consumeStepGrant;
+    const hook = vi.spyOn(gate, "consumeStepGrant").mockImplementation((grant) => {
+      if (mode === "stop") controller.stop();
+      else consume(grant);
+      return consume(grant);
+    });
+    try {
+      const confirmStep = ({ nonce }: { nonce: string }) => ({ nonce, clicked: true, confirmed: true });
+      const res = await controller.run({ ...opts, confirmStep });
+      expect(res.reason).toBe(mode === "stop" ? "stopped" : "grant_reused");
+      expect(driver.execute).not.toHaveBeenCalled();
+    } finally { hook.mockRestore(); }
+  });
+
+  it("ends the turn on a native foreground refusal", async () => {
+    const { controller, driver, planner } = setup();
+    const sendCommand = vi.fn(async () => ({ ok: false, refused: true, error: "target_not_foreground", sent: 0 }));
+    driver.execute.mockImplementation(require("./action-driver.js").createActionDriver({ sendCommand }).execute);
+    expect(await controller.run(opts)).toMatchObject({ ok: false, reason: "target_not_foreground" });
+    expect(sendCommand).toHaveBeenCalledTimes(1);
+    expect(planner.continueWithResult).not.toHaveBeenCalled();
+  });
+
+  it("rejects the whole response when two calls arrive together", async () => {
+    const { controller, driver, planner } = setup([], [click, { ...click, id: "c2" }]);
+    expect(await controller.run(opts)).toMatchObject({ reason: "multiple_function_calls", steps: 0 });
+    expect(driver.execute).not.toHaveBeenCalled();
+    expect(planner.continueWithResult).not.toHaveBeenCalled();
   });
 });

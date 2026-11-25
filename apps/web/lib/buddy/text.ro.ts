@@ -287,7 +287,7 @@ export const ro: Record<OkfKey, string> = {
   whiteboardHint: "Explică un concept dificil pas cu pas, desenând. Sau spune: \"tablă: fotosinteza\".",
   computerUse: "Acționează în altă aplicație (experimental, Gemini)",
   computerUseHint: "Oprit implicit. Trimite către Google doar capturi ale ferestrei țintă, pentru a planifica câte un pas. Filow verifică fiecare pas și se oprește imediat la Esc.",
-  notice_computeruse: "Cererea ta și capturile ferestrei țintă ajung la {who} ca Filow să poată planifica fiecare pas. Se trimite doar acea fereastră, niciodată întregul desktop. Filow verifică fiecare pas înainte de orice clic sau tastă.",
+  notice_computeruse: "Cererea ta și capturile ferestrei țintă ajung la {who} ca Filow să poată planifica fiecare pas. Se trimite doar acea fereastră, niciodată întregul desktop. Filow verifică fiecare pas înainte de orice clic sau tastă. În planul gratuit, Google poate folosi acest conținut pentru a-și îmbunătăți produsele.",
   kind_computeruse: "Capturi ale ferestrei țintă (control pe calculator)",
   kept_computeruse: "Rămâne pe acest PC. Filow nu a trimis nicio captură și nu a acționat în fereastră.",
   mode_acting: "Filow acționează",

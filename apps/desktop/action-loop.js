@@ -2,7 +2,9 @@
 // Connects Gemini Computer Use planner -> Filow's N-04 grant gate -> Filow's ActionDriver.
 // Enforces consent, offline refusal, step/time caps, immediate Stop, and log sanitization.
 const crypto = require("node:crypto");
-const { evaluateActionGate, createStepGrant, consumeStepGrant } = require("./action-gate");
+const { snapAction } = require("./action-driver");
+const grantGate = require("./action-gate");
+const { evaluateActionGate, createStepGrant } = grantGate;
 const { QuotaOrBillingError } = require("./gemini-cu-planner");
 
 const DEFAULT_MAX_STEPS = 12;
@@ -184,7 +186,8 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
         }
 
         // Execute one step at a time (one UI action per step, gated before every dispatch).
-        const call = plan.calls[0];
+        if (plan.calls.length !== 1) return { ok: false, reason: "multiple_function_calls", ...metrics };
+        const call = snapAction(plan.calls[0], shot.elements);
         metrics.steps += 1;
         onState({
           active: true,
@@ -199,7 +202,7 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
         const liveTarget = await driver.inspectTarget(boundHwnd);
         if (isStopped()) return { ok: false, reason: "stopped", ...metrics };
 
-        const binding = { userId, turnId, targetHwnd: boundHwnd, snapshotId: shot.snapshotId };
+        const binding = { userId, turnId, targetHwnd: boundHwnd, snapshotId: shot.snapshotId, bounds: shot.bounds };
         let gate = evaluateActionGate({ binding, target: liveTarget, action: call, elements: shot.elements });
         let grant = null;
         let safetyAck = false;
@@ -259,7 +262,7 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
         }
 
         // Consume single-use grant if one was created, and double-check Stop right before input!
-        if (grant && !consumeStepGrant(grant)) {
+        if (grant && !grantGate.consumeStepGrant(grant)) {
           return { ok: false, reason: "grant_reused", ...metrics };
         }
         if (isStopped()) return { ok: false, reason: "stopped", ...metrics };
@@ -268,13 +271,17 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
         const execRes = await driver.execute(call, {
           hwnd: boundHwnd,
           targetRect: shot.bounds,
-          snapElements: shot.elements,
           signal: abort.signal,
         });
         const driverMs = Number.isFinite(execRes?.latencyMs) ? execRes.latencyMs : Date.now() - d0;
         metrics.driverLatenciesMs.push(driverMs);
 
         if (isStopped()) return { ok: false, reason: "stopped", ...metrics };
+
+        if (execRes?.refused) {
+          metrics.refusals.push({ step: metrics.steps, category: execRes.reason, action: call.name });
+          return { ok: false, reason: execRes.reason, ...metrics };
+        }
 
         log("executed", {
           turnId,
