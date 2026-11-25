@@ -299,6 +299,19 @@ const en = {
   kept_media: "Kept on this PC. The pictures were not fetched.",
   moveItem: "Move (double-click: put everything back)",
   resizeItem: "Resize",
+  // Computer Use pilot (X-14, Gemini desktop planner behind Filow's grant gate)
+  computerUse: "Act in another app (experimental, Gemini)",
+  computerUseHint: "Off by default. Sends screenshots of the target window only to Google to plan one step at a time. Filow checks every step and stops at once on Esc.",
+  notice_computeruse: "Your task and screenshots of the target window go to {who} so Filow can plan each step. Only the target window is sent, never your whole desktop. Filow checks every step before any click or key.",
+  kind_computeruse: "Screenshots of the target window (computer use)",
+  kept_computeruse: "Kept on this PC. Filow did not send any screenshot or act in the window.",
+  mode_acting: "Filow is acting",
+  notchActing: "Filow is acting",
+  actingIntent: "Filow is acting: {intent}",
+  confirmStepTitle: "Confirm this step",
+  confirmStepBody: "Filow wants to run this step in {target}:",
+  confirmStepAllow: "Allow this step",
+  confirmStepDeny: "Stop",
 };
 export type OkfKey = keyof typeof en;
 /** A translation: the same keys as English (text.test.ts checks every language). */

@@ -83,6 +83,14 @@ contextBridge.exposeInMainWorld("okFilow", {
     remove: (id) => ipcRenderer.invoke("okfilow:memory:remove", id),
     clear: () => ipcRenderer.invoke("okfilow:memory:clear"),
   },
+  /** Experimental Gemini Computer Use pilot (X-14). */
+  computerUse: {
+    start: (task, targetHwnd) => ipcRenderer.invoke("okfilow:cu:start", task, targetHwnd),
+    stop: (reason) => ipcRenderer.invoke("okfilow:cu:stop", reason),
+    confirm: (answer) => ipcRenderer.send("okfilow:cu:confirm", answer),
+    onState: on("okfilow:cu:state"),
+    onConfirm: on("okfilow:cu:confirm"),
+  },
   /** Stops the answer in progress; main tells the panel (onStop), which ends the request, the voice and the pointing. */
   stopAnswer: (source) => ipcRenderer.send("okfilow:stopAnswer", source),
   onStop: on("okfilow:stop"),

@@ -10,8 +10,8 @@
  *  screen: pictures of the shared screen during a take. script: script text and slide pictures,
  *  for writing or translating a script. memory: the user's saved preferences ("Remember things
  *  about me") with an online question, and that question read online to find new ones. */
-export type OutboundKind = "ask" | "voice" | "audio" | "photo" | "agent" | "transcript" | "screen" | "script" | "account" | "memory";
-export const OUTBOUND_KINDS: OutboundKind[] = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script", "account", "memory"];
+export type OutboundKind = "ask" | "voice" | "audio" | "photo" | "agent" | "transcript" | "screen" | "script" | "account" | "memory" | "computeruse";
+export const OUTBOUND_KINDS: OutboundKind[] = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script", "account", "memory", "computeruse"];
 /**
  * names: who receives it, in order (the router first, then the maker of the model).
  * picked: OpenRouter chooses the company that runs the model, which may not be its maker
@@ -131,6 +131,7 @@ export const freellmRecipient = (): Recipient => ({ id: FREELLM_ID, names: [FREE
 export const localNames = (names: string[], freeName: string): string[] => names.map((n) => (n === FREELLM_NAME ? freeName : n));
 export const voiceRecipient = (): Recipient => ({ id: "elevenlabs", names: ["ElevenLabs"] });
 export const photoRecipient = (): Recipient => ({ id: "wikipedia", names: ["Wikipedia"] });
+export const computerUseRecipient = (): Recipient => ({ id: "google/gemini-computer-use", names: ["Google"] });
 
 /** Who hears the microphone for a speech engine; null when the engine runs on this PC. */
 export function sttRecipient(backend: string, userAgent = ""): Recipient | null {

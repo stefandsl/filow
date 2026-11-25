@@ -1,8 +1,8 @@
 // Stopping, pausing and resuming an answer, the eye, and the small rules around them that the main
 // process applies (okfilow.js, docs/okfilow/PILL.md). Kept here, without Electron, so they can be tested.
 
-/** An answer is in progress: OK Filow is thinking, or speaking, drawing and pointing. */
-const answering = (mode) => mode === "thinking" || mode === "speaking";
+/** An answer or action run is in progress: OK Filow is thinking, speaking, drawing, pointing or acting. */
+const answering = (mode) => mode === "thinking" || mode === "speaking" || mode === "acting";
 
 /**
  * What the panel says about the pill: `sees` (the next question would take the screen with it),

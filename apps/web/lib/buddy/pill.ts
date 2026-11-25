@@ -44,10 +44,10 @@ export type PillView = {
 };
 
 /** Every status the pill can show, so its room is as wide as the widest and nothing jumps. */
-export const PILL_STATUSES: OkfKey[] = ["notchLooking", "notchNotLooking", "notchAnswering", "paused", "stopped", "notchListening", "notchHandsFree", "notchDictating"];
+export const PILL_STATUSES: OkfKey[] = ["notchLooking", "notchNotLooking", "notchAnswering", "notchActing", "paused", "stopped", "notchListening", "notchHandsFree", "notchDictating"];
 
 /** The statuses of an answer in progress share one room: looking, not looking, answering and paused swap without the pill changing width. */
-export const ANSWER_STATUSES: OkfKey[] = ["notchLooking", "notchNotLooking", "notchAnswering", "paused"];
+export const ANSWER_STATUSES: OkfKey[] = ["notchLooking", "notchNotLooking", "notchAnswering", "notchActing", "paused"];
 /** The labels that size the status's room: the whole group for an answer in progress, the status alone otherwise. */
 export const statusRoom = (status: OkfKey): OkfKey[] => (ANSWER_STATUSES.includes(status) ? ANSWER_STATUSES : [status]);
 
@@ -56,6 +56,9 @@ export const statusRoom = (status: OkfKey): OkfKey[] => (ANSWER_STATUSES.include
  * [Stop]; stopped and resumable: [eye] "Stopped" [Resume]; listening: [eye] status.
  */
 export function pillView(s: { mode: OkFilowMode; purpose?: string; stopped?: boolean; pill: PillState }): PillView {
+  if (s.mode === "acting") {
+    return { show: true, eye: false, status: "notchActing", first: null, stop: true };
+  }
   const answering = s.mode === "thinking" || s.mode === "speaking";
   if (answering) {
     const status: OkfKey = s.pill.paused ? "paused" : s.mode === "speaking" ? "notchAnswering" : s.pill.sees ? "notchLooking" : "notchNotLooking";

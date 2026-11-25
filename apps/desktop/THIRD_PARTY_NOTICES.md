@@ -118,6 +118,15 @@ THE SOFTWARE.
 
 Filow adapts the explicit identity used for shared thread references in bb
 to scope presenter, phone and recovered point references to the same script.
+
+## Computer Use loop reference (google-gemini/computer-use-preview)
+
+Filow's X-14 Gemini Computer Use planner adapter (`apps/desktop/gemini-cu-planner.js`) and
+safety confirmation handling (`apps/desktop/action-loop.js`) are written in Filow's own
+JavaScript, referencing the interaction loop and `safety_decision` / `safety_acknowledgement`
+protocol documented in https://github.com/google-gemini/computer-use-preview
+(pinned commit `77c9797e943aad63bbc963b7fd092a9e51c07863`, Copyright 2025 Google LLC,
+Apache License 2.0, http://www.apache.org/licenses/LICENSE-2.0).
 Source: https://github.com/get-bb/bb/blob/28cdd915db441933646c0e07543ddc05efa1b43f/packages/templates/src/templates/bb-guide-thread-messaging.md
 Copyright (c) 2026 Michael Yong. Used under the MIT License.
 

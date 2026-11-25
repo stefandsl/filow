@@ -109,9 +109,13 @@ describe("what the pill shows", () => {
     for (const purpose of ["talk", "dictate", "handsfree"]) expect(pillView({ mode: "opening", purpose, pill: pill() }).show).toBe(false);
   });
 
+  it("acting: shows Filow is acting with Stop and no Pause or eye", () => {
+    expect(pillView({ mode: "acting", pill: pill() })).toEqual({ show: true, eye: false, status: "notchActing", first: null, stop: true });
+  });
+
   it("every status it can show is in the list that sizes its room, and has words in the five languages", () => {
     const shown = new Set<string>();
-    for (const mode of ["idle", "listening", "thinking", "speaking", "error"] as const) {
+    for (const mode of ["idle", "listening", "thinking", "speaking", "acting", "error"] as const) {
       for (const purpose of ["talk", "handsfree", "dictate"]) {
         for (const sees of [true, false]) for (const paused of [true, false]) for (const resumable of [true, false]) {
           const v = pillView({ mode, purpose, stopped: true, pill: { sees, paused, resumable } });

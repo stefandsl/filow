@@ -115,6 +115,7 @@ export default function OkFilowOverlay() {
   const live = useRef<Array<[number, number]> | null>(null);
   // Going outside: on while anything carrying the user's content is in flight (main decides).
   const [out, setOut] = useState<OutboundSnapshot>({ active: false, kinds: [], names: [] });
+  const [cuIntent, setCuIntent] = useState("");
   const lang = useLang();
   const t = useCallback((k: OkfKey) => okfText(lang)(k), [lang]);
   const going = out.active && out.names.length > 0;
@@ -188,6 +189,7 @@ export default function OkFilowOverlay() {
       }) ?? (() => {}),
       b.onSpoken?.((n) => setSpoken(Number.isInteger(n) ? n : -1)) ?? (() => {}),
       b.outbound?.onChange(setOut) ?? (() => {}),
+      b.computerUse?.onState((s) => setCuIntent(s.active ? s.intent || "" : "")) ?? (() => {}),
       b.onLevel(value => { if (holds.current.shown) setLevel(value); }),
       b.onCursor((p, owner, generation = 0) => {
         if (bubbleGeneration.current !== generation || owner === false) holds.current.detached = false;
@@ -422,7 +424,7 @@ export default function OkFilowOverlay() {
     else clock.current.resume(performance.now());
   }, [pill.paused]);
 
-  const answering = mode === "thinking" || mode === "speaking";
+  const answering = mode === "thinking" || mode === "speaking" || mode === "acting";
   // The pill can appear, move or go away under a pointer that stands still (main only says where the
   // pointer is when it moves): look again whenever what is shown changes.
   // Main is told every time (not only on a change): its own record is wiped when the pill goes away.
@@ -511,9 +513,9 @@ export default function OkFilowOverlay() {
     {going ? (
       <div ref={pillSpot} className="okf-notch okf-notch--out" role="group" aria-label="OK Filow">
         <OutboundIcon />
-        <strong>{t("outLabel")}</strong>
-        <span>{t("outSending").replace("{names}", joinNames(localNames(out.names, t("freeName")), t("outAnd")))}</span>
-        {/* An answer from online can be paused and stopped from here too. */}
+        <strong>{mode === "acting" ? t("notchActing") : t("outLabel")}</strong>
+        <span>{mode === "acting" && cuIntent ? `${cuIntent} (${t("outSending").replace("{names}", joinNames(localNames(out.names, t("freeName")), t("outAnd")))})` : t("outSending").replace("{names}", joinNames(localNames(out.names, t("freeName")), t("outAnd")))}</span>
+        {/* An answer or action from online can be paused and stopped from here too. */}
         {answering && controls}
       </div>
     ) : wake?.enabled && !view.show ? (
@@ -523,11 +525,13 @@ export default function OkFilowOverlay() {
         </button>
         <button type="button" className="btn" onClick={() => act(wake.phase === "paused" ? "resume" : "pause")}>{t(wake.phase === "paused" ? "resume" : "pause")}</button>
       </div>
-    ) : here && view.show && (
+    ) : (here || mode === "acting") && view.show && (
       <div ref={pillSpot} className="okf-notch" role="group" aria-label="OK Filow" data-testid="okf-pill">
         {/* The eye as it is now (what the next question would do), in a word too; a click opens or closes it. */}
         {view.eye ? <EyeButton open={pill.sees} t={t} keyLabel={keys.eye} onToggle={() => act("eye")} /> : <span className={"okf-notch-dot okf-notch-dot--" + mode} />}
-        <Slot className="okf-notch-status" show={view.status} labels={statusRoom(view.status).map((k) => ({ key: k, text: t(k) }))} />
+        {mode === "acting" && cuIntent
+          ? <span className="okf-notch-status">{t("actingIntent").replace("{intent}", cuIntent)}</span>
+          : <Slot className="okf-notch-status" show={view.status} labels={statusRoom(view.status).map((k) => ({ key: k, text: t(k) }))} />}
         {controls}
       </div>
     )}

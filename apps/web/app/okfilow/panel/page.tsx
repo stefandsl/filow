@@ -225,6 +225,8 @@ export default function OkFilowPanel() {
   const [notice, setNotice] = useState<NoticeRequest | null>(null);
   const [outSnap, setOutSnap] = useState<OutboundSnapshot>({ active: false, kinds: [], names: [] });
   const [recipients, setRecipients] = useState<BuddyRecipients | null>(null);
+  const [cuState, setCuState] = useState<{ active: boolean; intent: string }>({ active: false, intent: "" });
+  const [cuConfirm, setCuConfirm] = useState<{ nonce: string; category: string; explanation: string; intent: string; action: string; targetExe: string; targetTitle: string } | null>(null);
   const outRef = useRef<OutboundController | null>(null);
 
   useEffect(() => {
@@ -250,7 +252,13 @@ export default function OkFilowPanel() {
       const res = await fetch(`/api/buddy/screen?setup=${encodeURIComponent(getSetupPreference())}`, { headers: await engineHeadersRef.current() });
       if (res.ok) setLocalScreen(((await res.json()) as { local?: LocalScreenMode }).local ?? null);
     })().catch(() => {});
-    const offs = [b.onConfig(setStatus), b.onMode((m) => setModeState(m.mode)), b.outbound?.onChange(setOutSnap)];
+    const offs = [
+      b.onConfig(setStatus),
+      b.onMode((m) => setModeState(m.mode)),
+      b.outbound?.onChange(setOutSnap),
+      b.computerUse?.onState((s) => setCuState({ active: s.active, intent: s.intent || "" })),
+      b.computerUse?.onConfirm(setCuConfirm),
+    ];
     b.outbound?.ready();
     return () => {
       offs.forEach((o) => o?.());
@@ -1670,6 +1678,31 @@ export default function OkFilowPanel() {
       </header>
 
       {notice && <OutboundNotice notice={notice} t={t} onDecide={(d) => void out.decide(d)} />}
+      {cuConfirm && (
+        <div className="okf-notice" role="alertdialog" aria-labelledby="okf-cu-confirm-title" aria-describedby="okf-cu-confirm-body" tabIndex={-1} data-testid="cu-confirm-dialog"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              bridge.computerUse?.confirm({ nonce: cuConfirm.nonce, confirmed: false, clicked: false });
+              setCuConfirm(null);
+            }
+          }}>
+          <h2 id="okf-cu-confirm-title">{t("confirmStepTitle")}</h2>
+          <p id="okf-cu-confirm-body">{t("confirmStepBody").replace("{target}", cuConfirm.targetExe || cuConfirm.targetTitle || "app")}</p>
+          {cuConfirm.explanation && <p className="okf-notice-more">{cuConfirm.explanation}</p>}
+          {cuConfirm.intent && <p className="okf-hint">{cuConfirm.intent}</p>}
+          <div className="okf-notice-actions">
+            <button type="button" className="okf-notice-keep" onClick={() => {
+              bridge.computerUse?.confirm({ nonce: cuConfirm.nonce, confirmed: false, clicked: false });
+              setCuConfirm(null);
+            }}>{t("confirmStepDeny")}</button>
+            <button type="button" className="okf-notice-send" data-testid="cu-confirm-allow" onClick={() => {
+              bridge.computerUse?.confirm({ nonce: cuConfirm.nonce, confirmed: true, clicked: true });
+              setCuConfirm(null);
+            }}>{t("confirmStepAllow")}</button>
+          </div>
+        </div>
+      )}
       {phoneNotice && (
         <div className="okf-notice okf-phone-notice" role="alertdialog" aria-labelledby="okf-phone-title" aria-describedby="okf-phone-body" tabIndex={-1} data-testid="phone-notice"
           ref={phoneBox} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); decidePhone(false); } }}>
@@ -1686,12 +1719,13 @@ export default function OkFilowPanel() {
       {/* One live region: the mode and, while something is leaving this PC, who receives it. */}
       <div className="okf-status-row">
         <p className="okf-status" role="status">
-          <span>{t(answering && paused ? "paused" : mode === "thinking" && !asksSee ? "mode_thinkingWords" : (`mode_${mode}` as OkfKey))}</span>
+          <span>{mode === "acting" && cuState.intent ? t("actingIntent").replace("{intent}", cuState.intent) : t(answering && paused ? "paused" : mode === "thinking" && !asksSee ? "mode_thinkingWords" : (`mode_${mode}` as OkfKey))}</span>
           <OutboundPill snap={outSnap} t={t} />
         </p>
-        {/* Pause or Resume, and Stop: only while there is an answer to act on; the row keeps its height, so nothing moves. */}
-        <AnswerControls view={{ first: answering ? (paused ? "resume" : "pause") : resumable ? "resume" : null, stop: answering }} t={t} pauseKey={keyLabel(c?.pauseKey)} onAction={(action) => {
+        {/* Pause or Resume, and Stop: only while there is an answer or action to act on; the row keeps its height, so nothing moves. */}
+        <AnswerControls view={{ first: mode === "acting" ? null : answering ? (paused ? "resume" : "pause") : resumable ? "resume" : null, stop: answering || mode === "acting" }} t={t} pauseKey={keyLabel(c?.pauseKey)} onAction={(action) => {
           if (action !== "stop") return control(action);
+          if (mode === "acting" || cuState.active) { void bridge.computerUse?.stop("panel"); return; }
           // The button goes away once pressed: the keyboard goes to the question box, not nowhere.
           const had = document.activeElement?.getAttribute("data-testid") === "okf-stop";
           if (!stopAnswer()) bridge.stopAnswer?.("panel");
@@ -1875,6 +1909,11 @@ export default function OkFilowPanel() {
             <span>{t("answerLog")}</span>
             <input type="checkbox" checked={c.answerLog === true} onChange={(e) => void configure({ answerLog: e.target.checked })} />
           </label>
+          <label className="okf-row">
+            <span>{t("computerUse")}</span>
+            <input type="checkbox" checked={c.computerUse === true && !c.offline} disabled={c.offline} onChange={(e) => void configure({ computerUse: e.target.checked })} />
+          </label>
+          <p className="okf-hint">{t("computerUseHint")}</p>
           <MemorySettings bridge={bridge} status={c} t={t} configure={configure} lang={lang} learned={learned} />
           {c.answerLog && <div className="okf-row">
             <button type="button" className="okf-link" onClick={() => void okFilowBridge()?.deleteAnswers().then((n) => setNote(t("answersDeleted").replace("{n}", String(n))))}>{t("deleteAnswers")}</button>

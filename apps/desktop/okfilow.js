@@ -15,7 +15,7 @@ const { createReleaseTail, RELEASE_TAIL_MS } = require("./dictation-release");
 const { createHookRetry, describeHookError, QUICK_MS } = require("./okfilow-hook-retry");
 const { loadUiohook } = require("./uiohook");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
-const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
+const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted, computerUseRecipient, computerUseGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
 const { createHitTarget, insideAny, cleanHitReport, localPoint } = require("./okfilow-hit");
@@ -72,6 +72,8 @@ const DEFAULTS = {
   answerLog: false,
   /** "Remember things about me" (okfilow-memory.js): off until the user turns it on. */
   memory: false,
+  /** Experimental Gemini Computer Use pilot (X-14): off by default. */
+  computerUse: false,
   /** Its folder; empty means "okfilow-answers" in the app's data folder (see defaultAnswerDir). */
   answerDir: "",
   /** What the user allowed or refused to send outside, per kind and recipient ("ask:openrouter/google"). */
@@ -147,8 +149,9 @@ function createQaScreen(dir, { nativeImage, fs = require("node:fs"), maxWidth = 
 /** Anything that looks like a key or a credential header is masked before a line reaches the log. */
 function redactSecrets(text) {
   return String(text ?? "")
-    .replace(/(authorization|xi-api-key|api[_-]?key|x-api-key)(["']?\s*[:=]\s*["']?)(bearer\s+)?[^\s"',}]+/gi, "$1$2$3***")
+    .replace(/(authorization|xi-api-key|x-goog-api-key|api[_-]?key|x-api-key)(["']?\s*[:=]\s*["']?)(bearer\s+)?[^\s"',}]+/gi, "$1$2$3***")
     .replace(/\b(sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, "$1-***")
+    .replace(/\bAIza[0-9A-Za-z_-]{20,}/g, "AIza***")
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/g, "Bearer ***");
 }
 
@@ -180,6 +183,7 @@ function nextCfg(was, patch) {
   next.pauseKey = keyChoice(next.pauseKey, PAUSE_KEYS);
   next.answerLog = next.answerLog === true;
   next.memory = next.memory === true;
+  next.computerUse = next.computerUse === true;
   next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
   if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";
   next.consent = sanitizeConsent(next.consent);
@@ -1145,9 +1149,20 @@ function createOkFilow(deps) {
    * Stops the answer in progress (the Stop button, Escape): the panel ends the request, the voice and
    * the pointing. False when no answer was in progress, so Escape keeps its other meanings then.
    */
+  function cancelComputerUse(source) {
+    if (pendingCuConfirm) {
+      const p = pendingCuConfirm;
+      pendingCuConfirm = null;
+      noticeOpen = false;
+      sendPanel("okfilow:cu:confirm", null);
+      p.resolve({ confirmed: false, clicked: false });
+    }
+    return computerUseController ? computerUseController.stop(String(source || "stop")) : false;
+  }
   function stopAnswer(source) {
     if (!answering(mode)) return false;
     stopAt = Date.now();
+    cancelComputerUse(source);
     logLine(`okfilow: answer stopped by the user (${source})`);
     // Pictures and videos go at once (no round trip through the panel): playback ends now.
     if (mediaUp) { mediaUp = false; syncBubbleActions(); sendOverlays("okfilow:media", null); }
@@ -1748,6 +1763,68 @@ function createOkFilow(deps) {
     ...(deps.downloads ? { downloads: deps.downloads } : {}),
   });
 
+  // ---- X-14 Computer Use pilot (Gemini planner behind Filow's grant gate) ----
+  const { createWindowsActionDriver } = require("./action-driver");
+  const { createGeminiPlanner } = require("./gemini-cu-planner");
+  const { createComputerUseController } = require("./action-loop");
+  let pendingCuConfirm = null;
+  let computerUseController = null;
+  function getComputerUseController() {
+    if (computerUseController) return computerUseController;
+    const driver = deps.actionDriver || createWindowsActionDriver({ log: logLine });
+    const planner = deps.computerUsePlanner || createGeminiPlanner();
+    computerUseController = createComputerUseController({
+      planner,
+      driver,
+      logLine,
+      onState: (s) => {
+        sendPanel("okfilow:cu:state", s);
+        sendOverlays("okfilow:cu:state", s);
+        if (s.active) setMode("acting", { intent: s.intent || "" });
+        else if (mode === "acting") setMode("idle", { stopped: s.stopped === true });
+      },
+      onOutbound: (ev, id) => {
+        if (ev === "begin") outbound.begin(id, "computeruse", computerUseRecipient().names);
+        else outbound.end(id);
+      },
+    });
+    return computerUseController;
+  }
+  ipcMain.handle("okfilow:cu:start", guard(async (task, targetHwnd) => {
+    const c = cfg();
+    if (!c.enabled || !c.computerUse) return { ok: false, reason: "disabled" };
+    if (isOffline()) return { ok: false, reason: "offline_mode" };
+    if (!computerUseGranted(c.consent)) {
+      return { ok: false, reason: "consent_required", needsConsent: { kind: "computeruse", recipient: computerUseRecipient() } };
+    }
+    const ctrl = getComputerUseController();
+    return ctrl.run({
+      task: typeof task === "string" ? task.slice(0, 1000) : "",
+      userId: "presenter",
+      targetHwnd: Number(targetHwnd) || 0,
+      enabled: true,
+      offline: isOffline(),
+      consentGranted: computerUseGranted(cfg().consent),
+      confirmStep: (req) => new Promise((resolve) => {
+        pendingCuConfirm = { nonce: req.nonce, resolve };
+        const p = buildPanel();
+        noticeOpen = true;
+        if (p.isVisible()) { p.moveTop(); if (!INPUT_OFF) p.focus(); } else showPanelAtCursor();
+        sendPanel("okfilow:cu:confirm", req);
+      }),
+    });
+  }));
+  ipcMain.handle("okfilow:cu:stop", guard((reason) => cancelComputerUse(reason || "panel_stop")));
+  ipcMain.on("okfilow:cu:confirm", (e, answer) => {
+    if (!ourSender(e) || !pendingCuConfirm) return;
+    const p = pendingCuConfirm;
+    pendingCuConfirm = null;
+    noticeOpen = false;
+    sendPanel("okfilow:cu:confirm", null);
+    const ok = Boolean(answer && answer.confirmed === true && answer.clicked === true && answer.nonce === p.nonce);
+    p.resolve({ confirmed: ok, clicked: ok, nonce: ok ? p.nonce : "" });
+  });
+
   // ---- agents (okfilow-agents.js): "agent, <task>" runs a background job ----
   // Only hits are cached: a CLI installed while Filow runs is found on the next try.
   const found = new Set();
@@ -1917,6 +1994,7 @@ function createOkFilow(deps) {
     const power = require("electron").powerMonitor;
     power.removeListener("lock-screen", lockWake); power.removeListener("suspend", lockWake);
     power.removeListener("unlock-screen", unlockWake); power.removeListener("resume", unlockWake);
+    try { computerUseController?.stop("dispose"); } catch { /* quitting */ }
     try { agents.dispose(); } catch { /* quitting */ }
     try { uia?.stop(); } catch { /* quitting */ }
     outbound.clear();

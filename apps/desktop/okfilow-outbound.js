@@ -2,7 +2,7 @@
 // Pure (no Electron), so it is unit-tested. The inventory of outbound paths is docs/okfilow/OUTBOUND.md;
 // the web side of the same model is apps/web/lib/buddy/outbound.ts.
 
-const KINDS = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script", "account", "memory"];
+const KINDS = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script", "account", "memory", "computeruse"];
 // Built from KINDS: one list of kinds (the same as OUTBOUND_KINDS in apps/web/lib/buddy/outbound.ts, tested).
 const KEY = new RegExp(`^(${KINDS.join("|")}):[a-z0-9._/+-]{1,80}$`);
 const MAX_ENTRIES = 50;
@@ -58,6 +58,14 @@ const agentRecipient = (cli) => AGENT_RECIPIENTS[cli] || null;
 const agentConsentKey = (cli) => (AGENT_RECIPIENTS[cli] ? `agent:${AGENT_RECIPIENTS[cli].id}` : "");
 const agentGranted = (consent, cli) => {
   const entry = consent && consent[agentConsentKey(cli)];
+  return Boolean(entry && entry.state === "granted");
+};
+
+const COMPUTER_USE_RECIPIENT = { id: "google/gemini-computer-use", names: ["Google"] };
+const computerUseRecipient = () => COMPUTER_USE_RECIPIENT;
+const computerUseConsentKey = () => `computeruse:${COMPUTER_USE_RECIPIENT.id}`;
+const computerUseGranted = (consent) => {
+  const entry = consent && consent[computerUseConsentKey()];
   return Boolean(entry && entry.state === "granted");
 };
 
@@ -130,4 +138,4 @@ function createOutboundState({ onChange, minMs = MIN_SIGNAL_MS, lingerMs = 300, 
   return { begin, end, clear, snapshot, active: () => items.size > 0 };
 }
 
-module.exports = { createOutboundState, MIN_SIGNAL_MS, sanitizeConsent, applyConsentChanges, cleanNames, agentRecipient, agentConsentKey, agentGranted, AGENT_RECIPIENTS, KINDS };
+module.exports = { createOutboundState, MIN_SIGNAL_MS, sanitizeConsent, applyConsentChanges, cleanNames, agentRecipient, agentConsentKey, agentGranted, AGENT_RECIPIENTS, computerUseRecipient, computerUseConsentKey, computerUseGranted, KINDS };

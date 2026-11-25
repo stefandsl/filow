@@ -9,7 +9,7 @@ import type { MemoryFact, ProposedFact } from "./memory";
 /** A card in global DIP coordinates, with its photo already fetched (data URL or ""). */
 export type OkFilowCard = { x: number; y: number; title: string; text: string; photo: string };
 /** "opening": the microphone was asked for and is not open yet (lib/buddy/micOpen.ts); "listening" only once it is. */
-export type OkFilowMode = "idle" | "opening" | "listening" | "thinking" | "speaking" | "error";
+export type OkFilowMode = "idle" | "opening" | "listening" | "thinking" | "speaking" | "acting" | "error";
 
 /** apps/desktop/dictation.js status(): settings, the key choices, and what this PC can do. */
 export type DictationStatus = {
@@ -71,6 +71,8 @@ export type OkFilowStatus = {
   answerLog?: boolean;
   /** "Remember things about me": off unless the user turned it on. Missing on older builds. */
   memory?: boolean;
+  /** Experimental Gemini Computer Use planner (X-14 pilot): off by default. */
+  computerUse?: boolean;
   agentCli?: string;
   onboarded?: boolean;
   /** What the user allowed or refused to send outside, per kind and recipient. */
@@ -257,6 +259,14 @@ export type OkFilowBridge = {
     learn(question: string, facts: ProposedFact[]): Promise<MemoryFact[]>;
     remove(id: string): Promise<MemoryFact[]>;
     clear(): Promise<MemoryFact[]>;
+  };
+  /** Experimental Gemini Computer Use pilot (X-14). */
+  computerUse?: {
+    start(task: string, targetHwnd?: number): Promise<{ ok: boolean; reason?: string; needsConsent?: { kind: "computeruse"; recipient: Recipient } }>;
+    stop(reason?: string): Promise<boolean>;
+    confirm(answer: { nonce: string; confirmed: boolean; clicked: boolean }): void;
+    onState(fn: (s: { active: boolean; mode: OkFilowMode; intent: string; step?: number; maxSteps?: number; targetExe?: string; stopped?: boolean }) => void): Off;
+    onConfirm(fn: (req: { nonce: string; category: string; explanation: string; intent: string; action: string; targetExe: string; targetTitle: string } | null) => void): Off;
   };
   /** Stop the answer in progress (the Stop button, Escape). Main tells the panel through onStop. Absent in a desktop build older than Stop. */
   stopAnswer?(source?: "button" | "panel"): void;
