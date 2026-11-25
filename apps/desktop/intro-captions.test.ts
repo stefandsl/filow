@@ -50,3 +50,18 @@ it("resolves the first cue of each UI language before Play and live cues during 
   }
   expect(firstIntroCaption!("unknown")).toBe(captions.en[0]);
 });
+
+it("keeps Russian cue 0 unambiguous and aligned across narration source, VTT, pre-Play caption, and scene 1 frame copy", () => {
+  const expectedRuCue0 = "Удерживайте сочетание клавиш для разговора и задайте вопрос. Экран показывается только с вашего согласия.";
+  const vtt = readFileSync(new URL("./media/intro.ru.vtt", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+  const vttCue0 = vtt.trim().split("\n\n")[1]?.split("\n").slice(1).join(" ").trim();
+  const makeIntroSource = readFileSync(new URL("../../scripts/make-intro.mjs", import.meta.url), "utf8");
+
+  expect(captions.ru[0]).toBe(expectedRuCue0);
+  expect(vttCue0).toBe(captions.ru[0]);
+  expect(introCaptions.firstIntroCaption("ru")).toBe(captions.ru[0]);
+  expect(vtt).not.toMatch(/решаете|сами реша/i);
+  expect(captions.ru[0]).not.toMatch(/решаете|сами реша/i);
+  expect(makeIntroSource).not.toMatch(/решаете|сами реша/i);
+  expect(makeIntroSource).toContain("Экран показывается только с вашего согласия.");
+});

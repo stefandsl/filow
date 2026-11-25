@@ -248,6 +248,18 @@ Use an existing fixture or saved lesson. Approve the slice when the reply's reve
 
 - **Requests** R-182
 
+### X-18 Label a diagram on the user's screen while Filow explains it
+
+**Goal.** The user opens a diagram in any app, for example a heart picture in the browser, and asks OK Filow to explain it. Filow explains the flow in order. When the voice names a part, a short label appears on that part of the real picture. Labels stay until the answer ends, so the user sees the whole diagram annotated. Filow only reads the screen and draws on its own overlay. It never clicks or types. Reuse the existing point, circle, arrow and box tags, the progressive bubble and the answer voice. X-10 owns motion on Filow's own whiteboard. X-14 owns actions in other apps. X-04 owns the wider HeyClicky parity claim; this ticket measures one explain-and-label job and can feed X-04's teaching row. Each screen capture keeps the existing screen-sharing consent and send indicator from N-02. Use HeyClicky's diagram explanation as the reference.
+
+**Acceptance test.** On the packaged Windows build, open each of 10 frozen diagrams with known part positions: heart circulation, water cycle, an unlabelled cell, a circuit, a flow chart and five others. Use original or openly licensed pictures in a browser and an image viewer, at 100% and 150% DPI. Ask in EN and IT. Include questions about parts that are not in the picture. Each label appears within 300 ms of the spoken part name and inside that part's frozen box. Measure the delay from the audio timestamp of the part name in the played answer, aligned by the answer's own word timings, to the first painted frame of its label on the overlay. All labels of the answer stay visible and readable until the answer ends, without overlap and in both themes. Stop and Esc clear the labels at once. Moving or covering the window removes stale labels instead of leaving them on the wrong place. A picture with no matching part gets no invented label. Filow says that it cannot see that part.
+
+**Verification.** Freeze the 10 pictures, their part boxes and the questions with a manifest hash before any tuning. For each run, report correct labels, wrong labels, missing labels, the delay from spoken name to label at p50 and p95, and overlaps, per language and DPI. Pass with zero wrong labels, at least 90% correct labels, zero invented labels on the no-match questions, and a p95 delay of at most 300 ms. Record the provider, the model and the bytes that left the PC. Private mode runs the same set on the local route and reports it separately. Save screenshots at the end of each answer for both themes.
+
+**License.** Use Filow's own code. Test pictures are original or carry an open license recorded in the manifest. HeyClicky is a behavior reference only; copy none of its code or assets.
+
+- **Requests** R-183. Builds on R-027 and R-029 (voice and screen assistant, pointing overlays)
+
 ## Later/Icebox
 
 Return to these for the named decision or evidence.
@@ -520,6 +532,7 @@ Request statuses come from the owner's private request register (not in the repo
 | R-180 | Open | [X-15](#x-15-win-back-wake-recall-at-the-default-setting) |
 | R-181 | Open | [X-16](#x-16-keep-background-listening-under-one-core) |
 | R-182 | Open | [X-17](#x-17-raise-correction-and-near-next-accuracy-on-unseen-phrasing) |
+| R-183 | Open | [X-18](#x-18-label-a-diagram-on-the-users-screen-while-filow-explains-it) |
 
 </details>
 

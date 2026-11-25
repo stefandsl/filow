@@ -4,7 +4,7 @@ const INTRO_MEDIA_LANGS = new Set(["en", "it", "ru", "ro", "ja"]);
 const INTRO_FIRST_CUES: Record<string, string> = {
   en: "Hold the talk shortcut and ask a question. You choose screen sharing.",
   it: "Tieni premuta la scorciatoia per parlare e fai una domanda. Decidi tu se condividere lo schermo.",
-  ru: "Удерживайте сочетание клавиш для разговора и задайте вопрос. Вы сами решаете, делиться ли экраном.",
+  ru: "Удерживайте сочетание клавиш для разговора и задайте вопрос. Экран показывается только с вашего согласия.",
   ro: "Ține apăsată combinația de taste pentru vorbire și pune o întrebare. Tu alegi dacă partajezi ecranul.",
   ja: "会話用のショートカットキーを押したまま質問します。画面を共有するかどうかは自分で選べます。",
 };
