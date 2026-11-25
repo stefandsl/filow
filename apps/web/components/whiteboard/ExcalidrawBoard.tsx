@@ -16,12 +16,15 @@ import {
   EMPTY_CUE_FRAME,
   createCueSession,
   cueAccentColor,
+  cueSignalStyle,
   extractStepCues,
+  renderedTextBox,
   scheduleStepCues,
   type CueFrame,
   type CueMode,
   type Pt,
   type ReceiverBox,
+  type Rect,
 } from "@/lib/whiteboard/motion";
 
 export type DrawnInfo = { visible: ExEl[]; complete: boolean; svg: SVGSVGElement };
@@ -84,10 +87,10 @@ const frameOf = (els: ExEl[]): Box => {
 };
 const signature = (els: ExEl[]) => els.map((e) => `${e.id}:${e.version ?? 0}:${e.versionNonce ?? 0}:${e.x},${e.y},${e.width},${e.height}:${e.strokeColor}:${e.fontSize ?? ""}`).join("|");
 const ptsAttr = (pts: Pt[]) => pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-const chevronPath = (x: number, y: number, angle: number, size: number) => {
+const chevronPath = (x: number, y: number, angle: number, size: number, tipOffset = 2) => {
   const spread = 2.52;
-  const tipX = x + Math.cos(angle) * 2;
-  const tipY = y + Math.sin(angle) * 2;
+  const tipX = x + Math.cos(angle) * tipOffset;
+  const tipY = y + Math.sin(angle) * tipOffset;
   const x1 = tipX + Math.cos(angle + spread) * size;
   const y1 = tipY + Math.sin(angle + spread) * size;
   const x2 = tipX + Math.cos(angle - spread) * size;
@@ -191,6 +194,17 @@ export function ExcalidrawBoard({
   const cueSvgRef = useRef<SVGSVGElement>(null);
   const els = scene.elements;
   const board = frameOf(els);
+  const [hostWidth, setHostWidth] = useState(0);
+  useEffect(() => {
+    const node = host.current;
+    if (!node) return;
+    const measure = () => setHostWidth(node.getBoundingClientRect().width);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
   const [prefersReduced, setPrefersReduced] = useState(false);
   useEffect(() => {
     if (reducedMotion !== undefined || typeof window === "undefined" || !window.matchMedia) return;
@@ -383,6 +397,21 @@ export function ExcalidrawBoard({
   const words = visible.filter((e) => e.type === "text").map((e) => (e.originalText ?? e.text ?? "").replace(/\s+/g, " ").trim()).filter(Boolean);
   const activeEdgeId = cueFrame.signals[0]?.edgeId ?? cueFrame.arrivals[0]?.edgeId ?? cueFrame.staticEmphasis[0]?.edgeId;
   const showCueLayer = cueFrame.signals.length > 0 || cueFrame.arrivals.length > 0 || cueFrame.staticEmphasis.length > 0;
+  const activeView = view.current ?? target;
+  const cssPerScene = hostWidth > 0 && activeView.w > 0 ? hostWidth / activeView.w : 0.65;
+  const toScene = (cssPx: number) => cssPx / Math.max(0.25, cssPerScene);
+  const externalTextMasks = useMemo(() => {
+    const receiverIds = new Set<string>();
+    for (const a of cueFrame.arrivals) receiverIds.add(a.receiver.id);
+    for (const st of cueFrame.staticEmphasis) if (st.receiver) receiverIds.add(st.receiver.id);
+    if (!receiverIds.size) return [] as Rect[];
+    const byId = new Map(visible.map((e) => [e.id, e]));
+    return visible
+      .filter((e) => !e.isDeleted && e.type === "text" && (!e.containerId || !receiverIds.has(e.containerId)))
+      .map((e) => renderedTextBox(e, byId))
+      .filter((b): b is Rect => b !== null);
+  }, [visible, cueFrame.arrivals, cueFrame.staticEmphasis]);
+  const outlineMaskId = `wb-cue-mask-${current}`;
   return (
     <div
       className={`wb-ex${animate ? " wb-ex-animate" : ""}${dark ? " wb-ex-dark" : ""}${rest ? " wb-settled" : ""}`}
@@ -412,35 +441,55 @@ export function ExcalidrawBoard({
           ref={cueSvgRef}
           className="wb-cue-layer"
           data-wb-cue="layer"
-          viewBox={sceneViewBox(view.current ?? target)}
+          viewBox={sceneViewBox(activeView)}
           aria-hidden="true"
           focusable="false"
         >
+          {externalTextMasks.length > 0 && (
+            <defs>
+              <mask
+                id={outlineMaskId}
+                maskUnits="userSpaceOnUse"
+                x={activeView.x - 40}
+                y={activeView.y - 40}
+                width={activeView.w + 80}
+                height={activeView.h + 80}
+              >
+                <rect x={activeView.x - 40} y={activeView.y - 40} width={activeView.w + 80} height={activeView.h + 80} fill="#ffffff" />
+                {externalTextMasks.map((tb, i) => (
+                  <rect key={i} x={tb.x - 2} y={tb.y - 2} width={tb.w + 4} height={tb.h + 4} fill="#000000" />
+                ))}
+              </mask>
+            </defs>
+          )}
           {cueFrame.signals.map((s) => {
-            const accent = cueAccentColor(s.color, dark);
-            const ringStroke = dark ? "#121212" : "#ffffff";
-            const dotR = s.overLabel ? 5.5 : 7;
-            const haloR = s.overLabel ? 9.5 : 12.5;
+            const st = cueSignalStyle(s.color, dark);
+            const dotR = toScene(s.overLabel ? st.overLabelDotRadiusPx : st.dotRadiusPx);
+            const haloR = toScene(s.overLabel ? st.overLabelHaloRadiusPx : st.haloRadiusPx);
+            const haloOp = s.overLabel ? st.overLabelHaloOpacity : st.haloOpacity;
+            const ringW = toScene(2);
+            const chevSize = toScene(s.overLabel ? 4.2 : 4.8);
+            const chevW = toScene(2);
             return (
               <g key={`sig-${s.edgeId}`} data-wb-cue="signal" data-edge={s.edgeId} data-from={s.fromId} data-to={s.toId}>
                 {s.trail.length >= 2 && (
                   <polyline
                     points={ptsAttr(s.trail)}
                     fill="none"
-                    stroke={accent}
-                    strokeWidth={s.overLabel ? 3 : 4.5}
+                    stroke={st.fill}
+                    strokeWidth={toScene(s.overLabel ? 3 : 4.5)}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeOpacity={s.overLabel ? 0.28 : 0.42}
+                    strokeOpacity={dark ? (s.overLabel ? 0.35 : 0.55) : s.overLabel ? 0.28 : 0.45}
                   />
                 )}
-                <circle cx={s.x} cy={s.y} r={haloR} fill={accent} fillOpacity={s.overLabel ? 0.16 : 0.24} />
-                <circle cx={s.x} cy={s.y} r={dotR} fill={accent} stroke={ringStroke} strokeWidth={1.8} />
+                <circle data-wb-cue-halo="1" cx={s.x} cy={s.y} r={haloR} fill={st.fill} fillOpacity={haloOp} />
+                <circle data-wb-cue-dot="1" cx={s.x} cy={s.y} r={dotR} fill={st.fill} stroke={st.ringStroke} strokeWidth={ringW} />
                 <path
-                  d={chevronPath(s.x, s.y, s.angle, s.overLabel ? 4.2 : 5.2)}
+                  d={chevronPath(s.x, s.y, s.angle, chevSize, toScene(1.6))}
                   fill="none"
-                  stroke={ringStroke}
-                  strokeWidth={1.8}
+                  stroke={st.chevronStroke}
+                  strokeWidth={chevW}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -450,16 +499,19 @@ export function ExcalidrawBoard({
           {cueFrame.arrivals.map((a) => {
             const accent = cueAccentColor(a.color, dark);
             const op = Math.max(0, Math.min(1, a.intensity));
+            const maskUrl = externalTextMasks.length > 0 ? `url(#${outlineMaskId})` : undefined;
             return (
               <g key={`arr-${a.edgeId}`} data-wb-cue="arrival" data-edge={a.edgeId} data-to={a.receiver.id}>
-                <ReceiverOutline receiver={a.receiver} color={accent} strokeWidth={8} strokeOpacity={op * 0.22} pad={6} />
-                <ReceiverOutline receiver={a.receiver} color={accent} strokeWidth={3.2} strokeOpacity={op * 0.95} fillOpacity={op * (dark ? 0.1 : 0.06)} pad={6} />
+                <g mask={maskUrl}>
+                  <ReceiverOutline receiver={a.receiver} color={accent} strokeWidth={toScene(5)} strokeOpacity={op * (dark ? 0.32 : 0.24)} pad={a.outlinePad} />
+                  <ReceiverOutline receiver={a.receiver} color={accent} strokeWidth={toScene(2.8)} strokeOpacity={op * 0.95} fillOpacity={op * (dark ? 0.12 : 0.06)} pad={a.outlinePad} />
+                </g>
                 <path
-                  d={chevronPath(a.tip.x, a.tip.y, a.tip.angle, 9.5)}
+                  d={chevronPath(a.tip.x, a.tip.y, a.tip.angle, toScene(8.5), toScene(1.8))}
                   fill="none"
                   stroke={accent}
-                  strokeWidth={2.6}
-                  strokeOpacity={op * 0.85}
+                  strokeWidth={toScene(2.6)}
+                  strokeOpacity={op * 0.9}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -468,6 +520,7 @@ export function ExcalidrawBoard({
           })}
           {cueFrame.staticEmphasis.map((st) => {
             const accent = cueAccentColor(st.color, dark);
+            const maskUrl = externalTextMasks.length > 0 ? `url(#${outlineMaskId})` : undefined;
             return (
               <g key={`st-${st.edgeId}`} data-wb-cue="static" data-edge={st.edgeId} data-from={st.fromId} data-to={st.toId}>
                 {st.tail.length >= 2 && (
@@ -475,31 +528,33 @@ export function ExcalidrawBoard({
                     points={ptsAttr(st.tail)}
                     fill="none"
                     stroke={accent}
-                    strokeWidth={3.2}
+                    strokeWidth={toScene(3.2)}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeOpacity={0.45}
+                    strokeOpacity={dark ? 0.65 : 0.48}
                   />
                 )}
                 <path
-                  d={chevronPath(st.tip.x, st.tip.y, st.tip.angle, 8.5)}
+                  d={chevronPath(st.tip.x, st.tip.y, st.tip.angle, toScene(8.5), toScene(1.8))}
                   fill="none"
                   stroke={accent}
-                  strokeWidth={2.8}
+                  strokeWidth={toScene(2.8)}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeOpacity={0.95}
                 />
                 {st.receiver && (
-                  <ReceiverOutline
-                    receiver={st.receiver}
-                    color={accent}
-                    strokeWidth={3}
-                    strokeOpacity={0.92}
-                    fillOpacity={dark ? 0.1 : 0.06}
-                    dash="8 5"
-                    pad={6}
-                  />
+                  <g mask={maskUrl}>
+                    <ReceiverOutline
+                      receiver={st.receiver}
+                      color={accent}
+                      strokeWidth={toScene(2.6)}
+                      strokeOpacity={0.92}
+                      fillOpacity={dark ? 0.12 : 0.06}
+                      dash={`${toScene(7).toFixed(1)} ${toScene(4.5).toFixed(1)}`}
+                      pad={st.outlinePad}
+                    />
+                  </g>
                 )}
               </g>
             );

@@ -159,10 +159,16 @@ export function readScene(scene: Scene): ElementSummary[] {
   const byId = new Map(scene.elements.map((e) => [e.id, e]));
   const labelOf = (e: ExEl) => {
     const b = e.boundElements?.find((x) => x.type === "text");
-    const t = b ? byId.get(b.id) : undefined;
+    const t = b ? byId.get(b.id) : e.type === "arrow" ? byId.get(`${e.id}-t`) : undefined;
     return t?.originalText ?? t?.text;
   };
-  return scene.elements.filter((e) => e.id !== "wb-frame" && !e.isDeleted && !(e.type === "text" && e.containerId)).map((e) => ({
+  const isUnboundEdgeLabel = (e: ExEl) =>
+    e.type === "text" &&
+    !e.containerId &&
+    e.customData?.wb?.role === "label" &&
+    e.id.endsWith("-t") &&
+    byId.get(e.id.slice(0, -2))?.type === "arrow";
+  return scene.elements.filter((e) => e.id !== "wb-frame" && !e.isDeleted && !(e.type === "text" && e.containerId) && !isUnboundEdgeLabel(e)).map((e) => ({
     id: e.id, type: e.type, step: stepOf(e), x: Math.round(e.x), y: Math.round(e.y), w: Math.round(e.width), h: Math.round(e.height),
     ...(e.type === "text" ? { text: e.originalText ?? e.text } : labelOf(e) ? { text: labelOf(e) } : {}),
     ...(e.strokeColor && e.strokeColor !== "transparent" ? { stroke: e.strokeColor } : {}),
@@ -183,6 +189,10 @@ export function companions(scene: Scene, id: string): string[] {
   const e = scene.elements.find((x) => x.id === id);
   if (!e) return [];
   const out = (e.boundElements ?? []).filter((b) => b.type === "text").map((b) => b.id);
+  if (e.type === "arrow") {
+    const unbound = scene.elements.find((x) => !x.isDeleted && x.type === "text" && !x.containerId && x.id === `${e.id}-t`);
+    if (unbound && !out.includes(unbound.id)) out.push(unbound.id);
+  }
   return out;
 }
 
@@ -277,7 +287,9 @@ export function cameraFor(scene: Scene, target: { step?: number; ids?: string[] 
  */
 export function changesToOps(scene: Scene, changes: EditChange[]): { ops: ToolOp[]; camera: { step?: number; ids?: string[]; all?: boolean } | undefined } {
   const byId = new Map(scene.elements.map((e) => [e.id, e]));
-  const labelOf = (id: string) => scene.elements.find((e) => e.containerId === id);
+  const labelOf = (id: string) =>
+    scene.elements.find((e) => e.containerId === id) ??
+    scene.elements.find((e) => e.type === "text" && !e.containerId && e.id === `${id}-t`);
   const ops: ToolOp[] = [];
   let camera: { step?: number; ids?: string[]; all?: boolean } | undefined;
   for (const c of changes) {

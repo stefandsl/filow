@@ -7,6 +7,7 @@ import { drawMsFor, type Slot } from "./pace";
 import { stepOf, type ExEl, type Scene } from "./scene";
 
 export type Pt = { x: number; y: number };
+export type Rect = { x: number; y: number; w: number; h: number };
 export type ReceiverBox = {
   id: string;
   x: number;
@@ -16,6 +17,17 @@ export type ReceiverBox = {
   shape: string;
   roundness: boolean;
 };
+export type SignalStyle = {
+  fill: string;
+  ringStroke: string;
+  chevronStroke: string;
+  haloOpacity: number;
+  overLabelHaloOpacity: number;
+  dotRadiusPx: number;
+  overLabelDotRadiusPx: number;
+  haloRadiusPx: number;
+  overLabelHaloRadiusPx: number;
+};
 export type EdgeCue = {
   id: string;
   key: string;
@@ -23,14 +35,14 @@ export type EdgeCue = {
   fromId: string;
   toId: string;
   order: number;
-  /** Original prepared arrow polyline from sender to receiver. */
+  /** Original prepared arrow polyline from sender to receiver (the exact path the signal rides). */
   points: Pt[];
-  /** Label-cleared travel path (identical to `points` unless a bound label sits directly on the arrow). */
-  travelPoints: Pt[];
   color: string;
   receiver: ReceiverBox | null;
+  /** Safe outward padding (scene units) for the receiver outline so it never crosses any visible text. */
+  outlinePad: number;
   tip: { x: number; y: number; angle: number };
-  labelBox: { x: number; y: number; w: number; h: number } | null;
+  labelBox: Rect | null;
 };
 export type ScheduledCue = {
   cue: EdgeCue;
@@ -54,6 +66,7 @@ export type ActiveSignal = {
 export type ActiveArrival = {
   edgeId: string;
   receiver: ReceiverBox;
+  outlinePad: number;
   tip: { x: number; y: number; angle: number };
   intensity: number;
   color: string;
@@ -65,6 +78,7 @@ export type StaticCueEmphasis = {
   tip: { x: number; y: number; angle: number };
   tail: Pt[];
   receiver: ReceiverBox | null;
+  outlinePad: number;
   color: string;
 };
 export type CueMode = "motion" | "static" | "off";
@@ -142,6 +156,62 @@ export function slicePolyline(pts: Pt[], fromFrac: number, toFrac: number): Pt[]
 }
 
 /**
+ * The bounding box where Excalidraw actually renders a text element: bound arrow labels are
+ * always drawn centered on the arrow's midpoint (ignoring stored x/y), while unbound labels and
+ * node labels sit at their stored coordinates.
+ */
+export function renderedTextBox(t: ExEl, byId: Map<string, ExEl>): Rect | null {
+  if (t.isDeleted || t.type !== "text" || t.width <= 0 || t.height <= 0) return null;
+  if (t.containerId) {
+    const host = byId.get(t.containerId);
+    if (host && host.type === "arrow") {
+      const pts = pathPoints(host, 24);
+      const mid = pts[Math.floor(pts.length / 2)] ?? { x: host.x + host.width / 2, y: host.y + host.height / 2 };
+      return { x: mid.x - t.width / 2, y: mid.y - t.height / 2, w: t.width, h: t.height };
+    }
+  }
+  return { x: t.x, y: t.y, w: t.width, h: t.height };
+}
+
+function findEdgeLabelBox(scene: Scene, byId: Map<string, ExEl>, edge: ExEl, key: string): Rect | null {
+  const bound = scene.elements.find((x) => !x.isDeleted && x.type === "text" && x.containerId === edge.id);
+  if (bound) return renderedTextBox(bound, byId);
+  const unbound =
+    scene.elements.find((x) => !x.isDeleted && x.type === "text" && !x.containerId && x.id === `${edge.id}-t`) ??
+    scene.elements.find(
+      (x) =>
+        !x.isDeleted &&
+        x.type === "text" &&
+        !x.containerId &&
+        x.customData?.wb?.key === key &&
+        x.customData?.wb?.role === "label",
+    );
+  return unbound ? renderedTextBox(unbound, byId) : null;
+}
+
+/**
+ * Computes outward padding for a receiver outline so `pad + halfStroke` stays clear of every
+ * visible text box outside the receiver.
+ */
+export function receiverOutlinePad(
+  receiver: ReceiverBox,
+  textBoxes: Rect[],
+  desiredPad = 4,
+  halfStroke = 4,
+): number {
+  let maxExpand = desiredPad + halfStroke;
+  for (const tb of textBoxes) {
+    const dx = Math.max(tb.x - (receiver.x + receiver.w), receiver.x - (tb.x + tb.w));
+    const dy = Math.max(tb.y - (receiver.y + receiver.h), receiver.y - (tb.y + tb.h));
+    const gap = Math.max(dx, dy);
+    if (gap >= 0) {
+      maxExpand = Math.min(maxExpand, gap - 1);
+    }
+  }
+  return Math.max(-halfStroke, Math.min(desiredPad, Math.floor((maxExpand - halfStroke) * 10) / 10));
+}
+
+/**
  * Extracts explicitly marked directed edges for `step`, sorted in reveal order.
  * Older boards without `from`/`to`/`order` on `customData.wb` return an empty list.
  */
@@ -162,6 +232,7 @@ export function extractStepCues(scene: Scene, step: number): EdgeCue[] {
   });
   candidates.sort((a, b) => a.order - b.order || a.index - b.index);
 
+  const visibleTexts = scene.elements.filter((e) => !e.isDeleted && e.type === "text" && stepOf(e) <= step);
   const cues: EdgeCue[] = [];
   for (const item of candidates) {
     const pts = pathPoints(item.el, 24);
@@ -186,12 +257,14 @@ export function extractStepCues(scene: Scene, step: number): EdgeCue[] {
             roundness: Boolean(toEl.roundness),
           }
         : null;
-    const boundText = scene.elements.find((x) => !x.isDeleted && x.type === "text" && x.containerId === item.el.id);
-    const labelBox =
-      boundText && boundText.width > 0 && boundText.height > 0
-        ? { x: boundText.x, y: boundText.y, w: boundText.width, h: boundText.height }
-        : null;
-    const travelPoints = clearBoundLabel(pts, labelBox, 11);
+    const labelBox = findEdgeLabelBox(scene, byId, item.el, item.key);
+    const externalTextBoxes = receiver
+      ? visibleTexts
+          .filter((t) => t.containerId !== receiver.id)
+          .map((t) => renderedTextBox(t, byId))
+          .filter((b): b is Rect => b !== null)
+      : [];
+    const outlinePad = receiver ? receiverOutlinePad(receiver, externalTextBoxes, 4, 4) : 4;
     cues.push({
       id: item.el.id,
       key: item.key,
@@ -200,70 +273,14 @@ export function extractStepCues(scene: Scene, step: number): EdgeCue[] {
       toId: item.toId,
       order: item.order,
       points: pts,
-      travelPoints,
       color: typeof item.el.strokeColor === "string" ? item.el.strokeColor : "#495057",
       receiver,
+      outlinePad,
       tip: { x: endPt.x, y: endPt.y, angle: tipAngle },
       labelBox,
     });
   }
   return cues;
-}
-
-/**
- * Keeps a travelling signal off a bound midpoint label (such as Excalidraw arrow labels drawn
- * directly on the stroke) by smoothly gliding along the outward side of the label box while
- * rejoining the exact arrow endpoints and arrowhead. Returns `pts` unchanged when no overlap exists.
- */
-function clearBoundLabel(
-  pts: Pt[],
-  labelBox: { x: number; y: number; w: number; h: number } | null,
-  clearance: number,
-): Pt[] {
-  if (!labelBox || pts.length < 2) return pts;
-  const touches = pts.some((p) => pointNearBox(p, labelBox, clearance - 1));
-  if (!touches) return pts;
-
-  const start = pts[0];
-  const end = pts[pts.length - 1];
-  const chordMid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
-  const curveMid = samplePolyline(pts, 0.5);
-  let nx = curveMid.x - chordMid.x;
-  let ny = curveMid.y - chordMid.y;
-  const bend = Math.hypot(nx, ny);
-  if (bend >= 2) {
-    nx /= bend;
-    ny /= bend;
-  } else {
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const len = Math.hypot(dx, dy) || 1;
-    nx = -dy / len;
-    ny = dx / len;
-    if (ny < 0) {
-      nx = -nx;
-      ny = -ny;
-    }
-  }
-  const tx = -ny;
-  const ty = nx;
-  const lc = { x: labelBox.x + labelBox.w / 2, y: labelBox.y + labelBox.h / 2 };
-  const halfN = Math.abs(nx) * (labelBox.w / 2) + Math.abs(ny) * (labelBox.h / 2);
-  const halfT = Math.abs(tx) * (labelBox.w / 2) + Math.abs(ty) * (labelBox.h / 2);
-  const ramp = 26;
-  const lengths = cumulativeLengths(pts);
-  const total = lengths[lengths.length - 1] || 1;
-
-  return pts.map((p, i) => {
-    const frac = lengths[i] / total;
-    const endFade = clamp(Math.min(frac, 1 - frac) / 0.04, 0, 1);
-    const along = Math.abs((p.x - lc.x) * tx + (p.y - lc.y) * ty);
-    const spanFade = along <= halfT ? 1 : along >= halfT + ramp ? 0 : easeInOut(1 - (along - halfT) / ramp);
-    const projN = (p.x - lc.x) * nx + (p.y - lc.y) * ny;
-    const need = Math.max(0, halfN + clearance - projN);
-    const shift = need * spanFade * easeInOut(endFade);
-    return { x: p.x + nx * shift, y: p.y + ny * shift };
-  });
 }
 
 /**
@@ -316,7 +333,7 @@ export function scheduleStepCues(
   });
 }
 
-function pointNearBox(pt: Pt, box: { x: number; y: number; w: number; h: number } | null, pad = 4): boolean {
+function pointNearBox(pt: Pt, box: Rect | null, pad = 4): boolean {
   if (!box) return false;
   return pt.x >= box.x - pad && pt.x <= box.x + box.w + pad && pt.y >= box.y - pad && pt.y <= box.y + box.h + pad;
 }
@@ -336,7 +353,8 @@ export function evaluateCues(scheduled: ScheduledCue[], elapsedMs: number): CueF
     const travelEnd = item.startMs + item.travelMs;
     if (elapsedMs < travelEnd) {
       const progress = easeInOut((elapsedMs - item.startMs) / Math.max(1, item.travelMs));
-      const path = item.cue.travelPoints;
+      // The moving signal always rides directly along the drawn arrow path (never drifts off-stroke).
+      const path = item.cue.points;
       const sample = samplePolyline(path, progress);
       const trail = slicePolyline(path, Math.max(0, progress - 0.16), progress);
       signals.push({
@@ -358,6 +376,7 @@ export function evaluateCues(scheduled: ScheduledCue[], elapsedMs: number): CueF
         arrivals.push({
           edgeId: item.cue.id,
           receiver: item.cue.receiver,
+          outlinePad: item.cue.outlinePad,
           tip: item.cue.tip,
           intensity,
           color: item.cue.color,
@@ -388,13 +407,14 @@ export function staticStepCues(cues: EdgeCue[]): CueFrame {
         tip: cue.tip,
         tail: tail.length >= 2 ? tail : [],
         receiver: cue.receiver,
+        outlinePad: cue.outlinePad,
         color: cue.color,
       };
     }),
   };
 }
 
-/** High-contrast, theme-aware accent colour for signal and arrival cues. */
+/** High-contrast, theme-aware accent colour for signal and arrival cues (>= 4.4:1 against #ffffff and >= 7:1 against #121212). */
 export function cueAccentColor(strokeColor: string | undefined, dark: boolean): string {
   const c = (strokeColor ?? "").trim().toLowerCase();
   if (dark) {
@@ -411,6 +431,22 @@ export function cueAccentColor(strokeColor: string | undefined, dark: boolean): 
   if (c === "#c2255c") return "#a61e4d";
   if (c === "#0c8599") return "#0b7285";
   return "#1971c2";
+}
+
+/** Screen-px sizing and high-contrast ring/chevron/halo palette for both board looks. */
+export function cueSignalStyle(strokeColor: string | undefined, dark: boolean): SignalStyle {
+  const fill = cueAccentColor(strokeColor, dark);
+  return {
+    fill,
+    ringStroke: dark ? "#f8f9fa" : "#ffffff",
+    chevronStroke: dark ? "#0b1320" : "#ffffff",
+    haloOpacity: dark ? 0.38 : 0.28,
+    overLabelHaloOpacity: dark ? 0.35 : 0.2,
+    dotRadiusPx: 7,
+    overLabelDotRadiusPx: 5.5,
+    haloRadiusPx: 13,
+    overLabelHaloRadiusPx: 10,
+  };
 }
 
 /** Removes any transient `[data-wb-cue]` nodes from a cloned SVG before export or video capture. */

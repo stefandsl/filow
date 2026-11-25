@@ -203,7 +203,7 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
         const trial: ExEl = { ...a, x: start.x, y: start.y, points: pts, roundness: { type: 2 } };
         if (!crossed(trial, shapes, byId).length && contains(board, boxOf(trial), 2)) {
           ops.push({ op: "update", id: a.id, props: { x: start.x, y: start.y, points: pts, roundness: { type: 2 } } });
-          const lid = a.boundElements?.find((b) => b.type === "text")?.id;
+          const lid = a.boundElements?.find((b) => b.type === "text")?.id ?? (byId.get(`${a.id}-t`)?.type === "text" ? `${a.id}-t` : undefined);
           const lab = lid ? byId.get(lid) : undefined;
           // its label goes to the middle of the new path
           const mid = pathPoints(trial, 12);
@@ -217,12 +217,12 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
       for (const id of p.ids) {
         const t = byId.get(id);
         if (!t || t.type !== "text" || done.has(id)) continue;
-        const host = t.containerId ? byId.get(t.containerId) : undefined;
+        const host = t.containerId ? byId.get(t.containerId) : t.id.endsWith("-t") ? byId.get(t.id.slice(0, -2)) : undefined;
         if (t.containerId && host?.type !== "arrow") continue;
         done.add(id);
         const skip = new Set([id, ...(host ? [host.id] : [])]);
         let spot: Box | null;
-        if (host) {
+        if (host && host.type === "arrow") {
           const pts = pathPoints(host, 24);
           const order = pts.map((pt, k) => ({ pt, k })).sort((u, v) => Math.abs(u.k - pts.length / 2) - Math.abs(v.k - pts.length / 2));
           spot = order.map(({ pt }) => centredAt(t, pt)).find((b) => free(b, skip)) ?? null;

@@ -6,14 +6,17 @@ import { validateLesson } from "./lesson";
 import { drawMsFor, sceneStepSchedule, stepSchedule } from "./pace";
 import { boardLesson, sceneFromLayout } from "./scene";
 import { readDiagram, sceneFromDiagram, workedExample } from "./templates";
+import { pathPoints } from "./check";
 import {
   createCueSession,
   cueAccentColor,
+  cueSignalStyle,
   evaluateCues,
   extractStepCues,
   scheduleStepCues,
   staticStepCues,
   stripCueNodes,
+  type Pt,
 } from "./motion";
 
 const records = cloud as Array<{ run: string; n: number; question: string; lesson: unknown }>;
@@ -327,5 +330,201 @@ describe("X-10 cue scheduling, replay, cancellation and reduced motion", () => {
     } as unknown as ParentNode;
     expect(stripCueNodes(fakeRoot)).toBe(2);
     expect(removed).toEqual(["cue-1", "cue-2"]);
+  });
+});
+
+function distPointToSegment(p: Pt, a: Pt, b: Pt): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq <= 1e-9) return Math.hypot(p.x - a.x, p.y - a.y);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+  return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+}
+
+function distPointToPolyline(p: Pt, pts: Pt[]): number {
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    best = Math.min(best, distPointToSegment(p, pts[i - 1], pts[i]));
+  }
+  return best;
+}
+
+type Rect = { x: number; y: number; w: number; h: number };
+const rectsOverlap = (a: Rect, b: Rect, pad = 0) =>
+  a.x < b.x + b.w + pad && b.x < a.x + a.w + pad && a.y < b.y + b.h + pad && b.y < a.y + a.h + pad;
+
+function renderedTextRect(el: { x: number; y: number; width: number; height: number; containerId?: string | null }, byId: Map<string, ReturnType<typeof sceneFromLayout>["elements"][number]>): Rect {
+  if (el.containerId) {
+    const host = byId.get(el.containerId);
+    if (host && host.type === "arrow") {
+      // Excalidraw draws a bound arrow label centered on the arrow midpoint, ignoring stored x/y.
+      const pts = pathPoints(host, 24);
+      const mid = pts[Math.floor(pts.length / 2)] ?? { x: host.x + host.width / 2, y: host.y + host.height / 2 };
+      return { x: mid.x - el.width / 2, y: mid.y - el.height / 2, w: el.width, h: el.height };
+    }
+  }
+  return { x: el.x, y: el.y, w: el.width, h: el.height };
+}
+
+function hexLuminance(hex: string): number {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) throw new Error(`Invalid hex color: ${hex}`);
+  const rgb = [0, 2, 4].map((i) => {
+    const v = parseInt(m[1].slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+}
+
+function contrastRatio(a: string, b: string): number {
+  const l1 = hexLuminance(a);
+  const l2 = hexLuminance(b);
+  const hi = Math.max(l1, l2);
+  const lo = Math.min(l1, l2);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+describe("X-10 round 2 regressions: on-arrow path, label/box/outline clearance, contrast and sizing", () => {
+  it("keeps the moving signal within 2 scene units of cue.points at frac 0..1 step 0.05 for TCP steps 0-2 and sequence template", () => {
+    const shown = boardLesson(tcpLesson);
+    for (const step of [0, 1, 2]) {
+      const layout = layoutBoard(shown, step, "wide");
+      const scene = sceneFromLayout(layout);
+      const cues = extractStepCues(scene, step);
+      expect(cues, `TCP step ${step} cues`).toHaveLength(1);
+      const scheduled = scheduleStepCues(cues, stepSchedule(layout, step, drawMsFor(5000)), 5000);
+      const item = scheduled[0];
+      for (let i = 0; i <= 20; i++) {
+        const frac = i === 20 ? 0.999 : i * 0.05;
+        const frame = evaluateCues(scheduled, item.startMs + item.travelMs * frac);
+        expect(frame.signals, `TCP step ${step} frac ${frac}`).toHaveLength(1);
+        const sig = frame.signals[0];
+        const dist = distPointToPolyline({ x: sig.x, y: sig.y }, item.cue.points);
+        expect(dist, `TCP step ${step} frac ${frac} off-arrow distance`).toBeLessThanOrEqual(2);
+      }
+    }
+
+    const worked = workedExample(tcpSequenceDiagram);
+    const seqScene = sceneFromDiagram(tcpSequenceDiagram, worked.facts, worked.facts.length - 1, worked.result);
+    for (const step of [1, 2, 3]) {
+      const cues = extractStepCues(seqScene, step);
+      expect(cues, `sequence step ${step} cues`).toHaveLength(1);
+      const scheduled = scheduleStepCues(cues, sceneStepSchedule(seqScene, step, drawMsFor(4500)), 4500);
+      const item = scheduled[0];
+      for (let i = 0; i <= 20; i++) {
+        const frac = i === 20 ? 0.999 : i * 0.05;
+        const frame = evaluateCues(scheduled, item.startMs + item.travelMs * frac);
+        expect(frame.signals, `sequence step ${step} frac ${frac}`).toHaveLength(1);
+        const sig = frame.signals[0];
+        const dist = distPointToPolyline({ x: sig.x, y: sig.y }, item.cue.points);
+        expect(dist, `sequence step ${step} frac ${frac} off-arrow distance`).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
+  it("keeps Record 3 edge labels matching rendered geometry and clear of their own arrow stroke and all node boxes", () => {
+    const shown = boardLesson(tcpLesson);
+    for (const step of [0, 1, 2, 3]) {
+      const scene = sceneFromLayout(layoutBoard(shown, step, "wide"));
+      const byId = new Map(scene.elements.map((e) => [e.id, e]));
+      const nodes = scene.elements.filter((e) => !e.isDeleted && e.customData?.wb?.role === "node" && e.type !== "text");
+      const edges = scene.elements.filter((e) => !e.isDeleted && e.type === "arrow" && e.customData?.wb?.role === "edge");
+      expect(edges.length).toBeGreaterThan(0);
+
+      for (const edge of edges) {
+        const label =
+          scene.elements.find((x) => !x.isDeleted && x.type === "text" && x.containerId === edge.id) ??
+          scene.elements.find((x) => !x.isDeleted && x.type === "text" && x.id === `${edge.id}-t`);
+        expect(label, `step ${step} edge ${edge.id} label`).toBeDefined();
+        const rendered = renderedTextRect(label!, byId);
+
+        // Motion's labelBox must match the actual rendered label rect for the active step's cue.
+        const stepCues = extractStepCues(scene, step).filter((c) => c.id === edge.id);
+        for (const cue of stepCues) {
+          expect(cue.labelBox, `step ${step} cue ${cue.id} labelBox`).not.toBeNull();
+          expect(cue.labelBox!.x).toBeCloseTo(rendered.x, 1);
+          expect(cue.labelBox!.y).toBeCloseTo(rendered.y, 1);
+          expect(cue.labelBox!.w).toBeCloseTo(rendered.w, 1);
+          expect(cue.labelBox!.h).toBeCloseTo(rendered.h, 1);
+        }
+
+        // The rendered edge label must not sit on its own arrow stroke.
+        const strokePts = pathPoints(edge, 24);
+        const hitsOwnStroke = strokePts.some((pt) => rectsOverlap(rendered, { x: pt.x, y: pt.y, w: 0, h: 0 }, 1));
+        expect(hitsOwnStroke, `step ${step} edge ${edge.id} label "${label!.text}" intersects its own arrow stroke`).toBe(false);
+
+        // The rendered edge label must not cross any node box border.
+        for (const node of nodes) {
+          const nodeRect: Rect = { x: node.x, y: node.y, w: node.width, h: node.height };
+          expect(
+            rectsOverlap(rendered, nodeRect, 0),
+            `step ${step} edge ${edge.id} label "${label!.text}" overlaps node ${node.id}`,
+          ).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("keeps arrival and reduced-motion receiver outlines clear of every visible text box", () => {
+    const shown = boardLesson(tcpLesson);
+    for (const step of [0, 1, 2]) {
+      const scene = sceneFromLayout(layoutBoard(shown, step, "wide"));
+      const byId = new Map(scene.elements.map((e) => [e.id, e]));
+      const cues = extractStepCues(scene, step);
+      expect(cues).toHaveLength(1);
+      const cue = cues[0];
+      expect(cue.receiver).not.toBeNull();
+      const rec = cue.receiver!;
+
+      // Outer extent of arrival outline (pad + half halo strokeWidth) and static outline (pad + half strokeWidth).
+      const arrivalExpand = (cue.outlinePad ?? 6) + 4;
+      const staticExpand = (cue.outlinePad ?? 6) + 1.5;
+      const arrivalRect: Rect = {
+        x: rec.x - arrivalExpand,
+        y: rec.y - arrivalExpand,
+        w: rec.w + arrivalExpand * 2,
+        h: rec.h + arrivalExpand * 2,
+      };
+      const staticRect: Rect = {
+        x: rec.x - staticExpand,
+        y: rec.y - staticExpand,
+        w: rec.w + staticExpand * 2,
+        h: rec.h + staticExpand * 2,
+      };
+
+      const externalTexts = scene.elements.filter(
+        (e) => !e.isDeleted && e.type === "text" && e.containerId !== rec.id,
+      );
+      for (const txt of externalTexts) {
+        const tr = renderedTextRect(txt, byId);
+        expect(
+          rectsOverlap(arrivalRect, tr, 0),
+          `step ${step} arrival outline on ${rec.id} intersects text ${txt.id} ("${txt.text}")`,
+        ).toBe(false);
+        expect(
+          rectsOverlap(staticRect, tr, 0),
+          `step ${step} static outline on ${rec.id} intersects text ${txt.id} ("${txt.text}")`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("guarantees >= 3:1 signal contrast in both looks, a light ring and >= 0.35 halo in dark look, and >= 10 px dot diameter", () => {
+    const strokes = [undefined, "#495057", "#1971c2", "#e8590c", "#2f9e44", "#9c36b5", "#c2255c", "#0c8599"];
+    for (const stroke of strokes) {
+      for (const dark of [false, true]) {
+        const bg = dark ? "#121212" : "#ffffff";
+        const style = cueSignalStyle(stroke, dark);
+        expect(contrastRatio(style.fill, bg), `fill contrast for ${stroke ?? "default"} dark=${dark}`).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(style.chevronStroke, style.fill), `chevron contrast for ${stroke ?? "default"} dark=${dark}`).toBeGreaterThanOrEqual(3);
+        expect(style.dotRadiusPx * 2, `dot diameter px dark=${dark}`).toBeGreaterThanOrEqual(10);
+        if (dark) {
+          expect(style.ringStroke.toLowerCase()).not.toBe("#121212");
+          expect(contrastRatio(style.ringStroke, bg), `dark ring contrast`).toBeGreaterThanOrEqual(3);
+          expect(style.haloOpacity, `dark halo opacity`).toBeGreaterThanOrEqual(0.35);
+        }
+      }
+    }
   });
 });

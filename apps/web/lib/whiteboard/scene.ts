@@ -215,8 +215,10 @@ function edgeEls(e: PlacedEdge, used: Set<string>, shapes: Map<string, ExEl>, or
   if (!e.label) return [a];
   const size = Math.round(e.label.font * 0.95);
   const lb = e.label.box;
+  // Unbound edge label: Excalidraw keeps it at the exact off-stroke position layout.ts chose instead
+  // of snapping it onto the arrow midpoint and masking the stroke.
   const label = text(`${id}-t`, e.label.lines, size, { cx: lb.x + lb.w / 2, cy: lb.y + lb.h / 2 }, { step: e.step, key: e.key, role: "label" }, { strokeColor: INK.soft, originalText: e.label.lines.join(" ") });
-  return labelled(a, label);
+  return [a, label];
 }
 
 function markEls(m: BoardLayout["marks"][number], targetColour: string): ExEl[] {
