@@ -16,6 +16,7 @@ import {
   EMPTY_CUE_FRAME,
   createCueSession,
   cueAccentColor,
+  cueHaloRadius,
   cueSignalStyle,
   extractStepCues,
   renderedTextBox,
@@ -400,6 +401,14 @@ export function ExcalidrawBoard({
   const activeView = view.current ?? target;
   const cssPerScene = hostWidth > 0 && activeView.w > 0 ? hostWidth / activeView.w : 0.65;
   const toScene = (cssPx: number) => cssPx / Math.max(0.25, cssPerScene);
+  const visibleTextBoxes = useMemo(() => {
+    if (!showCueLayer) return [] as Rect[];
+    const byId = new Map(visible.map((e) => [e.id, e]));
+    return visible
+      .filter((e) => !e.isDeleted && e.type === "text")
+      .map((e) => renderedTextBox(e, byId))
+      .filter((b): b is Rect => b !== null);
+  }, [visible, showCueLayer]);
   const externalTextMasks = useMemo(() => {
     const receiverIds = new Set<string>();
     for (const a of cueFrame.arrivals) receiverIds.add(a.receiver.id);
@@ -465,7 +474,8 @@ export function ExcalidrawBoard({
           {cueFrame.signals.map((s) => {
             const st = cueSignalStyle(s.color, dark);
             const dotR = toScene(s.overLabel ? st.overLabelDotRadiusPx : st.dotRadiusPx);
-            const haloR = toScene(s.overLabel ? st.overLabelHaloRadiusPx : st.haloRadiusPx);
+            const rawHaloR = toScene(s.overLabel ? st.overLabelHaloRadiusPx : st.haloRadiusPx);
+            const haloR = cueHaloRadius(s, rawHaloR, dotR + toScene(1), visibleTextBoxes);
             const haloOp = s.overLabel ? st.overLabelHaloOpacity : st.haloOpacity;
             const ringW = toScene(2);
             const chevSize = toScene(s.overLabel ? 4.2 : 4.8);

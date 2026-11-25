@@ -2,7 +2,8 @@
 // Pure: no DOM, no side effects. Driven by explicit `customData.wb` metadata (`from`, `to`, `order`)
 // on prepared Excalidraw elements so older boards without metadata stay silent and unchanged, moved
 // endpoints are followed automatically, and no transient cue ever enters the scene or exports.
-import { pathPoints } from "./check";
+export { samplePolyline } from "./check";
+import { cumulativeLengths, pathPoints, samplePolyline } from "./check";
 import { drawMsFor, type Slot } from "./pace";
 import { stepOf, type ExEl, type Scene } from "./scene";
 
@@ -104,35 +105,6 @@ const easeInOut = (u: number) => {
   const t = clamp(u, 0, 1);
   return t * t * (3 - 2 * t);
 };
-
-function cumulativeLengths(pts: Pt[]): number[] {
-  const out = [0];
-  for (let i = 1; i < pts.length; i++) {
-    out.push(out[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
-  }
-  return out;
-}
-
-/** Point and tangent angle (radians) along a polyline at arc-length fraction `frac` in [0, 1]. */
-export function samplePolyline(pts: Pt[], frac: number): { x: number; y: number; angle: number } {
-  if (pts.length === 0) return { x: 0, y: 0, angle: 0 };
-  if (pts.length === 1) return { x: pts[0].x, y: pts[0].y, angle: 0 };
-  const lengths = cumulativeLengths(pts);
-  const total = lengths[lengths.length - 1];
-  if (total <= 1e-6) return { x: pts[0].x, y: pts[0].y, angle: 0 };
-  const dist = clamp(frac, 0, 1) * total;
-  let seg = 0;
-  while (seg < lengths.length - 2 && lengths[seg + 1] < dist) seg++;
-  const segLen = lengths[seg + 1] - lengths[seg];
-  const local = segLen > 1e-6 ? (dist - lengths[seg]) / segLen : 0;
-  const a = pts[seg];
-  const b = pts[seg + 1];
-  return {
-    x: a.x + (b.x - a.x) * local,
-    y: a.y + (b.y - a.y) * local,
-    angle: Math.atan2(b.y - a.y, b.x - a.x),
-  };
-}
 
 /** Sub-polyline between two arc-length fractions in [0, 1]. */
 export function slicePolyline(pts: Pt[], fromFrac: number, toFrac: number): Pt[] {
@@ -389,18 +361,19 @@ export function evaluateCues(scheduled: ScheduledCue[], elapsedMs: number): CueF
   return { phase, active: true, signals, arrivals, staticEmphasis: [] };
 }
 
-/** Static emphasis for reduced motion and Lite: zero moving signals, clear direction and recipient. */
+/** Static emphasis for reduced motion and Lite: zero moving signals, one receiver at a time in reveal order. */
 export function staticStepCues(cues: EdgeCue[]): CueFrame {
   if (!cues.length) return EMPTY_CUE_FRAME;
+  const cue = cues.reduce((first, next) => next.order < first.order ? next : first);
+  const rawTail = slicePolyline(cue.points, 0.78, 1);
+  const tail = cue.labelBox ? rawTail.filter((p) => !pointNearBox(p, cue.labelBox, 3)) : rawTail;
   return {
     phase: "static",
     active: true,
     signals: [],
     arrivals: [],
-    staticEmphasis: cues.map((cue) => {
-      const rawTail = slicePolyline(cue.points, 0.78, 1);
-      const tail = cue.labelBox ? rawTail.filter((p) => !pointNearBox(p, cue.labelBox, 3)) : rawTail;
-      return {
+    staticEmphasis: [
+      {
         edgeId: cue.id,
         fromId: cue.fromId,
         toId: cue.toId,
@@ -409,9 +382,21 @@ export function staticStepCues(cues: EdgeCue[]): CueFrame {
         receiver: cue.receiver,
         outlinePad: cue.outlinePad,
         color: cue.color,
-      };
-    }),
+      },
+    ],
   };
+}
+
+/** Clamps a signal halo radius in scene units so the halo stays clear of every visible text box. */
+export function cueHaloRadius(center: Pt, desiredRadius: number, minRadius: number, textBoxes: Rect[]): number {
+  let maxRadius = desiredRadius;
+  for (const tb of textBoxes) {
+    const cx = clamp(center.x, tb.x, tb.x + tb.w);
+    const cy = clamp(center.y, tb.y, tb.y + tb.h);
+    const dist = Math.hypot(center.x - cx, center.y - cy);
+    maxRadius = Math.min(maxRadius, dist - 1);
+  }
+  return Math.max(minRadius, Math.min(desiredRadius, maxRadius));
 }
 
 /** High-contrast, theme-aware accent colour for signal and arrival cues (>= 4.4:1 against #ffffff and >= 7:1 against #121212). */

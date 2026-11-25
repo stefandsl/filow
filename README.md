@@ -58,7 +58,7 @@ Filow is a live speaking companion: it listens as you present, checks off your t
 
 Review the proposed recipient before confirming a spoken delivery. If you correct the name while the review is open, check the revised row. All languages currently require confirmation.
 
-On the whiteboard, you can ask for a repeating process as a cycle or ask to compare two subjects. If the requested layout or board item cannot be identified, name it again.
+On the whiteboard, you can ask for a repeating process as a cycle or ask to compare two subjects. If the requested layout or board item cannot be identified, name it again. When you move a box on the canvas, the labels follow its arrows. In Lite lessons, one arrowhead and its receiver are highlighted for each message.
 
 Voice ticks require your permission and an installed Gemma 4 E2B. Choose the Gemma offer in Day-by-day and download it in Local models if needed. Withdraw permission in Settings. You can always tick manually or confirm a typed report.
 

@@ -305,6 +305,90 @@ function layeredNodes(nodes: NodeIn[], edges: EdgeIn[], area: Box, shape: BoardS
   return { nodes: placed, axis: wide ? "x" : "y", labelMax: wide ? gapAlong - 12 : 180 };
 }
 
+/**
+ * Places an edge label beside an arrow curve/polyline: prefers the outward side of an arc (or above
+ * a straight horizontal arrow), keeps it off its own stroke and clear of boxes, other labels and
+ * other strokes, and keeps it inside `board`. Shared by `placeEdges`, `check.ts` and `doc.ts`.
+ */
+export function placeEdgeLabel(params: {
+  pointAt: (t: number) => { x: number; y: number };
+  ownSamples: Array<{ x: number; y: number }>;
+  size: { w: number; h: number };
+  board: Box;
+  nodes: Box[];
+  labels: Box[];
+  otherStrokes?: Array<Array<{ x: number; y: number }>>;
+  requireOffStroke?: boolean;
+}): { box: Box | null; hits: number } {
+  const { pointAt, ownSamples, size, board, nodes, labels, otherStrokes = [] } = params;
+  const lw = size.w;
+  const lh = size.h;
+  const linesThrough = (candidate: Box) =>
+    otherStrokes.filter((pts) => pts.some((pt) => overlap(candidate, { x: pt.x, y: pt.y, w: 0, h: 0 }, 2))).length;
+  const ownThrough = (candidate: Box) =>
+    ownSamples.some((pt) => overlap(candidate, { x: pt.x, y: pt.y, w: 0, h: 0 }, 3));
+  const start = pointAt(0);
+  const end = pointAt(1);
+  const chordMid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  const curveMid = pointAt(0.5);
+  const aheadMid = pointAt(0.53);
+  const backMid = pointAt(0.47);
+  const alongMid = Math.hypot(aheadMid.x - backMid.x, aheadMid.y - backMid.y) || 1;
+  const uxMid = -(aheadMid.y - backMid.y) / alongMid;
+  const uyMid = (aheadMid.x - backMid.x) / alongMid;
+  const bendDot = (curveMid.x - chordMid.x) * uxMid + (curveMid.y - chordMid.y) * uyMid;
+  // Prefer the outward side of an arc (or above a straight horizontal arrow) so labels stay clear of their own stroke.
+  const preferred = Math.abs(bendDot) >= 2 ? (bendDot >= 0 ? 1 : -1) : uyMid >= 0 ? -1 : 1;
+  const narrow = board.w < 600 && !params.requireOffStroke;
+  const tries: Array<{ side: number; nodePad: number; penalty: number }> = narrow
+    ? [
+        { side: 0, nodePad: 1, penalty: 0 },
+        { side: 1, nodePad: 1, penalty: 0 },
+        { side: -1, nodePad: 1, penalty: 0 },
+      ]
+    : [
+        { side: preferred, nodePad: 12, penalty: 0 },
+        { side: -preferred, nodePad: 12, penalty: 0 },
+        { side: preferred, nodePad: 2, penalty: 0 },
+        { side: -preferred, nodePad: 2, penalty: 0 },
+        { side: 0, nodePad: 1, penalty: 1 },
+      ];
+  let box: Box | null = null;
+  let hits = Infinity;
+  search: for (const { side, nodePad, penalty } of tries) {
+    for (const t of [0.5, 0.38, 0.62, 0.28, 0.72, 0.18, 0.82, 0.11, 0.89]) {
+      const on = pointAt(t);
+      const ahead = pointAt(Math.min(1, t + 0.03));
+      const back = pointAt(Math.max(0, t - 0.03));
+      const along = Math.hypot(ahead.x - back.x, ahead.y - back.y) || 1;
+      const ux = -(ahead.y - back.y) / along;
+      const uy = (ahead.x - back.x) / along;
+      const off = side * ((Math.abs(ux) * lw) / 2 + (Math.abs(uy) * lh) / 2 + (narrow ? 7 : 10));
+      const pt = { x: on.x + ux * off, y: on.y + uy * off };
+      // kept on the board: a label near the border slides inwards instead of being cut
+      const candidate = {
+        x: Math.min(Math.max(pt.x - lw / 2, board.x), Math.max(board.x, board.x + board.w - lw)),
+        y: Math.min(Math.max(pt.y - lh / 2, board.y), board.y + board.h - lh),
+        w: Math.min(lw, board.w),
+        h: lh,
+      };
+      const ownHit = narrow || side === 0 ? 0 : ownThrough(candidate) ? 1 : 0;
+      const n =
+        nodes.filter((nb) => overlap(nb, candidate, nodePad)).length +
+        labels.filter((l) => overlap(l, candidate, narrow ? 1 : 2)).length +
+        linesThrough(candidate) +
+        ownHit +
+        penalty;
+      if (n < hits) {
+        hits = n;
+        box = candidate;
+      }
+      if (n === 0) break search;
+    }
+  }
+  return { box, hits };
+}
+
 function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[] {
   const { nodes, axis } = arr;
   const byId = new Map(nodes.map((nd) => [nd.id, nd]));
@@ -313,12 +397,13 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
   for (const e of edges) perPair.set(pairKey(e.from, e.to), (perPair.get(pairKey(e.from, e.to)) ?? 0) + 1);
   const seen = new Map<string, number>();
   const samples = (c: Curve) => Array.from({ length: 19 }, (_, i) => curveAt(c, (i + 1) / 20));
+  const nodeBoxes = nodes.map((nd) => nd.box);
   /**
    * One arrow with its label, placed against what is already there: `labels` are the labels of the
    * other arrows (not to be crossed or covered), `drawn` the other arrows (a label is not put on a line).
    */
   const place = (e: EdgeIn, index: number, k: number, labels: Box[], drawn: PlacedEdge[]): PlacedEdge | null => {
-    const linesThrough = (box: Box) => drawn.filter((o) => samples(o).some((pt) => overlap(box, { x: pt.x, y: pt.y, w: 0, h: 0 }, 2))).length;
+    const otherStrokes = drawn.map(samples);
     const a = byId.get(e.from);
     const b = byId.get(e.to);
     if (!a || !b) return null;
@@ -397,52 +482,17 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
       let cost = crosses(curve) ? 10 : 0;
       let box: Box | null = null;
       if (lines.length) {
-        let hits = Infinity;
-        const ownSamples = samples(curve);
-        const ownThrough = (candidate: Box) => ownSamples.some((pt) => overlap(candidate, { x: pt.x, y: pt.y, w: 0, h: 0 }, 3));
-        const chordMid = { x: (curve.x1 + curve.x2) / 2, y: (curve.y1 + curve.y2) / 2 };
-        const curveMid = curveAt(curve, 0.5);
-        const aheadMid = curveAt(curve, 0.53);
-        const backMid = curveAt(curve, 0.47);
-        const alongMid = Math.hypot(aheadMid.x - backMid.x, aheadMid.y - backMid.y) || 1;
-        const uxMid = -(aheadMid.y - backMid.y) / alongMid;
-        const uyMid = (aheadMid.x - backMid.x) / alongMid;
-        const bendDot = (curveMid.x - chordMid.x) * uxMid + (curveMid.y - chordMid.y) * uyMid;
-        // Prefer the outward side of an arc (or above a straight horizontal arrow) so labels stay clear of their own stroke.
-        const preferred = Math.abs(bendDot) >= 2 ? (bendDot >= 0 ? 1 : -1) : uyMid >= 0 ? -1 : 1;
-        const narrow = board.w < 600;
-        const tries: Array<{ side: number; nodePad: number; penalty: number }> = narrow
-          ? [
-              { side: 0, nodePad: 1, penalty: 0 },
-              { side: 1, nodePad: 1, penalty: 0 },
-              { side: -1, nodePad: 1, penalty: 0 },
-            ]
-          : [
-              { side: preferred, nodePad: 12, penalty: 0 },
-              { side: -preferred, nodePad: 12, penalty: 0 },
-              { side: preferred, nodePad: 2, penalty: 0 },
-              { side: -preferred, nodePad: 2, penalty: 0 },
-              { side: 0, nodePad: 1, penalty: 1 },
-            ];
-        search: for (const { side, nodePad, penalty } of tries) {
-          for (const t of [0.5, 0.38, 0.62, 0.28, 0.72, 0.18, 0.82, 0.11, 0.89]) {
-            const on = curveAt(curve, t);
-            const ahead = curveAt(curve, Math.min(1, t + 0.03));
-            const back = curveAt(curve, Math.max(0, t - 0.03));
-            const along = Math.hypot(ahead.x - back.x, ahead.y - back.y) || 1;
-            const ux = -(ahead.y - back.y) / along;
-            const uy = (ahead.x - back.x) / along;
-            const off = side * ((Math.abs(ux) * lw) / 2 + (Math.abs(uy) * lh) / 2 + (narrow ? 7 : 10));
-            const pt = { x: on.x + ux * off, y: on.y + uy * off };
-            // kept on the board: a label near the border slides inwards instead of being cut
-            const candidate = { x: Math.min(Math.max(pt.x - lw / 2, board.x), Math.max(board.x, board.x + board.w - lw)), y: Math.min(Math.max(pt.y - lh / 2, board.y), board.y + board.h - lh), w: Math.min(lw, board.w), h: lh };
-            const ownHit = narrow || side === 0 ? 0 : ownThrough(candidate) ? 1 : 0;
-            const n = nodes.filter((nd) => overlap(nd.box, candidate, nodePad)).length + labels.filter((l) => overlap(l, candidate, narrow ? 1 : 2)).length + linesThrough(candidate) + ownHit + penalty;
-            if (n < hits) { hits = n; box = candidate; }
-            if (n === 0) break search;
-          }
-        }
-        cost += hits;
+        const res = placeEdgeLabel({
+          pointAt: (t) => curveAt(curve, t),
+          ownSamples: samples(curve),
+          size: { w: lw, h: lh },
+          board,
+          nodes: nodeBoxes,
+          labels,
+          otherStrokes,
+        });
+        box = res.box;
+        cost += res.hits;
       }
       if (!best || cost < best.cost) best = { curve, box, cost };
       if (!cost) break;

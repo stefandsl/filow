@@ -29,7 +29,7 @@ import { BOARD_SIZE, layoutBoard, type BoardShape, type Box } from "@/lib/whiteb
 import { LIMITS, cleanText, lessonMarkdown, validateLesson, type Lesson } from "@/lib/whiteboard/lesson";
 import { readDiagram, sceneFromDiagram, type Diagram } from "@/lib/whiteboard/templates";
 import { boardLesson, pendingScene, sceneFromLayout, type Scene } from "@/lib/whiteboard/scene";
-import { BOARD_KEY, MAX_SAVED_BYTES, applyEdits, applyOps, cameraFor, changesToOps, diffEdits, excalidrawFile, frameBox, hasEdits, noEdits, parseExcalidrawFile, readScene, withFrame, type SceneEdits, type ToolOp } from "@/lib/whiteboard/doc";
+import { BOARD_KEY, MAX_SAVED_BYTES, applyEdits, applyOps, cameraFor, changesToOps, commitCanvasEdits, excalidrawFile, frameBox, noEdits, parseExcalidrawFile, readScene, withFrame, type SceneEdits, type ToolOp } from "@/lib/whiteboard/doc";
 import { teachingChoice, type EditPlan } from "@/lib/whiteboard/edits";
 import { checkScene, countProblems, fixOps, type CheckCounts } from "@/lib/whiteboard/check";
 import { fontCss, prepareScene, scenePng } from "@/lib/whiteboard/excalidraw";
@@ -727,10 +727,10 @@ export default function WhiteboardPage() {
   const closeCanvas = (els: Scene["elements"], files: Scene["files"]) => {
     setCanvasOpen(false);
     if (!prepared || !fixedBase) return;
-    // what the user changed by hand, compared with what the canvas was given
-    const hand = diffEdits(prepared, noEdits(), els, files);
-    if (!hasEdits(hand)) return;
-    changeBoard({ patch: { ...edits.patch, ...Object.fromEntries(Object.entries(hand.patch).map(([id, p]) => [id, { ...edits.patch[id], ...p }])) }, added: [...edits.added.filter((a) => !hand.deleted.includes(a.id) && !hand.patch[a.id]), ...edits.added.filter((a) => hand.patch[a.id]).map((a) => ({ ...a, ...hand.patch[a.id] })), ...hand.added], deleted: [...new Set([...edits.deleted, ...hand.deleted.filter((id) => !edits.added.some((a) => a.id === id))])], files: { ...edits.files, ...hand.files } });
+    // what the user changed by hand, compared with what the canvas was given (and re-attaching moved edge labels)
+    const next = commitCanvasEdits(prepared, edits, els, files);
+    if (!next) return;
+    changeBoard(next);
   };
   // The lesson as a video: it is played again from its first step while the board is recorded
   // (lib/whiteboard/video.ts). The natural voice of this PC goes into the video; any other voice

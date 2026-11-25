@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import cloud from "./fixtures/cloud-r3.json";
-import { applyEdits, excalidrawFile, noEdits, parseExcalidrawFile } from "./doc";
+import { applyEdits, commitCanvasEdits, excalidrawFile, noEdits, parseExcalidrawFile } from "./doc";
 import { layoutBoard } from "./layout";
 import { validateLesson } from "./lesson";
 import { drawMsFor, sceneStepSchedule, stepSchedule } from "./pace";
@@ -10,6 +10,7 @@ import { pathPoints } from "./check";
 import {
   createCueSession,
   cueAccentColor,
+  cueHaloRadius,
   cueSignalStyle,
   evaluateCues,
   extractStepCues,
@@ -526,5 +527,86 @@ describe("X-10 round 2 regressions: on-arrow path, label/box/outline clearance, 
         }
       }
     }
+  });
+});
+
+describe("X-10 label placement and static receivers", () => {
+  it("heals a legacy drag on reopen and respects subsequent manual label edits", () => {
+    const base = sceneFromLayout(layoutBoard(boardLesson(tcpLesson), 1, "wide"));
+    const legacy = noEdits();
+    // Geometry recorded from the real canvas drag, rounded to a tenth of a scene unit.
+    legacy.patch = {
+      "n-client": { x: 36.1, y: 457.9 },
+      "n-client-t": { x: 87.5, y: 472.9 },
+      "a-client-server": { x: 185.9, y: 455.8, points: [[0, 0], [206.4, -112.1], [385.4, -83.1]] },
+      "a-server-client": { x: 571.3, y: 403.1, points: [[0, 0], [-183.6, 29.2], [-350.7, 65]] },
+    };
+    const reopened = applyEdits(base, legacy);
+    for (const edge of reopened.elements.filter(e => e.type === "arrow")) {
+      const label = reopened.elements.find(e => e.id === edge.id + "-t")!;
+      const old = base.elements.find(e => e.id === label.id)!;
+      expect(Math.hypot(label.x - old.x, label.y - old.y)).toBeGreaterThan(5);
+      const box = { x: label.x, y: label.y, w: label.width, h: label.height };
+      expect(pathPoints(edge, 200).some(pt => rectsOverlap(box, { ...pt, w: 0, h: 0 }, 1))).toBe(false);
+    }
+    const labelId = "a-server-client-t";
+    const manual = reopened.elements.map(e => e.id === labelId ? { ...e, x: 270, y: 500 } : e);
+    const committed = commitCanvasEdits(reopened, legacy, manual)!;
+    expect(applyEdits(base, committed).elements.find(e => e.id === labelId)).toMatchObject({ x: 270, y: 500 });
+  });
+
+  it("emphasizes only one receiver at a time in reveal order for a multi-edge Lite static step", () => {
+    // Lite step 0 draws all three TCP relations on the same step in reveal order (SYN -> Server, SYN-ACK -> Client, ACK -> Server).
+    const liteTcpLesson = validateLesson(
+      {
+        title: "TCP Three-Way Handshake",
+        scene: "flow",
+        steps: [
+          {
+            say: "The client sends a SYN packet to the server.",
+            items: [
+              { kind: "node", id: "client", text: "Client" },
+              { kind: "node", id: "server", text: "Server" },
+              { kind: "edge", from: "client", to: "server", text: "SYN (seq=X)" },
+              { kind: "edge", from: "server", to: "client", text: "SYN-ACK (seq=Y, ack=X+1)" },
+              { kind: "edge", from: "client", to: "server", text: "ACK (ack=Y+1)" },
+            ],
+          },
+        ],
+      },
+      { maxSteps: 12, sketch: true },
+    )!;
+    const liteScene = sceneFromLayout(layoutBoard(boardLesson(liteTcpLesson), 0, "wide"), { plain: true });
+    const cues = extractStepCues(liteScene, 0);
+    expect(cues).toHaveLength(3);
+    expect(cues.map((c) => [c.fromId, c.toId, c.order])).toEqual([
+      ["n-client", "n-server", 0],
+      ["n-server", "n-client", 1],
+      ["n-client", "n-server", 2],
+    ]);
+
+    // Default static emphasis highlights only the first edge in reveal order (SYN -> Server), matching the caption.
+    const first = staticStepCues(cues);
+    expect(first.phase).toBe("static");
+    expect(first.signals).toEqual([]);
+    expect(first.staticEmphasis).toHaveLength(1);
+    expect(first.staticEmphasis[0].edgeId).toBe(cues[0].id);
+    expect(first.staticEmphasis[0].receiver?.id).toBe("n-server");
+
+    // Also verify Photosynthesis step 1 (3 edges in one step) emphasizes only 1 receiver at a time.
+    const photoScene = sceneFromLayout(layoutBoard(boardLesson(photoLesson), 1, "wide"), { plain: true });
+    const photoCues = extractStepCues(photoScene, 1);
+    expect(photoCues.length).toBe(3);
+    const photoStatic = staticStepCues(photoCues);
+    expect(photoStatic.staticEmphasis).toHaveLength(1);
+    expect(photoStatic.staticEmphasis[0].edgeId).toBe(photoCues[0].id);
+  });
+
+  it("clamps the signal halo radius clear of nearby label boxes without shrinking the dot", () => {
+    const label: Rect = { x: 200, y: 420, w: 140, h: 24 };
+    // Signal center 14 units above label top edge with desired halo 20 -> clamps to 13 (stays 1u clear of label).
+    expect(cueHaloRadius({ x: 260, y: 406 }, 20, 10, [label])).toBeCloseTo(13, 3);
+    // Signal well away from label keeps full desired halo.
+    expect(cueHaloRadius({ x: 260, y: 360 }, 20, 10, [label])).toBeCloseTo(20, 3);
   });
 });
