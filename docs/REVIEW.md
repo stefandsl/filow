@@ -333,3 +333,6 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R380 (2026-11-26, X-16): Limit every live sherpa recognizer to one inference thread per session. Check every catalogue family and the VAD configuration, then replay 30 minutes of paced audio on the packaged app at full and four-core affinity.
 - R381 (2026-11-26, X-16): Configure the shared WASM runtime before loading browser speech recognition. Check the thread count and sequential session options at the Whisper pipeline call.
 - R382 (2026-11-26, X-16): Exercise Silero through its VAD constructor when checking catalogue thread settings. Check all online and offline recognizers and the separate worker VAD assertion.
+- R390 (2026-11-26, X-16): Fix punctuation session thread counts in the worker. Check the ONNX constructor options with a legacy multi-thread init message.
+- R391 (2026-11-26, X-16): Set the gate embedding session thread counts on both platforms and cap browser WASM threads before loading the pipeline. Check the browser and Node feature extraction calls.
+- R392 (2026-11-26, X-16): Count capture gaps over 200 ms separately from estimated missing blocks. Check the maximum gap and the gap count at each affinity.

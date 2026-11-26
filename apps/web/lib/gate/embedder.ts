@@ -14,7 +14,10 @@ export async function loadEmbedder(model = GATE_MODEL): Promise<{ embed: Embedde
     loading = (async () => {
       const { pipeline, env } = await import("@huggingface/transformers");
       env.allowLocalModels = false;
-      const fe = (await pipeline("feature-extraction", model, { dtype: "q8" })) as unknown as FeatureExtractor;
+      const fe = (await pipeline("feature-extraction", model, {
+        dtype: "q8",
+        session_options: { intraOpNumThreads: 1, interOpNumThreads: 1, executionMode: "sequential" },
+      })) as unknown as FeatureExtractor;
       return fe;
     })();
     loading.catch(() => { loading = null; });
