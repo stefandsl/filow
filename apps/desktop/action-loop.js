@@ -280,6 +280,7 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
         const execRes = await driver.execute(call, {
           hwnd: boundHwnd,
           targetRect: shot.bounds,
+          snapshotId: shot.snapshotId,
           signal: abort.signal,
         });
         const driverMs = Number.isFinite(execRes?.latencyMs) ? execRes.latencyMs : Date.now() - d0;
@@ -344,6 +345,7 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
       return { ok: false, reason: "error", error: sanitizeString(err?.message || String(err)), ...metrics };
     } finally {
       if (active === runState) {
+        driver.finishTurn?.();
         active = null;
         onState({ active: false, mode: "idle", stopped: runState.stopped, intent: "" });
       }

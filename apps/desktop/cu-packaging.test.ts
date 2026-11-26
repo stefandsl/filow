@@ -1,3 +1,4 @@
+import { pilotOnly } from "./cu-packaging-fixture";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -7,7 +8,7 @@ describe("computer-use pilot packaging", () => {
   const shipped: string[] = [...pkg.build.files, ...(pkg.build.asarUnpack || [])];
 
   it("leaves the driver, gate, loop, planner and native helper out of the packaged app", () => {
-    for (const f of ["action-driver.js", "action-gate.js", "action-loop.js", "gemini-cu-planner.js"]) {
+    for (const f of pilotOnly) {
       expect(shipped).not.toContain(f);
     }
     expect(shipped.filter((f) => f.startsWith("native/action/"))).toEqual([]);
@@ -15,8 +16,8 @@ describe("computer-use pilot packaging", () => {
 
   it("loads the pilot modules only when computer use starts", () => {
     const src = readFileSync(new URL("./okfilow.js", import.meta.url), "utf8");
-    const topLevel = src.split("function getComputerUseController")[0];
-    expect(topLevel).not.toMatch(/require\("\.\/(action-driver|action-loop|gemini-cu-planner)"\)/);
+    const topLevel = src.split("function getAsset")[0];
+    expect(topLevel).not.toMatch(/require\("\.\/(action-driver|action-gate|action-loop|gemini-cu-planner|agent-desktop-driver|agent-desktop-asset)"\)/);
     expect(src).toMatch(/reason: "unavailable"/);
   });
 });

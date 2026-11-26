@@ -891,3 +891,5 @@ Le Impostazioni offrono la cancellazione dei modelli solo per download completat
 Il modello di confronto facoltativo richiede i file mancanti a Hugging Face solo dopo la tua autorizzazione. La prova privata funziona anche senza il modello.
 
 Quando Giorno per giorno verifica un resoconto, mostra un messaggio durante il caricamento del modello locale. Se il modello non è disponibile, spunta manualmente l’attività.
+
+Il programma di installazione per Windows esclude il driver sperimentale agent-desktop. Il download apparirà nelle impostazioni di OK Filow quando Filow pubblicherà una versione firmata. In una copia di sviluppo con il driver già installato, chi presenta può selezionarlo o rimuoverlo dalle stesse impostazioni.

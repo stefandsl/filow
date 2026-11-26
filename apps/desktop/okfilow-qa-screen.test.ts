@@ -1,3 +1,4 @@
+import { pilotOnly } from "./cu-packaging-fixture";
 import fs from "node:fs";
 import Module, { createRequire } from "node:module";
 import os from "node:os";
@@ -60,6 +61,8 @@ class FakeWindow {
   once() {}
   hide() {}
   focus() {}
+  isFocused() { return true; }
+  blur() {}
   moveTop() {}
   destroy() {}
   static fromWebContents() { return null; }
@@ -103,15 +106,22 @@ beforeAll(() => {
     return original.call(this, request, ...rest);
   };
   process.env.FILOW_OKF_QA_SCREEN = screenDir;
+  initialize();
+});
+function initialize(overrides: Record<string, unknown> = {}) {
+  delete require.cache[require.resolve("./okfilow.js")];
   const okf = require("./okfilow.js") as { createOkFilow: (deps: Record<string, unknown>) => Api } & typeof created;
   created = okf;
   api = okf.createOkFilow({
     appUrl: "http://127.0.0.1:4811", getSettings: () => settings, saveSettings: () => {}, iconPath: "", logLine: (l: string) => lines.push(l),
     sttLocal: { modelReady: () => false }, userData: tmp, menuText: (k: string) => k, isOffline: () => true, elementReader: null,
     dictation: { status: () => ({ enabled: false, chord: "" }), cfg: () => ({ enabled: false }), onChange() {}, activeChord: () => null, diag: { mark() {} } },
+    ...overrides,
   });
   api.togglePanel();
-});
+  const sender = contentsMade.at(-1)!;
+  return { sender, senderFrame: sender.mainFrame };
+}
 afterAll(() => {
   loader._load = original;
   delete process.env.FILOW_OKF_QA_SCREEN;
@@ -201,3 +211,67 @@ function findPanel(): FakeContents {
   if (!found) throw new Error("panel not built");
   return found;
 }
+
+describe("computer-use panel IPC", () => {
+  const consent = { "computeruse:google/gemini-computer-use": { state: "granted" } };
+  const pilot = new Set(pilotOnly.map(name => "./" + name.slice(0, -3)));
+
+  it("starts with every pilot module absent and answers the panel", async () => {
+    const load = loader._load;
+    const config = { enabled: true, computerUse: false, consent };
+    const requests: string[] = [];
+    try {
+      loader._load = function (request, ...rest) {
+        if (pilot.has(request)) { requests.push(request); throw new Error("Missing " + request); }
+        return load.call(this, request, ...rest);
+      };
+      const evt = initialize({ getSettings: () => ({ okFilow: config }), isOffline: () => false });
+      const start = ipcHandle.get("okfilow:cu:start")!;
+      expect(await start(evt, "Choose Next", 17)).toEqual({ ok: false, reason: "disabled" });
+      expect(requests).toEqual([]);
+      const asset = ipcHandle.get("okfilow:cu:asset")!;
+      expect(await asset(evt, "status")).toEqual({ available: false, installed: false, bytes: 0, sha256: "" });
+      expect(await asset(evt, "install")).toEqual({ ok: false, reason: "unavailable" });
+      config.computerUse = true;
+      expect(await start(evt, "Choose Next", 17)).toEqual({ ok: false, reason: "unavailable" });
+    } finally { loader._load = load; }
+  });
+
+  it("supersedes on the active controller and switches drivers once idle", async () => {
+    const load = loader._load;
+    const realDriver = require("./action-driver");
+    let unblock!: (target: object) => void;
+    const waiting = new Promise<object>(resolve => { unblock = resolve; });
+    const target = { ok: false };
+    const observer = { inspectTarget: vi.fn().mockReturnValueOnce(waiting).mockResolvedValue(target), abort: vi.fn() };
+    const headless = { inspectTarget: vi.fn().mockResolvedValue(target), finishTurn: vi.fn() };
+    const windows = vi.fn(() => observer);
+    const agent = vi.fn(() => headless);
+    const verifiedExe = vi.fn().mockReturnValueOnce("fixture.exe").mockImplementation(() => { throw new Error("integrity"); });
+    const config = { enabled: true, computerUse: true, computerUseDriver: "filow", consent };
+    try {
+      loader._load = function (request, ...rest) {
+        if (request === "./action-driver") return { ...realDriver, createWindowsActionDriver: windows };
+        if (request === "./agent-desktop-driver") return { createAgentDesktopDriver: agent };
+        if (request === "./agent-desktop-asset") return { agentDesktopAsset: () => ({ verifiedExe }) };
+        return load.call(this, request, ...rest);
+      };
+      const evt = initialize({ getSettings: () => ({ okFilow: config }), isOffline: () => false, computerUsePlanner: {} });
+      const start = () => ipcHandle.get("okfilow:cu:start")!(evt, "Choose Next", 17);
+      const first = start();
+      expect(observer.inspectTarget).toHaveBeenCalledTimes(1);
+      expect(await start()).toMatchObject({ reason: "no_target_window" });
+      unblock(target);
+      expect(await first).toMatchObject({ reason: "stopped" });
+      expect(windows).toHaveBeenCalledTimes(1);
+      expect(observer.abort).toHaveBeenCalledTimes(2); // supersede and the second turn's finish
+      config.computerUseDriver = "agent-desktop";
+      expect(await start()).toMatchObject({ reason: "no_target_window" });
+      expect(agent).toHaveBeenCalledTimes(1);
+      expect(headless.finishTurn).toHaveBeenCalledOnce();
+      expect(await start()).toEqual({ ok: false, reason: "driver_integrity" });
+      expect(observer.inspectTarget).toHaveBeenCalledTimes(2);
+    } finally { unblock(target); loader._load = load; }
+
+  });
+});
