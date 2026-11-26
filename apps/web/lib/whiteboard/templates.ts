@@ -523,7 +523,8 @@ function drawSequence(d: Extract<Diagram, { template: "sequence" }>, o: Out) {
     const y = top + 30 + k * gap;
     const from = xs[m.from], to = xs[1 - m.from];
     const colour = INK.curve[k % 3];
-    o.els.push(arrow(`seq-msg${k}`, [{ x: from, y }, { x: to + (to > from ? -4 : 4), y: y + 34 }], o.meta(0, `msg${k}`), { strokeColor: colour, strokeWidth: 2.5, roundness: null }));
+    const msgMeta: WbMeta = { step: 0, key: `msg${k}`, role: "edge", from: `seq-actor${m.from}`, to: `seq-actor${1 - m.from}`, order: k };
+    o.els.push(arrow(`seq-msg${k}`, [{ x: from, y }, { x: to + (to > from ? -4 : 4), y: y + 34 }], msgMeta, { strokeColor: colour, strokeWidth: 2.5, roundness: null }));
     // the label above the arrow, clear of it
     note(o, `seq-msg${k}-t`, m.text, { x: (from + to) / 2, y: y - 4 }, `msg${k}`, 22, INK.text);
   });

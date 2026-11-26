@@ -266,11 +266,33 @@ function layeredNodes(nodes: NodeIn[], edges: EdgeIn[], area: Box, shape: BoardS
   // along: the direction the layers follow; across: the direction nodes of one layer are spread in
   const alongSize = wide ? area.w : area.h;
   const acrossSize = wide ? area.h : area.w;
-  const pitchAlong = Math.min(alongSize / count, wide ? 340 : 150);
+  let pitchAlong = Math.min(alongSize / count, wide ? 340 : 150);
   const pitchAcross = Math.min(acrossSize / widest, wide ? 150 : 230);
-  const gapAlong = wide ? Math.max(104, pitchAlong * 0.4) : Math.max(48, pitchAlong * 0.4);
+  let gapAlong = wide ? Math.max(104, pitchAlong * 0.4) : Math.max(48, pitchAlong * 0.4);
   const gapAcross = wide ? Math.max(36, pitchAcross * 0.3) : 44;
-  const w = wide ? pitchAlong - gapAlong : pitchAcross - gapAcross;
+  let w = wide ? pitchAlong - gapAlong : pitchAcross - gapAcross;
+  if (wide && count >= 2 && count <= 3) {
+    const interEdgeLabelW = Math.max(
+      0,
+      ...edges
+        .filter((e) => e.from !== e.to && e.text && layer[index.get(e.from) ?? -1] !== layer[index.get(e.to) ?? -1])
+        .map((e) => textWidth(e.text, LABEL_FONT)),
+    );
+    if (interEdgeLabelW > 0) {
+      const longestNodeWord = Math.max(
+        80,
+        ...nodes.flatMap((nd) => nd.text.split(/\s+/).map((word) => textWidth(word, 22))),
+      );
+      const idealNodeW = Math.min(w, Math.max(156, longestNodeWord + 44));
+      const maxGapForRoom = (alongSize - 16 - count * idealNodeW) / (count - 1);
+      const wantGap = Math.min(360, Math.max(count === 2 ? 240 : 0, interEdgeLabelW + 104));
+      if (maxGapForRoom > gapAlong && wantGap > gapAlong) {
+        gapAlong = Math.min(wantGap, maxGapForRoom);
+        w = idealNodeW;
+        pitchAlong = w + gapAlong;
+      }
+    }
+  }
   const maxH = wide ? pitchAcross - gapAcross : pitchAlong - gapAlong;
   const { font, lineCount, h } = fitLabels(nodes, w, maxH, [24, 22, 20, 18, 16, 15]);
   const mid = centre(area);
@@ -283,6 +305,90 @@ function layeredNodes(nodes: NodeIn[], edges: EdgeIn[], area: Box, shape: BoardS
   return { nodes: placed, axis: wide ? "x" : "y", labelMax: wide ? gapAlong - 12 : 180 };
 }
 
+/**
+ * Places an edge label beside an arrow curve/polyline: prefers the outward side of an arc (or above
+ * a straight horizontal arrow), keeps it off its own stroke and clear of boxes, other labels and
+ * other strokes, and keeps it inside `board`. Shared by `placeEdges`, `check.ts` and `doc.ts`.
+ */
+export function placeEdgeLabel(params: {
+  pointAt: (t: number) => { x: number; y: number };
+  ownSamples: Array<{ x: number; y: number }>;
+  size: { w: number; h: number };
+  board: Box;
+  nodes: Box[];
+  labels: Box[];
+  otherStrokes?: Array<Array<{ x: number; y: number }>>;
+  requireOffStroke?: boolean;
+}): { box: Box | null; hits: number } {
+  const { pointAt, ownSamples, size, board, nodes, labels, otherStrokes = [] } = params;
+  const lw = size.w;
+  const lh = size.h;
+  const linesThrough = (candidate: Box) =>
+    otherStrokes.filter((pts) => pts.some((pt) => overlap(candidate, { x: pt.x, y: pt.y, w: 0, h: 0 }, 2))).length;
+  const ownThrough = (candidate: Box) =>
+    ownSamples.some((pt) => overlap(candidate, { x: pt.x, y: pt.y, w: 0, h: 0 }, 3));
+  const start = pointAt(0);
+  const end = pointAt(1);
+  const chordMid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  const curveMid = pointAt(0.5);
+  const aheadMid = pointAt(0.53);
+  const backMid = pointAt(0.47);
+  const alongMid = Math.hypot(aheadMid.x - backMid.x, aheadMid.y - backMid.y) || 1;
+  const uxMid = -(aheadMid.y - backMid.y) / alongMid;
+  const uyMid = (aheadMid.x - backMid.x) / alongMid;
+  const bendDot = (curveMid.x - chordMid.x) * uxMid + (curveMid.y - chordMid.y) * uyMid;
+  // Prefer the outward side of an arc (or above a straight horizontal arrow) so labels stay clear of their own stroke.
+  const preferred = Math.abs(bendDot) >= 2 ? (bendDot >= 0 ? 1 : -1) : uyMid >= 0 ? -1 : 1;
+  const narrow = board.w < 600 && !params.requireOffStroke;
+  const tries: Array<{ side: number; nodePad: number; penalty: number }> = narrow
+    ? [
+        { side: 0, nodePad: 1, penalty: 0 },
+        { side: 1, nodePad: 1, penalty: 0 },
+        { side: -1, nodePad: 1, penalty: 0 },
+      ]
+    : [
+        { side: preferred, nodePad: 12, penalty: 0 },
+        { side: -preferred, nodePad: 12, penalty: 0 },
+        { side: preferred, nodePad: 2, penalty: 0 },
+        { side: -preferred, nodePad: 2, penalty: 0 },
+        { side: 0, nodePad: 1, penalty: 1 },
+      ];
+  let box: Box | null = null;
+  let hits = Infinity;
+  search: for (const { side, nodePad, penalty } of tries) {
+    for (const t of [0.5, 0.38, 0.62, 0.28, 0.72, 0.18, 0.82, 0.11, 0.89]) {
+      const on = pointAt(t);
+      const ahead = pointAt(Math.min(1, t + 0.03));
+      const back = pointAt(Math.max(0, t - 0.03));
+      const along = Math.hypot(ahead.x - back.x, ahead.y - back.y) || 1;
+      const ux = -(ahead.y - back.y) / along;
+      const uy = (ahead.x - back.x) / along;
+      const off = side * ((Math.abs(ux) * lw) / 2 + (Math.abs(uy) * lh) / 2 + (narrow ? 7 : 10));
+      const pt = { x: on.x + ux * off, y: on.y + uy * off };
+      // kept on the board: a label near the border slides inwards instead of being cut
+      const candidate = {
+        x: Math.min(Math.max(pt.x - lw / 2, board.x), Math.max(board.x, board.x + board.w - lw)),
+        y: Math.min(Math.max(pt.y - lh / 2, board.y), board.y + board.h - lh),
+        w: Math.min(lw, board.w),
+        h: lh,
+      };
+      const ownHit = narrow || side === 0 ? 0 : ownThrough(candidate) ? 1 : 0;
+      const n =
+        nodes.filter((nb) => overlap(nb, candidate, nodePad)).length +
+        labels.filter((l) => overlap(l, candidate, narrow ? 1 : 2)).length +
+        linesThrough(candidate) +
+        ownHit +
+        penalty;
+      if (n < hits) {
+        hits = n;
+        box = candidate;
+      }
+      if (n === 0) break search;
+    }
+  }
+  return { box, hits };
+}
+
 function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[] {
   const { nodes, axis } = arr;
   const byId = new Map(nodes.map((nd) => [nd.id, nd]));
@@ -291,12 +397,13 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
   for (const e of edges) perPair.set(pairKey(e.from, e.to), (perPair.get(pairKey(e.from, e.to)) ?? 0) + 1);
   const seen = new Map<string, number>();
   const samples = (c: Curve) => Array.from({ length: 19 }, (_, i) => curveAt(c, (i + 1) / 20));
+  const nodeBoxes = nodes.map((nd) => nd.box);
   /**
    * One arrow with its label, placed against what is already there: `labels` are the labels of the
    * other arrows (not to be crossed or covered), `drawn` the other arrows (a label is not put on a line).
    */
   const place = (e: EdgeIn, index: number, k: number, labels: Box[], drawn: PlacedEdge[]): PlacedEdge | null => {
-    const linesThrough = (box: Box) => drawn.filter((o) => samples(o).some((pt) => overlap(box, { x: pt.x, y: pt.y, w: 0, h: 0 }, 2))).length;
+    const otherStrokes = drawn.map(samples);
     const a = byId.get(e.from);
     const b = byId.get(e.to);
     if (!a || !b) return null;
@@ -320,11 +427,12 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
     const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
     const nx = -(q.y - p.y) / len;
     const ny = (q.x - p.x) / len;
-    const spread = (k - (m - 1) / 2) * 62;
     const others = nodes.filter((nd) => nd.id !== e.from && nd.id !== e.to);
     // Side ports when the two boxes are apart along the diagram's reading direction.
     const sideways = axis === "x" && (a.box.x + a.box.w < b.box.x || b.box.x + b.box.w < a.box.x);
     const upright = axis === "y" && (a.box.y + a.box.h < b.box.y || b.box.y + b.box.h < a.box.y);
+    const spreadStep = m >= 2 && sideways ? 76 : 62;
+    const spread = (k - (m - 1) / 2) * spreadStep;
     const build = (bend: number): Curve => {
       const mid = { x: (p.x + q.x) / 2 + nx * (spread + bend), y: (p.y + q.y) / 2 + ny * (spread + bend) };
       let s: { x: number; y: number };
@@ -374,27 +482,17 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
       let cost = crosses(curve) ? 10 : 0;
       let box: Box | null = null;
       if (lines.length) {
-        let hits = Infinity;
-        // On the line first, at nine places along it; where every one of those is taken (a dense board,
-        // a narrow one), beside the line, on either side of it.
-        search: for (const side of [0, 1, -1]) {
-          for (const t of [0.5, 0.38, 0.62, 0.28, 0.72, 0.18, 0.82, 0.11, 0.89]) {
-            const on = curveAt(curve, t);
-            const ahead = curveAt(curve, Math.min(1, t + 0.03));
-            const back = curveAt(curve, Math.max(0, t - 0.03));
-            const along = Math.hypot(ahead.x - back.x, ahead.y - back.y) || 1;
-            const ux = -(ahead.y - back.y) / along;
-            const uy = (ahead.x - back.x) / along;
-            const off = side * ((Math.abs(ux) * lw) / 2 + (Math.abs(uy) * lh) / 2 + 7);
-            const pt = { x: on.x + ux * off, y: on.y + uy * off };
-            // kept on the board: a label near the border slides inwards instead of being cut
-            const candidate = { x: Math.min(Math.max(pt.x - lw / 2, board.x), Math.max(board.x, board.x + board.w - lw)), y: Math.min(Math.max(pt.y - lh / 2, board.y), board.y + board.h - lh), w: Math.min(lw, board.w), h: lh };
-            const n = nodes.filter((nd) => overlap(nd.box, candidate, 1)).length + labels.filter((l) => overlap(l, candidate, 1)).length + linesThrough(candidate);
-            if (n < hits) { hits = n; box = candidate; }
-            if (!n) break search;
-          }
-        }
-        cost += hits;
+        const res = placeEdgeLabel({
+          pointAt: (t) => curveAt(curve, t),
+          ownSamples: samples(curve),
+          size: { w: lw, h: lh },
+          board,
+          nodes: nodeBoxes,
+          labels,
+          otherStrokes,
+        });
+        box = res.box;
+        cost += res.hits;
       }
       if (!best || cost < best.cost) best = { curve, box, cost };
       if (!cost) break;

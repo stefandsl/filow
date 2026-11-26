@@ -6,6 +6,7 @@
 // add/update/delete by id, snapshot/restore, camera). Pure: no DOM.
 import { boundsOf, safeId, stepOf, type BinaryFile, type ExEl, type Scene } from "./scene";
 import type { Box } from "./layout";
+import { repositionEdgeLabels } from "./check";
 import { EDIT_COLOURS, type EditChange } from "./edits";
 import { boardFileOk, cleanBoardMedia, filesOf, isVideoFile, MAX_BOARD_MEDIA } from "./media";
 
@@ -25,14 +26,30 @@ export const hasEdits = (e: SceneEdits) => Object.keys(e.patch).length > 0 || e.
 const EDITABLE = ["x", "y", "width", "height", "angle", "strokeColor", "backgroundColor", "fillStyle", "strokeWidth", "strokeStyle", "roughness", "opacity", "roundness", "text", "originalText", "fontSize", "fontFamily", "textAlign", "verticalAlign", "points", "startArrowhead", "endArrowhead", "startBinding", "endBinding", "boundElements", "locked", "groupIds", "lineHeight", "autoResize", "scale", "crop"] as const;
 type Editable = (typeof EDITABLE)[number];
 
+const arrowGeometryChanged = (p: Partial<ExEl> | undefined) =>
+  Boolean(
+    p &&
+      (p.points !== undefined ||
+        p.x !== undefined ||
+        p.y !== undefined ||
+        p.startBinding !== undefined ||
+        p.endBinding !== undefined),
+  );
+const labelPositionChanged = (p: Partial<ExEl> | undefined) =>
+  Boolean(p && (p.x !== undefined || p.y !== undefined));
+
 /** The scene as it stands: compiled elements with their edits, then the added ones. */
 export function applyEdits(base: Scene, edits: SceneEdits): Scene {
   const gone = new Set(edits.deleted);
   const patches = cleanPatch(edits.patch);
   const els: ExEl[] = [];
+  const movedArrows: string[] = [];
   for (const e of base.elements) {
     if (gone.has(e.id)) continue;
     const p = patches[e.id];
+    if (e.type === "arrow" && arrowGeometryChanged(p) && !labelPositionChanged(patches[`${e.id}-t`])) {
+      movedArrows.push(e.id);
+    }
     els.push(p ? { ...e, ...p, version: (e.version ?? 1) + 1 } : e);
   }
   const have = new Set(els.map((e) => e.id));
@@ -42,7 +59,20 @@ export function applyEdits(base: Scene, edits: SceneEdits): Scene {
     const a = cleanElement(raw);
     if (!have.has(a.id)) { have.add(a.id); els.push(a); }
   }
-  return { elements: els, files: { ...base.files, ...edits.files } };
+  const files = { ...base.files, ...edits.files };
+  if (movedArrows.length) {
+    // Re-attach unbound edge labels (`${arrowId}-t`) when an arrow moved without an explicit label position patch (including reopened old edits).
+    const moves = repositionEdgeLabels({ elements: els, files }, movedArrows);
+    if (Object.keys(moves).length) {
+      for (let i = 0; i < els.length; i++) {
+        const moved = moves[els[i].id];
+        if (moved) {
+          els[i] = { ...els[i], x: moved.x, y: moved.y, version: (els[i].version ?? 1) + 1 };
+        }
+      }
+    }
+  }
+  return { elements: els, files };
 }
 
 /** Equal up to half a pixel: the canvas measures and rounds on its own, which is not a change by the user. */
@@ -71,6 +101,52 @@ export function diffEdits(base: Scene, before: SceneEdits, now: ExEl[], files: R
   }
   for (const id of compiled.keys()) if (!seen.has(id) && id !== "wb-frame") out.deleted.push(id);
   return out;
+}
+
+/**
+ * Commits edits returned by the Excalidraw canvas into `edits` and re-places unbound edge labels
+ * (`${arrowId}-t`) for every arrow whose points, position or bindings changed (unless the user
+ * moved that label directly during the same canvas session). Returns null when nothing changed.
+ */
+export function commitCanvasEdits(
+  prepared: Scene,
+  edits: SceneEdits,
+  els: ExEl[],
+  files: Record<string, BinaryFile> = {},
+): SceneEdits | null {
+  const hand = diffEdits(prepared, noEdits(), els, files);
+  if (!hasEdits(hand)) return null;
+  const merged: SceneEdits = {
+    patch: {
+      ...edits.patch,
+      ...Object.fromEntries(Object.entries(hand.patch).map(([id, p]) => [id, { ...edits.patch[id], ...p }])),
+    },
+    added: [
+      ...edits.added.filter((a) => !hand.deleted.includes(a.id) && !hand.patch[a.id]),
+      ...edits.added.filter((a) => hand.patch[a.id]).map((a) => ({ ...a, ...hand.patch[a.id] })),
+      ...hand.added,
+    ],
+    deleted: [...new Set([...edits.deleted, ...hand.deleted.filter((id) => !edits.added.some((a) => a.id === id))])],
+    files: { ...edits.files, ...hand.files },
+  };
+  const liveEls = els.filter((e) => !e.isDeleted);
+  const movedArrows = liveEls
+    .filter(
+      (e) =>
+        e.type === "arrow" &&
+        arrowGeometryChanged(hand.patch[e.id]) &&
+        !labelPositionChanged(hand.patch[`${e.id}-t`]),
+    )
+    .map((e) => e.id);
+  if (movedArrows.length) {
+    const moves = repositionEdgeLabels({ elements: liveEls, files: { ...prepared.files, ...files } }, movedArrows);
+    for (const [labelId, pos] of Object.entries(moves)) {
+      const addedIdx = merged.added.findIndex((a) => a.id === labelId);
+      if (addedIdx >= 0) merged.added[addedIdx] = { ...merged.added[addedIdx], x: pos.x, y: pos.y };
+      else merged.patch[labelId] = { ...merged.patch[labelId], x: pos.x, y: pos.y };
+    }
+  }
+  return merged;
 }
 
 // ---- .excalidraw files ----
@@ -159,10 +235,16 @@ export function readScene(scene: Scene): ElementSummary[] {
   const byId = new Map(scene.elements.map((e) => [e.id, e]));
   const labelOf = (e: ExEl) => {
     const b = e.boundElements?.find((x) => x.type === "text");
-    const t = b ? byId.get(b.id) : undefined;
+    const t = b ? byId.get(b.id) : e.type === "arrow" ? byId.get(`${e.id}-t`) : undefined;
     return t?.originalText ?? t?.text;
   };
-  return scene.elements.filter((e) => e.id !== "wb-frame" && !e.isDeleted && !(e.type === "text" && e.containerId)).map((e) => ({
+  const isUnboundEdgeLabel = (e: ExEl) =>
+    e.type === "text" &&
+    !e.containerId &&
+    e.customData?.wb?.role === "label" &&
+    e.id.endsWith("-t") &&
+    byId.get(e.id.slice(0, -2))?.type === "arrow";
+  return scene.elements.filter((e) => e.id !== "wb-frame" && !e.isDeleted && !(e.type === "text" && e.containerId) && !isUnboundEdgeLabel(e)).map((e) => ({
     id: e.id, type: e.type, step: stepOf(e), x: Math.round(e.x), y: Math.round(e.y), w: Math.round(e.width), h: Math.round(e.height),
     ...(e.type === "text" ? { text: e.originalText ?? e.text } : labelOf(e) ? { text: labelOf(e) } : {}),
     ...(e.strokeColor && e.strokeColor !== "transparent" ? { stroke: e.strokeColor } : {}),
@@ -183,6 +265,10 @@ export function companions(scene: Scene, id: string): string[] {
   const e = scene.elements.find((x) => x.id === id);
   if (!e) return [];
   const out = (e.boundElements ?? []).filter((b) => b.type === "text").map((b) => b.id);
+  if (e.type === "arrow") {
+    const unbound = scene.elements.find((x) => !x.isDeleted && x.type === "text" && !x.containerId && x.id === `${e.id}-t`);
+    if (unbound && !out.includes(unbound.id)) out.push(unbound.id);
+  }
   return out;
 }
 
@@ -277,7 +363,9 @@ export function cameraFor(scene: Scene, target: { step?: number; ids?: string[] 
  */
 export function changesToOps(scene: Scene, changes: EditChange[]): { ops: ToolOp[]; camera: { step?: number; ids?: string[]; all?: boolean } | undefined } {
   const byId = new Map(scene.elements.map((e) => [e.id, e]));
-  const labelOf = (id: string) => scene.elements.find((e) => e.containerId === id);
+  const labelOf = (id: string) =>
+    scene.elements.find((e) => e.containerId === id) ??
+    scene.elements.find((e) => e.type === "text" && !e.containerId && e.id === `${id}-t`);
   const ops: ToolOp[] = [];
   let camera: { step?: number; ids?: string[]; all?: boolean } | undefined;
   for (const c of changes) {

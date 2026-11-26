@@ -5,7 +5,7 @@
 // bent arrow, a label slid along its arrow, a thing moved back onto the board. Pure: no DOM; in the
 // page the text sizes come from Excalidraw's own measuring first, in tests and scripts from estimates.
 import { boundsOf, keyOf, type ExEl, type Scene } from "./scene";
-import type { Box } from "./layout";
+import { placeEdgeLabel, type Box } from "./layout";
 import type { ToolOp } from "./doc";
 import { chemText, texToText } from "./tex";
 
@@ -42,6 +42,126 @@ export function pathPoints(e: ExEl, per = 16): Array<{ x: number; y: number }> {
     }
   }
   out.push(p[p.length - 1]);
+  return out;
+}
+
+type Pt = { x: number; y: number };
+
+export function cumulativeLengths(pts: Pt[]): number[] {
+  const out = [0];
+  for (let i = 1; i < pts.length; i++) {
+    out.push(out[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+  }
+  return out;
+}
+
+/** Point and tangent angle (radians) along a polyline at arc-length fraction `frac` in [0, 1]. */
+export function samplePolyline(pts: Pt[], frac: number): { x: number; y: number; angle: number } {
+  if (pts.length === 0) return { x: 0, y: 0, angle: 0 };
+  if (pts.length === 1) return { x: pts[0].x, y: pts[0].y, angle: 0 };
+  const lengths = cumulativeLengths(pts);
+  const total = lengths[lengths.length - 1];
+  if (total <= 1e-6) return { x: pts[0].x, y: pts[0].y, angle: 0 };
+  const dist = Math.max(0, Math.min(1, frac)) * total;
+  let seg = 0;
+  while (seg < lengths.length - 2 && lengths[seg + 1] < dist) seg++;
+  const segLen = lengths[seg + 1] - lengths[seg];
+  const local = segLen > 1e-6 ? (dist - lengths[seg]) / segLen : 0;
+  const a = pts[seg];
+  const b = pts[seg + 1];
+  return {
+    x: a.x + (b.x - a.x) * local,
+    y: a.y + (b.y - a.y) * local,
+    angle: Math.atan2(b.y - a.y, b.x - a.x),
+  };
+}
+
+/**
+ * Re-places unbound edge labels (`${arrowId}-t`) for the named arrows using `layout.ts`
+ * `placeEdgeLabel`, keeping each label off its own stroke and clear of shapes, other labels and
+ * other arrows. Used when canvas edits commit and when saved boards with old edits reopen.
+ */
+export function repositionEdgeLabels(
+  scene: Scene,
+  arrowIds: Iterable<string>,
+): Record<string, { x: number; y: number }> {
+  const els = scene.elements.filter((e) => !e.isDeleted);
+  const byId = new Map(els.map((e) => [e.id, e]));
+  const targets: Array<{ arrow: ExEl; label: ExEl }> = [];
+  const seen = new Set<string>();
+  for (const id of arrowIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const arrow = byId.get(id);
+    if (!arrow || arrow.type !== "arrow" || !Array.isArray(arrow.points) || arrow.points.length < 2) continue;
+    const label = byId.get(`${arrow.id}-t`);
+    if (!label || label.type !== "text" || label.containerId) continue;
+    targets.push({ arrow, label });
+  }
+  if (!targets.length) return {};
+
+  const frame = byId.get("wb-frame");
+  const rawBoard = frame ? boxOf(frame) : boundsOf(els) ?? { x: 0, y: 0, w: 1200, h: 720 };
+  const rule = byId.get("wb-rule");
+  const top = rule && rawBoard.h > 120 ? Math.max(rawBoard.y, rule.y + 8) : rawBoard.y;
+  const board: Box = { x: rawBoard.x, y: top, w: rawBoard.w, h: Math.max(60, rawBoard.y + rawBoard.h - top) };
+
+  const movingLabelIds = new Set(targets.map((t) => t.label.id));
+  const nodeBoxes = els.filter(isShape).map(boxOf);
+  const fixedLabels = els
+    .filter((e) => e.type === "text" && !e.containerId && !movingLabelIds.has(e.id))
+    .map(boxOf);
+  const samplesById = new Map<string, Array<{ x: number; y: number }>>();
+  for (const e of els) {
+    if ((e.type === "arrow" || e.type === "line") && Array.isArray(e.points) && e.points.length >= 2) {
+      samplesById.set(e.id, pathPoints(e, 24));
+    }
+  }
+
+  const placed = new Map<string, { box: Box; hits: number }>();
+  const runFor = (arrow: ExEl, label: ExEl, extraLabels: Box[]) => {
+    const ownPts = samplesById.get(arrow.id) ?? pathPoints(arrow, 24);
+    const otherStrokes: Array<Array<{ x: number; y: number }>> = [];
+    for (const [id, pts] of samplesById) {
+      if (id !== arrow.id) otherStrokes.push(pts);
+    }
+    const res = placeEdgeLabel({
+      pointAt: (t) => samplePolyline(ownPts, t),
+      ownSamples: ownPts,
+      requireOffStroke: true,
+      size: { w: Math.max(4, label.width), h: Math.max(4, label.height) },
+      board,
+      nodes: nodeBoxes,
+      labels: [...fixedLabels, ...extraLabels],
+      otherStrokes,
+    });
+    return {
+      box: res.box ?? { x: label.x, y: label.y, w: label.width, h: label.height },
+      hits: res.hits,
+    };
+  };
+
+  for (const { arrow, label } of targets) {
+    const others = [...placed.values()].map((p) => p.box);
+    placed.set(label.id, runFor(arrow, label, others));
+  }
+  if (targets.length > 1) {
+    for (const { arrow, label } of targets) {
+      const current = placed.get(label.id)!;
+      const others = [...placed.entries()].filter(([id]) => id !== label.id).map(([, p]) => p.box);
+      const overlapsLater = others.some((o) => overlap(o, current.box, -2));
+      if (current.hits > 0 || overlapsLater) {
+        const again = runFor(arrow, label, others);
+        if (again.hits <= current.hits) placed.set(label.id, again);
+      }
+    }
+  }
+
+  const out: Record<string, { x: number; y: number }> = {};
+  for (const { label } of targets) {
+    const box = placed.get(label.id)!.box;
+    out[label.id] = { x: Math.round(box.x * 10) / 10, y: Math.round(box.y * 10) / 10 };
+  }
   return out;
 }
 
@@ -203,12 +323,21 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
         const trial: ExEl = { ...a, x: start.x, y: start.y, points: pts, roundness: { type: 2 } };
         if (!crossed(trial, shapes, byId).length && contains(board, boxOf(trial), 2)) {
           ops.push({ op: "update", id: a.id, props: { x: start.x, y: start.y, points: pts, roundness: { type: 2 } } });
-          const lid = a.boundElements?.find((b) => b.type === "text")?.id;
+          const lid = a.boundElements?.find((b) => b.type === "text")?.id ?? (byId.get(`${a.id}-t`)?.type === "text" ? `${a.id}-t` : undefined);
           const lab = lid ? byId.get(lid) : undefined;
-          // its label goes to the middle of the new path
-          const mid = pathPoints(trial, 12);
-          const at = mid[Math.floor(mid.length / 2)];
-          if (lab && at) ops.push({ op: "update", id: lab.id, props: { x: at.x - lab.width / 2, y: at.y - lab.height / 2 } });
+          if (lab) {
+            if (!lab.containerId) {
+              const moved = repositionEdgeLabels(
+                { elements: els.map((e) => (e.id === a.id ? trial : e)), files: scene.files },
+                [a.id],
+              )[lab.id];
+              if (moved) ops.push({ op: "update", id: lab.id, props: { x: moved.x, y: moved.y } });
+            } else {
+              const mid = pathPoints(trial, 12);
+              const at = mid[Math.floor(mid.length / 2)];
+              if (at) ops.push({ op: "update", id: lab.id, props: { x: at.x - lab.width / 2, y: at.y - lab.height / 2 } });
+            }
+          }
           break;
         }
       }
@@ -217,12 +346,15 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
       for (const id of p.ids) {
         const t = byId.get(id);
         if (!t || t.type !== "text" || done.has(id)) continue;
-        const host = t.containerId ? byId.get(t.containerId) : undefined;
+        const host = t.containerId ? byId.get(t.containerId) : t.id.endsWith("-t") ? byId.get(t.id.slice(0, -2)) : undefined;
         if (t.containerId && host?.type !== "arrow") continue;
         done.add(id);
         const skip = new Set([id, ...(host ? [host.id] : [])]);
         let spot: Box | null;
-        if (host) {
+        if (host && host.type === "arrow" && !t.containerId) {
+          const moved = repositionEdgeLabels(scene, [host.id])[t.id];
+          spot = moved ? { x: moved.x, y: moved.y, w: t.width, h: t.height } : null;
+        } else if (host && host.type === "arrow") {
           const pts = pathPoints(host, 24);
           const order = pts.map((pt, k) => ({ pt, k })).sort((u, v) => Math.abs(u.k - pts.length / 2) - Math.abs(v.k - pts.length / 2));
           spot = order.map(({ pt }) => centredAt(t, pt)).find((b) => free(b, skip)) ?? null;

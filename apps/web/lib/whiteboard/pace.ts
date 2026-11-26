@@ -9,6 +9,7 @@
 // from what this voice has taken so far (PaceMeter), the drawing is fitted to a little less than
 // that, and when the voice ends the board is completed at once.
 import type { BoardLayout } from "./layout";
+import { keyOf, stepOf, type Scene } from "./scene";
 
 /** Letters a second, before any sentence has been heard: a calm reading voice. Kana and kanji carry more sound each. */
 const START_RATE = { latin: 14, cjk: 6.5 };
@@ -74,6 +75,34 @@ export function stepSchedule(layout: BoardLayout, step: number, drawMs: number):
   const total = things.reduce((sum, t) => sum + t.weight, 0);
   if (!total || !(drawMs > 0)) return slots;
   // a thing is never drawn slower than a hand would: a step with one box does not take six seconds over it
+  const unit = Math.min(drawMs / total, 520);
+  let at = 0;
+  for (const t of things) {
+    const len = Math.round(unit * t.weight);
+    slots.set(t.key, { at: Math.round(at), len });
+    at += unit * t.weight;
+  }
+  return slots;
+}
+
+/**
+ * Reveal schedule derived directly from a compiled scene (used for template and structured diagram
+ * lessons whose keys live on the scene elements rather than plain layout nodes/edges).
+ */
+export function sceneStepSchedule(scene: Scene, step: number, drawMs: number): Map<string, Slot> {
+  const weights = new Map<string, number>();
+  const roleWeight: Record<string, number> = { node: 3, edge: 2.4, mark: 1.2, pointer: 1.2, block: 2, label: 1.5 };
+  for (const e of scene.elements) {
+    if (e.isDeleted || stepOf(e) !== step) continue;
+    const k = keyOf(e);
+    const w = roleWeight[e.customData?.wb?.role ?? "block"] ?? 2;
+    const prev = weights.get(k);
+    if (prev === undefined || w > prev) weights.set(k, w);
+  }
+  const slots = new Map<string, Slot>();
+  const things = [...weights.entries()].map(([key, weight]) => ({ key, weight }));
+  const total = things.reduce((sum, t) => sum + t.weight, 0);
+  if (!total || !(drawMs > 0)) return slots;
   const unit = Math.min(drawMs / total, 520);
   let at = 0;
   for (const t of things) {
