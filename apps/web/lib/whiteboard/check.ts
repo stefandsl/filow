@@ -4,7 +4,7 @@
 // fixOps turns the problems into edits a layout engine can make without a model: smaller type, a
 // bent arrow, a label slid along its arrow, a thing moved back onto the board. Pure: no DOM; in the
 // page the text sizes come from Excalidraw's own measuring first, in tests and scripts from estimates.
-import { boundsOf, keyOf, type ExEl, type Scene } from "./scene";
+import { arrowGeometry, boundsOf, keyOf, type ExEl, type Scene } from "./scene";
 import { placeEdgeLabel, type Box } from "./layout";
 import type { ToolOp } from "./doc";
 import { chemText, texToText } from "./tex";
@@ -176,12 +176,50 @@ function crossed(a: ExEl, shapes: ExEl[], byId: Map<string, ExEl>): ExEl[] {
     if (ends.has(s.id) || keyOf(s) === keyOf(a)) continue;
     // a shape that holds one of the arrow's ends (a cell row, a group) is not crossed either
     if ([...ends].some((id) => { const end = byId.get(id); return end && contains(boxOf(s), boxOf(end)); })) continue;
-    const b = shrink(boxOf(s), 4);
+    const b = shrink(boxOf(s), s.type === "text" ? -2 : 4);
     if (inner.some((pt) => pt.x > b.x && pt.x < b.x + b.w && pt.y > b.y && pt.y < b.y + b.h)) hits.push(s);
   }
   return hits;
 }
 
+/** Use the same bend candidates for the scene checker and for newly attached lesson arrows. */
+function routeAround(a: ExEl, obstacles: ExEl[], byId: Map<string, ExEl>, board: Box, hit?: ExEl) {
+  if (!a.points || a.points.length < 2) return;
+  const start = { x: a.x + a.points[0][0], y: a.y + a.points[0][1] };
+  const end = { x: a.x + a.points[a.points.length - 1][0], y: a.y + a.points[a.points.length - 1][1] };
+  const m = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  const len = Math.hypot(end.x - start.x, end.y - start.y) || 1;
+  const nx = -(end.y - start.y) / len, ny = (end.x - start.x) / len;
+  // a smooth bend to one side, further and further; else round the box it crossed, over or under
+  const tries: Array<Array<{ x: number; y: number }>> = [50, -50, 90, -90, 140, -140, 200, -200, 280, -280].map((off) => [start, { x: m.x + nx * off, y: m.y + ny * off }, end]);
+
+  if (hit) {
+    const hb = boxOf(hit);
+    const l = Math.min(start.x, end.x) < hb.x ? hb.x - 24 : hb.x + hb.w + 24;
+    const r = l === hb.x - 24 ? hb.x + hb.w + 24 : hb.x - 24;
+    for (const y of [hb.y - 28, hb.y + hb.h + 28]) tries.push([start, { x: l, y }, { x: r, y }, end]);
+  }
+  for (const route of tries) {
+    const trial: ExEl = { ...a, ...arrowGeometry(route), roundness: { type: 2 } };
+    if (!crossed(trial, obstacles, byId).length && contains(board, boxOf(trial), 2)) {
+      return trial;
+    }
+  }
+}
+
+export function avoidEditedObstacles(elements: ExEl[], routed: Set<string>) {
+  const byId = new Map(elements.map(e => [e.id, e]));
+  const frame = byId.get("wb-frame");
+  if (!frame) return;
+  const obstacles = elements.filter(e => isShape(e) || (e.type === "text" && !e.containerId));
+  for (const [i, edge] of elements.entries()) {
+    if (!routed.has(edge.id)) continue;
+    const [hit] = crossed(edge, obstacles, byId);
+    if (!hit) continue;
+    const trial = routeAround(edge, obstacles, byId, boxOf(frame), hit);
+    if (trial) elements[i] = trial;
+  }
+}
 /** A word of the label that the wrapped text breaks over two lines ("Sunlig / ht"). Scripts without spaces are broken anywhere by design. */
 export function brokenWord(t: ExEl): boolean {
   const original = String(t.originalText ?? "");
@@ -304,41 +342,23 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
       const a = byId.get(p.ids[0]);
       if (!a || done.has(a.id) || !a.points || a.points.length < 2) continue;
       done.add(a.id);
-      const start = { x: a.x + a.points[0][0], y: a.y + a.points[0][1] };
-      const end = { x: a.x + a.points[a.points.length - 1][0], y: a.y + a.points[a.points.length - 1][1] };
-      const m = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
-      const len = Math.hypot(end.x - start.x, end.y - start.y) || 1;
-      const nx = -(end.y - start.y) / len, ny = (end.x - start.x) / len;
-      // a smooth bend to one side, further and further; else round the box it crossed, over or under
-      const tries: Array<Array<{ x: number; y: number }>> = [50, -50, 90, -90, 140, -140, 200, -200, 280, -280].map((off) => [start, { x: m.x + nx * off, y: m.y + ny * off }, end]);
-      const hit = byId.get(p.ids[1]);
-      if (hit) {
-        const hb = boxOf(hit);
-        const l = Math.min(start.x, end.x) < hb.x ? hb.x - 24 : hb.x + hb.w + 24;
-        const r = l === hb.x - 24 ? hb.x + hb.w + 24 : hb.x - 24;
-        for (const y of [hb.y - 28, hb.y + hb.h + 28]) tries.push([start, { x: l, y }, { x: r, y }, end]);
-      }
-      for (const route of tries) {
-        const pts = route.map((pt) => [pt.x - start.x, pt.y - start.y] as [number, number]);
-        const trial: ExEl = { ...a, x: start.x, y: start.y, points: pts, roundness: { type: 2 } };
-        if (!crossed(trial, shapes, byId).length && contains(board, boxOf(trial), 2)) {
-          ops.push({ op: "update", id: a.id, props: { x: start.x, y: start.y, points: pts, roundness: { type: 2 } } });
-          const lid = a.boundElements?.find((b) => b.type === "text")?.id ?? (byId.get(`${a.id}-t`)?.type === "text" ? `${a.id}-t` : undefined);
-          const lab = lid ? byId.get(lid) : undefined;
-          if (lab) {
-            if (!lab.containerId) {
-              const moved = repositionEdgeLabels(
-                { elements: els.map((e) => (e.id === a.id ? trial : e)), files: scene.files },
-                [a.id],
-              )[lab.id];
-              if (moved) ops.push({ op: "update", id: lab.id, props: { x: moved.x, y: moved.y } });
-            } else {
-              const mid = pathPoints(trial, 12);
-              const at = mid[Math.floor(mid.length / 2)];
-              if (at) ops.push({ op: "update", id: lab.id, props: { x: at.x - lab.width / 2, y: at.y - lab.height / 2 } });
-            }
+      const trial = routeAround(a, shapes, byId, board, byId.get(p.ids[1]));
+      if (trial) {
+        ops.push({ op: "update", id: a.id, props: { x: trial.x, y: trial.y, points: trial.points, roundness: trial.roundness } });
+        const lid = a.boundElements?.find((b) => b.type === "text")?.id ?? (byId.get(`${a.id}-t`)?.type === "text" ? `${a.id}-t` : undefined);
+        const lab = lid ? byId.get(lid) : undefined;
+        if (lab) {
+          if (!lab.containerId) {
+            const moved = repositionEdgeLabels(
+              { elements: els.map((e) => (e.id === a.id ? trial : e)), files: scene.files },
+              [a.id],
+            )[lab.id];
+            if (moved) ops.push({ op: "update", id: lab.id, props: { x: moved.x, y: moved.y } });
+          } else {
+            const mid = pathPoints(trial, 12);
+            const at = mid[Math.floor(mid.length / 2)];
+            if (at) ops.push({ op: "update", id: lab.id, props: { x: at.x - lab.width / 2, y: at.y - lab.height / 2 } });
           }
-          break;
         }
       }
     } else if (p.kind === "overlap") {

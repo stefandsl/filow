@@ -136,14 +136,19 @@ export function labelled(shape: ExEl, label: ExEl): [ExEl, ExEl] {
   return [shape, label];
 }
 
-export function arrow(id: string, pts: Array<{ x: number; y: number }>, meta: WbMeta, rest: Partial<ExEl> = {}): ExEl {
+export function arrowGeometry(pts: Array<{ x: number; y: number }>) {
   const x0 = pts[0].x;
   const y0 = pts[0].y;
   const rel = pts.map((p) => [r1(p.x - x0), r1(p.y - y0)] as [number, number]);
   const xs = rel.map((p) => p[0]);
   const ys = rel.map((p) => p[1]);
-  return el(id, "arrow", { x: x0, y: y0, w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }, meta, {
-    strokeColor: INK.soft, roundness: pts.length > 2 ? { type: 2 } : null, points: rel, lastCommittedPoint: null,
+  return { x: r1(x0), y: r1(y0), width: r1(Math.max(...xs) - Math.min(...xs)), height: r1(Math.max(...ys) - Math.min(...ys)), points: rel };
+}
+
+export function arrow(id: string, pts: Array<{ x: number; y: number }>, meta: WbMeta, rest: Partial<ExEl> = {}): ExEl {
+  const { x, y, width, height, points } = arrowGeometry(pts);
+  return el(id, "arrow", { x, y, w: width, h: height }, meta, {
+    strokeColor: INK.soft, roundness: pts.length > 2 ? { type: 2 } : null, points, lastCommittedPoint: null,
     startBinding: null, endBinding: null, startArrowhead: null, endArrowhead: "arrow", elbowed: false,
     ...rest,
   });

@@ -4,7 +4,7 @@ import { applyEdits, commitCanvasEdits, excalidrawFile, noEdits, parseExcalidraw
 import { layoutBoard } from "./layout";
 import { validateLesson } from "./lesson";
 import { drawMsFor, sceneStepSchedule, stepSchedule } from "./pace";
-import { boardLesson, sceneFromLayout } from "./scene";
+import { boardLesson, sceneFromLayout, type ExEl } from "./scene";
 import { readDiagram, sceneFromDiagram, workedExample } from "./templates";
 import { pathPoints } from "./check";
 import {
@@ -531,6 +531,39 @@ describe("X-10 round 2 regressions: on-arrow path, label/box/outline clearance, 
 });
 
 describe("X-10 label placement and static receivers", () => {
+  it("attaches the next ACK to the dragged Client and keeps its label clear", () => {
+    const shown = boardLesson(tcpLesson);
+    const reply = sceneFromLayout(layoutBoard(shown, 1, "wide"));
+    const drag: Record<string, Partial<ExEl>> = {
+      "n-client": { x: 36.1, y: 457.9 },
+      "n-client-t": { x: 87.5, y: 472.9 },
+      "a-client-server": { x: 185.9, y: 455.8, points: [[0, 0], [206.4, -112.1], [385.4, -83.1]] },
+      "a-server-client": { x: 571.3, y: 403.1, points: [[0, 0], [-183.6, 29.2], [-350.7, 65]] },
+    };
+    const edits = commitCanvasEdits(reply, noEdits(), reply.elements.map(e => ({ ...e, ...drag[e.id] })))!;
+    const next = applyEdits(sceneFromLayout(layoutBoard(shown, 2, "wide")), edits);
+    const byId = new Map(next.elements.map(e => [e.id, e]));
+    const client = byId.get("n-client")!;
+    const ack = byId.get("a-client-server-2")!;
+    const stroke = pathPoints(ack, 200);
+    const start = stroke[0];
+    const gap = Math.max(client.x - start.x, start.x - client.x - client.width,
+      client.y - start.y, start.y - client.y - client.height);
+    expect(gap).toBeGreaterThanOrEqual(0);
+    expect(gap).toBeLessThanOrEqual(12);
+    const replyLabel = renderedTextRect(byId.get("a-server-client-t")!, byId);
+    expect(stroke.some(pt => rectsOverlap(replyLabel, { ...pt, w: 0, h: 0 }))).toBe(false);
+    const label = byId.get(ack.id + "-t")!;
+    const rect = renderedTextRect(label, byId);
+    expect(stroke.some(pt => rectsOverlap(rect, { ...pt, w: 0, h: 0 }, 1))).toBe(false);
+    for (const e of next.elements) {
+      if (e === label || e.id === "wb-frame") continue;
+      if (e.type === "text" || ["rectangle", "ellipse", "diamond"].includes(e.type)) {
+        const box = e.type === "text" ? renderedTextRect(e, byId) : { x: e.x, y: e.y, w: e.width, h: e.height };
+        expect(rectsOverlap(rect, box), e.id).toBe(false);
+      }
+    }
+  });
   it("heals a legacy drag on reopen and respects subsequent manual label edits", () => {
     const base = sceneFromLayout(layoutBoard(boardLesson(tcpLesson), 1, "wide"));
     const legacy = noEdits();

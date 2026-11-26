@@ -4,9 +4,9 @@
 // that grows by a step or is laid out again keeps them. This file also reads and writes
 // .excalidraw files and is the tool surface an agent drives the board with (read_scene,
 // add/update/delete by id, snapshot/restore, camera). Pure: no DOM.
-import { boundsOf, safeId, stepOf, type BinaryFile, type ExEl, type Scene } from "./scene";
+import { arrowGeometry, boundsOf, safeId, stepOf, type BinaryFile, type ExEl, type Scene } from "./scene";
 import type { Box } from "./layout";
-import { repositionEdgeLabels } from "./check";
+import { avoidEditedObstacles, repositionEdgeLabels } from "./check";
 import { EDIT_COLOURS, type EditChange } from "./edits";
 import { boardFileOk, cleanBoardMedia, filesOf, isVideoFile, MAX_BOARD_MEDIA } from "./media";
 
@@ -38,15 +38,47 @@ const arrowGeometryChanged = (p: Partial<ExEl> | undefined) =>
 const labelPositionChanged = (p: Partial<ExEl> | undefined) =>
   Boolean(p && (p.x !== undefined || p.y !== undefined));
 
+/** Carry a compiled port with its box and keep the bend between the two ports. */
+function followBoxEdits(edge: ExEl, nodes: Map<string, ExEl>, patches: SceneEdits["patch"]) {
+  const points = edge.points;
+  if (!points || points.length < 2) return;
+  const offset = (id: string | undefined, [dx, dy]: [number, number]) => {
+    const node = id && nodes.get(id);
+    const p = id && patches[id];
+    if (!node || !p) return { x: 0, y: 0 };
+    // Port coordinates inside the box scale with it. The gap outside each side stays fixed.
+    const fraction = (v: number, size: number) => size > 0 ? Math.max(0, Math.min(1, v / size)) : 0;
+    return {
+      x: (p.x ?? node.x) - node.x + ((p.width ?? node.width) - node.width) * fraction(edge.x + dx - node.x, node.width),
+      y: (p.y ?? node.y) - node.y + ((p.height ?? node.height) - node.height) * fraction(edge.y + dy - node.y, node.height),
+    };
+  };
+  const start = offset(edge.startBinding?.elementId, points[0]);
+  const end = offset(edge.endBinding?.elementId, points[points.length - 1]);
+  if (!start.x && !start.y && !end.x && !end.y) return;
+  return arrowGeometry(points.map(([x, y], i) => {
+    const t = i / (points.length - 1);
+    return { x: edge.x + x + start.x * (1 - t) + end.x * t, y: edge.y + y + start.y * (1 - t) + end.y * t };
+  }));
+}
 /** The scene as it stands: compiled elements with their edits, then the added ones. */
 export function applyEdits(base: Scene, edits: SceneEdits): Scene {
   const gone = new Set(edits.deleted);
   const patches = cleanPatch(edits.patch);
   const els: ExEl[] = [];
+  const nodes = new Map(base.elements.filter(e => e.customData?.wb?.role === "node" && !gone.has(e.id)).map(e => [e.id, e]));
+  const routed = new Set<string>();
   const movedArrows: string[] = [];
   for (const e of base.elements) {
     if (gone.has(e.id)) continue;
-    const p = patches[e.id];
+    let p = patches[e.id];
+    if (e.type === "arrow" && !arrowGeometryChanged(p)) {
+      const geometry = followBoxEdits(e, nodes, patches);
+      if (geometry) {
+        p = { ...p, ...geometry };
+        routed.add(e.id);
+      }
+    }
     if (e.type === "arrow" && arrowGeometryChanged(p) && !labelPositionChanged(patches[`${e.id}-t`])) {
       movedArrows.push(e.id);
     }
@@ -59,6 +91,7 @@ export function applyEdits(base: Scene, edits: SceneEdits): Scene {
     const a = cleanElement(raw);
     if (!have.has(a.id)) { have.add(a.id); els.push(a); }
   }
+  if (routed.size) avoidEditedObstacles(els, routed);
   const files = { ...base.files, ...edits.files };
   if (movedArrows.length) {
     // Re-attach unbound edge labels (`${arrowId}-t`) when an arrow moved without an explicit label position patch (including reopened old edits).
