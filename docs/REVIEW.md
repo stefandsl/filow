@@ -381,3 +381,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R427 (2026-11-26, X-14): Keep the controller that owns an active turn through supersession and select the configured driver when idle. Check helper shutdown, integrity failure and zero fallback dispatches.
 - R428 (2026-11-26, X-14): Keep the installer and download controls closed until a signed driver is hosted. Check package inputs, asset status and direct install refusal.
 - R429 (2026-11-26, X-14): Share the explicit pilot-only list across package inclusion, exclusion and missing-module tests. Check both require scanners and load the panel with the listed modules withheld.
+- R430 (2026-11-27, tray quit): Filow stays in the tray when its window closes, so the tray menu must always end with a Quit item that calls app.quit(). Check: okfilow-tray-menu.test.ts.

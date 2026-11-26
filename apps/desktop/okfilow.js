@@ -3,7 +3,7 @@
 // bubble, pointing), a small panel window that is also the "brain" (mic, speech-to-text, the
 // /api/buddy/ask call, the voice), a tray icon, the hold-to-talk hotkey and the screenshots.
 // Screenshots stay in memory; every OK Filow window is excluded from capture.
-const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut: electronShortcuts, nativeImage, shell, systemPreferences } = require("electron");
+const { app, BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut: electronShortcuts, nativeImage, shell, systemPreferences } = require("electron");
 const { globalInputOff, shortcutsFor, REFUSED_INSERT } = require("./global-input");
 /** Test isolation (global-input.js): no hook, no global shortcut, no typing into other windows, no focus taken. */
 const INPUT_OFF = globalInputOff();
@@ -924,17 +924,9 @@ function createOkFilow(deps) {
   }
   function refreshTray() {
     if (!tray) return;
-    const c = cfg();
-    // Phone questions waiting: a count only (never their text), none during a slide show.
-    const phones = phoneCount();
-    tray.setContextMenu(
-      Menu.buildFromTemplate([
-        ...(phones ? [{ label: menuText("okfPhoneWaiting", { n: phones }), click: togglePanel }] : []),
-        { label: menuText("okfOpen"), click: togglePanel },
-        { label: menuText("okfShowAlways"), type: "checkbox", checked: c.showAlways, click: (i) => applyConfig({ showAlways: i.checked }) },
-        { label: menuText("okfEnabled"), type: "checkbox", checked: c.enabled, click: (i) => applyConfig({ enabled: i.checked }) },
-      ]),
-    );
+    tray.setContextMenu(Menu.buildFromTemplate(require("./okfilow-tray-menu").trayTemplate({
+      menuText, cfg: cfg(), phones: phoneCount(), togglePanel, applyConfig, quit: () => app.quit(),
+    })));
   }
 
   function applyConfig(patch) {
