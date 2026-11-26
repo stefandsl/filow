@@ -597,6 +597,10 @@ public static class FilowActionHelper {
       points.Add(new POINT { X = GetInt(req, "physX", int.MinValue), Y = GetInt(req, "physY", int.MinValue) });
     }
     Action check = delegate { CheckTarget(hwnd, bounds, points); };
+    if (action == "check_target") {
+      check();
+      return new Dictionary<string, object> { { "ok", true } };
+    }
     var inputs = new List<INPUT>();
     if (action == "move" || action == "click" || action == "double_click" || action == "triple_click" ||
         action == "right_click" || action == "middle_click" || action == "mouse_down" || action == "mouse_up") {

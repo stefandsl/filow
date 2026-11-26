@@ -892,3 +892,5 @@ Le Impostazioni offrono la cancellazione dei modelli solo per download completat
 Il modello di confronto facoltativo richiede i file mancanti a Hugging Face solo dopo la tua autorizzazione. La prova privata funziona anche senza il modello.
 
 Quando Giorno per giorno verifica un resoconto, mostra un messaggio durante il caricamento del modello locale. Se il modello non è disponibile, spunta manualmente l’attività.
+
+Nelle impostazioni di OK Filow su Windows x64, attiva il controllo sperimentale delle altre app per vedere il driver di azione. Scarica e seleziona agent-desktop v1.3.1 per agire sui controlli supportati senza spostare il puntatore. Il download è facoltativo (1,84 MB, Apache-2.0). Puoi eliminarlo dalle stesse impostazioni.

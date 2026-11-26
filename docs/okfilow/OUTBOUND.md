@@ -222,3 +222,5 @@ An unsuccessful OpenRouter answer returns its status without the raw provider bo
   asked again in the pane, once.
 
 The optional matching model requests missing files from Hugging Face only after you approve that download. Private practice works without it.
+
+The optional agent-desktop v1.3.1 download contacts GitHub Releases and its asset CDN. It sends an HTTPS download request only after the user chooses Download. Filow verifies the archive and executable. During a turn the local MCP child reads the selected window through UI Automation. Filow sends the headless driver a window ID and single-use semantic ref over stdio. The accessibility tree stays on the PC. The planner uses the existing row 23 consent.

@@ -336,3 +336,6 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R333 (X-14): Restore the granted target after a nonce-matched Allow and recheck the grant before dispatch. Check focus success, denied focus, a resize and Stop.
 - R334 (X-14): Release keys still held after a partial hotkey send even when foreground ownership changes. Check the release path has no target predicate and contains only key-up events.
 - R335 (X-14): Freeze the confirmation scoring and label simulated ownership probes before a trial. Check both task read-backs, the refusal evidence and the scripted confirmation counts.
+
+- R340 (2026-11-26, X-14): Consume a headless snapshot before its first dispatch and bind the full qualified ref to the gated window and control. Check a replay, ambiguous target and stale ref for zero fallback calls.
+- R341 (2026-11-26, X-14): Cancel the owned MCP tree on Stop and finish every pending call on child exit. Check Stop during dispatch, a child crash and headless-only process arguments.

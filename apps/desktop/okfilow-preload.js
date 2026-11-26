@@ -85,6 +85,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   },
   /** Experimental Gemini Computer Use pilot (X-14). */
   computerUse: {
+    asset: (op) => ipcRenderer.invoke("okfilow:cu:asset", op),
     start: (task, targetHwnd) => ipcRenderer.invoke("okfilow:cu:start", task, targetHwnd),
     stop: (reason) => ipcRenderer.invoke("okfilow:cu:stop", reason),
     confirm: (answer) => ipcRenderer.send("okfilow:cu:confirm", answer),

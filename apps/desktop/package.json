@@ -158,6 +158,8 @@
       "ollama-runtime.js",
       "local-ownership.js",
       "action-driver.js",
+      "agent-desktop-driver.js",
+      "agent-desktop-asset.js",
       "action-gate.js",
       "action-loop.js",
       "gemini-cu-planner.js",

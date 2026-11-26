@@ -274,7 +274,11 @@ function createActionDriver(transport = {}) {
     return sendCommand("focus", { hwnd });
   }
 
-  return { focusTarget, inspectTarget, captureTarget, readBack, execute, abort };
+  function checkTarget(hwnd, bounds, point) {
+    return sendCommand("exec", { action: "check_target", hwnd, bounds, physX: point.x, physY: point.y });
+  }
+
+  return { checkTarget, focusTarget, inspectTarget, captureTarget, readBack, execute, abort };
 }
 
 /**

@@ -74,6 +74,7 @@ const DEFAULTS = {
   memory: false,
   /** Experimental Gemini Computer Use pilot (X-14): off by default. */
   computerUse: false,
+  computerUseDriver: "filow",
   /** Its folder; empty means "okfilow-answers" in the app's data folder (see defaultAnswerDir). */
   answerDir: "",
   /** What the user allowed or refused to send outside, per kind and recipient ("ask:openrouter/google"). */
@@ -183,6 +184,7 @@ function nextCfg(was, patch) {
   next.pauseKey = keyChoice(next.pauseKey, PAUSE_KEYS);
   next.answerLog = next.answerLog === true;
   next.memory = next.memory === true;
+  if (next.computerUseDriver !== "agent-desktop") next.computerUseDriver = "filow";
   next.computerUse = next.computerUse === true;
   next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
   if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";
@@ -1769,9 +1771,22 @@ function createOkFilow(deps) {
   const { createComputerUseController } = require("./action-loop");
   let pendingCuConfirm = null;
   let computerUseController = null;
+  const asset = require("./agent-desktop-asset").agentDesktopAsset(userData);
+  ipcMain.handle("okfilow:cu:asset", guard(async (op) => {
+    if (op === "status") return asset.status();
+    if (op === "install" && isOffline()) throw new Error("offline_mode");
+    if (op === "remove") {
+      cancelComputerUse("driver_removed");
+      setCfg({ computerUseDriver: "filow" });
+    }
+    return asset.change(op);
+  }));
   function getComputerUseController() {
-    if (computerUseController) return computerUseController;
-    const driver = deps.actionDriver || createWindowsActionDriver({ log: logLine });
+    if (computerUseController?.active()) cancelComputerUse("superseded");
+    const observer = createWindowsActionDriver({ log: logLine });
+    const driver = deps.actionDriver || (cfg().computerUseDriver === "agent-desktop"
+      ? require("./agent-desktop-driver").createAgentDesktopDriver({ observer, exe: asset.verifiedExe(), stateDir: asset.stateDir })
+      : { ...observer, finishTurn: observer.abort });
     const planner = deps.computerUsePlanner || createGeminiPlanner();
     computerUseController = createComputerUseController({
       planner,
@@ -1798,7 +1813,7 @@ function createOkFilow(deps) {
       return { ok: false, reason: "consent_required", needsConsent: { kind: "computeruse", recipient: computerUseRecipient() } };
     }
     const restoreFocusAtStart = Boolean(targetHwnd && panel?.isFocused());
-    if (restoreFocusAtStart) panel.blur();
+    if (restoreFocusAtStart && c.computerUseDriver !== "agent-desktop") panel.blur();
     const ctrl = getComputerUseController();
     return ctrl.run({
       task: typeof task === "string" ? task.slice(0, 1000) : "",
