@@ -1764,13 +1764,23 @@ function createOkFilow(deps) {
   });
 
   // ---- X-14 Computer Use pilot (Gemini planner behind Filow's grant gate) ----
-  const { createWindowsActionDriver } = require("./action-driver");
-  const { createGeminiPlanner } = require("./gemini-cu-planner");
-  const { createComputerUseController } = require("./action-loop");
+  // X-14: no driver ships in the default download until it passes, so the packaged app has none of
+  // these modules. Load them only when the pilot starts; when they are absent it is unavailable.
   let pendingCuConfirm = null;
   let computerUseController = null;
   function getComputerUseController() {
     if (computerUseController) return computerUseController;
+    let cu;
+    try {
+      cu = {
+        ...require("./action-driver"),
+        ...require("./gemini-cu-planner"),
+        ...require("./action-loop"),
+      };
+    } catch {
+      return null;
+    }
+    const { createWindowsActionDriver, createGeminiPlanner, createComputerUseController } = cu;
     const driver = deps.actionDriver || createWindowsActionDriver({ log: logLine });
     const planner = deps.computerUsePlanner || createGeminiPlanner();
     computerUseController = createComputerUseController({
@@ -1797,9 +1807,10 @@ function createOkFilow(deps) {
     if (!computerUseGranted(c.consent)) {
       return { ok: false, reason: "consent_required", needsConsent: { kind: "computeruse", recipient: computerUseRecipient() } };
     }
+    const ctrl = getComputerUseController();
+    if (!ctrl) return { ok: false, reason: "unavailable" };
     const restoreFocusAtStart = Boolean(targetHwnd && panel?.isFocused());
     if (restoreFocusAtStart) panel.blur();
-    const ctrl = getComputerUseController();
     return ctrl.run({
       task: typeof task === "string" ? task.slice(0, 1000) : "",
       userId: "presenter",

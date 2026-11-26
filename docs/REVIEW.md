@@ -336,3 +336,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R333 (X-14): Restore the granted target after a nonce-matched Allow and recheck the grant before dispatch. Check focus success, denied focus, a resize and Stop.
 - R334 (X-14): Release keys still held after a partial hotkey send even when foreground ownership changes. Check the release path has no target predicate and contains only key-up events.
 - R335 (X-14): Freeze the confirmation scoring and label simulated ownership probes before a trial. Check both task read-backs, the refusal evidence and the scripted confirmation counts.
+- R336 (2026-11-26, X-14): Keep a computer-use driver out of the packaged app until its trial passes: leave the driver, gate, loop, planner and native helper out of `build.files` and `asarUnpack`, and load them only when the pilot starts so a missing module answers "unavailable". Check: cu-packaging.test.ts.
