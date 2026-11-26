@@ -12,7 +12,7 @@ function killWindowsTree(pid) {
 }
 
 function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdtempSync, clearState = dir => fs.rmSync(dir, { recursive: true, force: true }), spawn = cp.spawn, killTree = killWindowsTree }) {
-  let child, pending, frame, privateState;
+  let child, ownership, pending, frame, privateState;
   let generation = 0, seq = 0;
 
   function end(reason, kill) {
@@ -25,7 +25,10 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
       pending.reject(new Error(reason));
       pending = null;
     }
-    if (kill && mine?.pid) killTree(mine.pid);
+    if (kill && mine?.pid) {
+      try { killTree(mine.pid); } catch { /* The server may already have exited. */ }
+    }
+    observer.abort(); // Closing the helper releases the job, including orphaned tool workers.
     if (privateState) {
       clearState(privateState);
       privateState = null;
@@ -37,12 +40,14 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
     // Inherit only OS paths. Parent planner credentials and upstream global flags stay out.
     fs.mkdirSync(stateDir, { recursive: true });
     privateState = makeState(path.join(stateDir, "turn-"));
-    const env = { AGENT_DESKTOP_HOME: privateState };
+    // v1.3.1 creates the state root with its own private Windows DACL.
+    const env = { AGENT_DESKTOP_HOME: path.join(privateState, "refs") };
     for (const k of ["SystemRoot", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "SystemDrive"]) {
       if (process.env[k]) env[k] = process.env[k];
     }
     const mine = spawn(exe, ["mcp"], { env, windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
     child = mine;
+    ownership = observer.ownProcessTree(mine.pid);
     const gone = () => { if (child === mine) end("driver_ended", false); };
     mine.once("exit", gone);
     mine.once("error", gone);
@@ -72,9 +77,12 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
     });
   }
 
-  function call(name, args) {
-    if (pending) throw new Error("driver_busy");
+  async function call(name, args) {
     start();
+    const mine = child;
+    const owned = await ownership;
+    if (!mine || mine !== child || !owned?.ok) throw new Error("driver_ownership_failed");
+    if (pending) throw new Error("driver_busy");
     const id = ++seq;
     return new Promise((resolve, reject) => {
       pending = { id, resolve, reject, timer: setTimeout(() => end("driver_timeout", true), 12000) };
@@ -143,7 +151,7 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
   }
 
   return { inspectTarget: observer.inspectTarget, captureTarget, readBack: observer.readBack, execute,
-    finishTurn() { try { end("turn_ended", true); } finally { observer.abort(); } }, focusTarget: async () => ({ ok: true }), abort() { try { end("aborted", true); } finally { observer.abort(); } } };
+    finishTurn() { end("turn_ended", true); }, focusTarget: async () => ({ ok: true }), abort() { end("aborted", true); } };
 }
 
 module.exports = { createAgentDesktopDriver };

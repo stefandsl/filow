@@ -339,3 +339,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 
 - R340 (2026-11-26, X-14): Consume a headless snapshot before its first dispatch and bind the full qualified ref to the gated window and control. Check a replay, ambiguous target and stale ref for zero fallback calls.
 - R341 (2026-11-26, X-14): Cancel the owned MCP tree on Stop and finish every pending call on child exit. Check Stop during dispatch, a child crash and headless-only process arguments.
+- R342 (2026-11-26, X-14): Attach the MCP server to a kill-on-close job before its first request. Check that server death closes the owner while a worker is still alive.
+- R343 (2026-11-26, X-14): Let the pinned binary create its private state root inside a unique turn folder. Check a real scoped snapshot on Windows with inherited directory permissions.

@@ -278,7 +278,7 @@ function createActionDriver(transport = {}) {
     return sendCommand("exec", { action: "check_target", hwnd, bounds, physX: point.x, physY: point.y });
   }
 
-  return { checkTarget, focusTarget, inspectTarget, captureTarget, readBack, execute, abort };
+  return { ownProcessTree: pid => sendCommand("own_tree", { pid }), checkTarget, focusTarget, inspectTarget, captureTarget, readBack, execute, abort };
 }
 
 /**
@@ -383,6 +383,7 @@ function createWindowsActionDriver(opts = {}) {
       if (cmd === "inspect") line = `inspect ${Number(data.hwnd) || 0} ${parentPid}`;
       else if (cmd === "capture") line = `capture ${Number(data.hwnd) || 0} ${Number(data.maxWidth) || 1280} ${parentPid}`;
       else if (cmd === "readback") line = `readback ${Number(data.hwnd) || 0}`;
+      else if (cmd === "own_tree") line = `own_tree ${data.pid}`;
       else if (cmd === "focus") line = `focus ${Number(data.hwnd) || 0}`;
       else if (cmd === "exec") line = `exec ${JSON.stringify(data)}`;
       else throw new Error(`unknown_driver_command:${cmd}`);

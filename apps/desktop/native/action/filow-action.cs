@@ -222,6 +222,62 @@ public static class FilowActionHelper {
     } finally { CloseHandle(p); }
   }
 
+  [StructLayout(LayoutKind.Sequential)]
+  struct BasicLimits {
+    public long processTime, jobTime;
+    public uint flags;
+    public UIntPtr minWorkingSet, maxWorkingSet;
+    public uint activeProcesses;
+    public UIntPtr affinity;
+    public uint priority, scheduling;
+  }
+
+  [StructLayout(LayoutKind.Sequential)]
+  struct ExtendedLimits {
+    public BasicLimits basic;
+    public ulong readOps, writeOps, otherOps, readBytes, writeBytes, otherBytes;
+    public UIntPtr processMemory, jobMemory, peakProcessMemory, peakJobMemory;
+  }
+
+  [StructLayout(LayoutKind.Sequential)]
+  struct ProcessInfo {
+    public IntPtr exitStatus, peb, affinity, priority, pid, parent;
+  }
+
+  [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr handle, int infoClass, out ProcessInfo info, int size, out int length);
+  [DllImport("kernel32.dll")] static extern IntPtr CreateJobObject(IntPtr attributes, string name);
+  [DllImport("kernel32.dll")] static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref ExtendedLimits limits, uint size);
+  [DllImport("kernel32.dll")] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+  // The kernel releases this handle on helper exit, including a crash or parent pipe EOF.
+  static IntPtr ownedJob;
+  static bool OwnDriverTree(uint pid) {
+    if (ownedJob != IntPtr.Zero) return false;
+    const uint SET_QUOTA = 0x0100, TERMINATE = 0x0001;
+    IntPtr child = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SET_QUOTA | TERMINATE, false, pid);
+    if (child == IntPtr.Zero) return false;
+    try {
+      ProcessInfo mine, theirs;
+      int size = Marshal.SizeOf(typeof(ProcessInfo)), length;
+      using (var self = Process.GetCurrentProcess()) {
+        if (NtQueryInformationProcess(self.Handle, 0, out mine, size, out length) != 0 ||
+            NtQueryInformationProcess(child, 0, out theirs, size, out length) != 0 ||
+            mine.parent == IntPtr.Zero || mine.parent != theirs.parent || theirs.pid.ToInt64() != pid) return false;
+      }
+      var image = new StringBuilder(1024);
+      int chars = image.Capacity;
+      if (!QueryFullProcessImageName(child, 0, image, ref chars) ||
+          !String.Equals(Path.GetFileName(image.ToString()), "agent-desktop.exe", StringComparison.OrdinalIgnoreCase)) return false;
+      IntPtr job = CreateJobObject(IntPtr.Zero, null);
+      if (job == IntPtr.Zero) return false;
+      var limits = new ExtendedLimits();
+      limits.basic.flags = 0x2000; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+      if (!SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf(typeof(ExtendedLimits))) ||
+          !AssignProcessToJobObject(job, child)) { CloseHandle(job); return false; }
+      ownedJob = job;
+      return true;
+    } finally { CloseHandle(child); }
+  }
+
   static string ExeName(uint pid) {
     IntPtr p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
     if (p == IntPtr.Zero) return "";
@@ -773,6 +829,8 @@ public static class FilowActionHelper {
           int maxW = parts.Length >= 2 ? int.Parse(parts[1], CultureInfo.InvariantCulture) : 1280;
           uint ppid = parts.Length >= 3 ? uint.Parse(parts[2], CultureInfo.InvariantCulture) : 0;
           res = CaptureWindow(hw, maxW, ppid);
+        } else if (cmd == "own_tree") {
+          res = new Dictionary<string, object> { { "ok", OwnDriverTree(uint.Parse(rest, CultureInfo.InvariantCulture)) } };
         } else if (cmd == "readback") {
           long hw = rest.Length > 0 ? long.Parse(rest, CultureInfo.InvariantCulture) : 0;
           res = ReadBackWindow(hw);

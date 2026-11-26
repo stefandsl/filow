@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import path from "node:path";
 import { tmpdir } from "node:os";
 import { EventEmitter } from "node:events";
 import { PassThrough, Writable } from "node:stream";
@@ -36,7 +37,7 @@ async function fixture(mode = "ok") {
   } });
   const spawn = vi.fn(() => child);
   const killTree = vi.fn();
-  const observer = { abort: vi.fn(), focusTarget: vi.fn(), checkTarget: vi.fn(async () => ({ ok: true })),
+  const observer = { ownProcessTree: vi.fn(async () => ({ok:true})), abort: vi.fn(), focusTarget: vi.fn(), checkTarget: vi.fn(async () => ({ ok: true })),
     captureTarget: async () => ({ hwnd: 17, info: { exe: "fixture.exe" }, bounds, snapshotId: "frame",
       elements: [{ name: "Next", x1: 50, y1: 50, x2: 250, y2: 250 }] }) };
   const driver = createAgentDesktopDriver({ observer, spawn, killTree, exe: "fixture.exe", stateDir: tmpdir(), makeState: () => "unused", clearState: vi.fn() });
@@ -54,7 +55,7 @@ it("rejects replay and uses only a headless ref without focusing", async () => {
   const f = await fixture();
   await f.driver.focusTarget(17);
   expect(f.observer.focusTarget).not.toHaveBeenCalled();
-  expect(f.spawn.mock.calls[0]).toEqual(["fixture.exe", ["mcp"], expect.anything()]);
+  expect(f.spawn.mock.calls[0]).toEqual(["fixture.exe", ["mcp"], expect.objectContaining({ env: expect.objectContaining({ AGENT_DESKTOP_HOME: path.join("unused", "refs") }) })]);
   expect(await f.driver.execute(action, f.context)).toMatchObject({ ok: true });
   expect(await f.driver.execute(action, f.context)).toMatchObject({ refused: true });
   expect(f.tools).toEqual(["desktop_snapshot", "desktop_click"]);
@@ -71,4 +72,11 @@ it("refuses on child crash without replay", async () => {
   const f = await fixture("crash");
   expect(await f.driver.execute(action, f.context)).toMatchObject({ refused: true });
   expect(f.tools).toEqual(["desktop_snapshot", "desktop_click"]);
+});
+
+it("binds the process tree before MCP and closes the owner on server death", async () => {
+  const f = await fixture("crash");
+  expect(f.observer.ownProcessTree).toHaveBeenCalledWith(123);
+  await f.driver.execute(action, f.context);
+  expect(f.observer.abort).toHaveBeenCalled();
 });
