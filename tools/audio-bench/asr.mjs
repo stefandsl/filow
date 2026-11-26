@@ -8,7 +8,6 @@
 // node asr.mjs --list clips.tsv --out out.jsonl --use questions|tracking [--models DIR] [--threads N]
 // clips.tsv: clip_id <tab> wav path <tab> language   (no header)
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { Worker } from "node:worker_threads";
@@ -22,8 +21,8 @@ const stt = require(path.join(desktop, "stt.js"));
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith("--") ? [...acc, [a.slice(2), all[i + 1]]] : acc), []));
 const use = args.use === "tracking" ? "tracking" : "questions";
 const modelsRoot = args.models || "G:/FILOW/tmp/mic-cleanup/asr-models";
-// What SttSession.threads() gives on this PC (stt.js); overridable only to measure a busy machine.
-const threads = args.threads ? Number(args.threads) : Math.max(2, Math.min(4, os.cpus().length - 2));
+// Default to the shipped live recognizer setting; the benchmark can compare explicit thread counts.
+const threads = args.threads ? Number(args.threads) : 1;
 // The OK Filow panel feeds 2048-sample blocks (dictation, questions); takes feed 100 ms blocks.
 const block = use === "questions" ? 2048 : 1600;
 

@@ -329,3 +329,7 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R312 (2026-11-25, X-10): Keep Lite messages in caption order and emphasize one receiver per static step. Check: play all three TCP captions and verify only the Server, Client and Server respectively are emphasized with zero moving signals.
 - R313 (2026-11-25, X-10): Limit the signal halo where it approaches visible text. Check: measure the dark ACK midpoint halo against the ACK label and verify the dot retains its diameter.
 - R314 (2026-11-25, flaky n05-eval): A test that drives real stores on disk or loads models must state its own timeout with a reason when a cold CI runner can exceed the 20 s default (n05-eval took 21 s once). Check: the test states the timeout and passes under `npx vitest run`.
+
+- R380 (2026-11-26, X-16): Limit every live sherpa recognizer to one inference thread per session. Check every catalogue family and the VAD configuration, then replay 30 minutes of paced audio on the packaged app at full and four-core affinity.
+- R381 (2026-11-26, X-16): Configure the shared WASM runtime before loading browser speech recognition. Check the thread count and sequential session options at the Whisper pipeline call.
+- R382 (2026-11-26, X-16): Exercise Silero through its VAD constructor when checking catalogue thread settings. Check all online and offline recognizers and the separate worker VAD assertion.

@@ -715,8 +715,7 @@ Settings lists **Nemotron 3.5 streaming speech-to-text** (NVIDIA, 450 MB downloa
 runs it with sherpa-onnx in a worker thread, so words appear as you say them and a sentence is
 committed about 1.2 s after you pause, instead of Whisper's 4-second windows. It covers English,
 Italian, Romanian and Russian (and more) and detects the language by itself, or follows the
-**Spoken language** setting. Measured on a Core Ultra 7 laptop, CPU only: 105 ms of work per 560 ms
-of speech on 4 threads (RTF 0.19), 2 s to load. Local mode picks it automatically when it is
+**Spoken language** setting. Live recognition uses one inference thread on every desktop profile. Local mode picks it automatically when it is
 downloaded; Whisper stays the fallback and the only option in the browser and the PowerPoint pane.
 
 ### Translate the points

@@ -78,15 +78,15 @@ it("FILOW_QA_HARDWARE: the shell's hardware scan reports that laptop without pro
   }
 });
 
-it("FILOW_QA_HARDWARE: the voice and the recognizer size themselves for that laptop, not this PC", () => {
+it("FILOW_QA_HARDWARE: the voice uses the simulated laptop and recognition stays single-threaded", () => {
   const was = process.env.FILOW_QA_HARDWARE;
-  // four processors: the light voice on two threads, two recognizer threads (this PC has more)
+  // four processors: the light voice on two threads, one recognizer thread
   process.env.FILOW_QA_HARDWARE = "ramGb=16,cores=4,gpu=none";
   try {
     const { pickProfile } = require("./tts.js") as { pickProfile: () => { level: string; steps: number; threads: number } };
     expect(pickProfile()).toMatchObject({ level: "light", steps: 4, threads: 2 });
     const stt = require("./stt.js") as { SttSession: { prototype: { threads: () => number } } };
-    expect(stt.SttSession.prototype.threads()).toBe(2);
+    expect(stt.SttSession.prototype.threads()).toBe(1);
   } finally {
     if (was === undefined) delete process.env.FILOW_QA_HARDWARE;
     else process.env.FILOW_QA_HARDWARE = was;
