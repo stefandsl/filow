@@ -132,6 +132,11 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
       }
 
       const boundHwnd = Number(initialTarget.hwnd);
+      if (opts.restoreFocusAtStart) {
+        const focused = await driver.focusTarget(boundHwnd);
+        if (isStopped()) return { ok: false, reason: "stopped", ...metrics };
+        if (!focused?.ok) return { ok: false, reason: "target_not_foreground", ...metrics };
+      }
       let shot = await driver.captureTarget(boundHwnd, { maxWidth: 1280 });
       if (isStopped()) return { ok: false, reason: "stopped", ...metrics };
       if (Array.isArray(shot.elements) && shot.elements.some((e) => e && e.isPassword === true)) {
@@ -243,6 +248,10 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
             log("confirmation_declined", { turnId, step: metrics.steps, category: gate.category, action: call.name });
             return { ok: false, reason: "confirmation_declined", category: gate.category, ...metrics };
           }
+
+          const focused = await driver.focusTarget(boundHwnd);
+          if (isStopped()) return { ok: false, reason: "stopped", ...metrics };
+          if (!focused?.ok) return { ok: false, reason: "target_not_foreground", ...metrics };
 
           // Re-inspect target after confirmation to prevent TOCTOU target switch!
           const postConfirmTarget = await driver.inspectTarget(boundHwnd);

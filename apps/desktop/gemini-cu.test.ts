@@ -346,6 +346,7 @@ describe("X-14 Gemini Computer Use: require_confirmation, Stop, and log safety",
       continueWithResult: continueSpy,
     };
     const driver = {
+      focusTarget: vi.fn(async () => ({ ok: true })),
       inspectTarget: vi.fn(async () => safeTarget),
       captureTarget: vi.fn(async () => ({ pngBase64: fakePng, width: 800, height: 600, bounds: safeTarget.bounds, snapshotId: "snap-1", elements: [] })),
       execute: executeSpy,
@@ -532,6 +533,7 @@ describe("X-14 dispatch boundaries", () => {
   function setup(elements: object[] = [], calls = [click]) {
     const { createComputerUseController } = require("./action-loop.js");
     const driver = {
+      focusTarget: vi.fn(async (_hwnd: number) => ({ ok: true })),
       inspectTarget: vi.fn(async () => target),
       captureTarget: vi.fn(async () => ({ bounds, elements, snapshotId: "s1" })),
       execute: vi.fn(async () => ({ ok: true })),
@@ -566,6 +568,40 @@ describe("X-14 dispatch boundaries", () => {
     driver.inspectTarget.mockResolvedValue({ ...target, bounds: { ...bounds, [field]: 123 } });
     expect(await controller.run(opts)).toMatchObject({ reason: "target_changed" });
     expect(driver.execute).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])("restores the granted window after Allow (focus succeeds: %s)", async (canFocus) => {
+    const { controller, driver } = setup([pay]);
+    let foreground = "panel";
+    driver.focusTarget.mockImplementation(async () => {
+      if (canFocus) foreground = "target";
+      return { ok: canFocus };
+    });
+    driver.execute.mockImplementation(async () => {
+      expect(foreground).toBe("target");
+      return { ok: true };
+    });
+    const confirmStep = ({ nonce }: { nonce: string }) => ({ nonce, clicked: true, confirmed: true });
+    const result = await controller.run({ ...opts, confirmStep });
+    expect(driver.focusTarget).toHaveBeenCalledWith(42);
+    expect(result.ok).toBe(canFocus);
+    expect(driver.execute).toHaveBeenCalledTimes(canFocus ? 1 : 0);
+  });
+
+  it("releases partially sent hotkeys even if the target lost focus", () => {
+    const native = require("node:fs").readFileSync(require.resolve("./native/action/filow-action.cs"), "utf8");
+    expect(native).toMatch(/SendAll\(up, null\)/);
+    expect(native).toContain("if (check != null) check();");
+  });
+
+  it("parses exactly one trial action, explicit completion or a refusal", () => {
+    const { parseReply } = require("../../tools/computer-use/codex-planner.cjs");
+    const action = { type: "function_call", name: "click", id: "1", arguments: { x: 501, y: 999 } };
+    expect(parseReply(JSON.stringify(action)).calls[0].args).toEqual(action.arguments);
+    expect(parseReply('{"done":true}').calls).toEqual([]);
+    for (const invalid of [[action, action], { ...action, arguments: { x: 1000, y: 0 } }, {}]) {
+      expect(parseReply(JSON.stringify(invalid)).ok).toBe(false);
+    }
   });
 
   it("refuses a resize while awaiting the payment click", async () => {

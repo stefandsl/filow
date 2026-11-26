@@ -543,7 +543,7 @@ public static class FilowActionHelper {
       int n = Math.Min(64, list.Count - at);
       var slice = new INPUT[n];
       list.CopyTo(at, slice, 0, n);
-      check();
+      if (check != null) check();
       uint sent = SendInput((uint)n, slice, cb);
       total += sent;
       if (sent != (uint)n) break;
@@ -705,7 +705,7 @@ public static class FilowActionHelper {
     }
     if (action == "hotkey") {
       var rawKeys = req.ContainsKey("keys") ? req["keys"] as System.Collections.ArrayList : null;
-      if (rawKeys == null || rawKeys.Count == 0) return new Dictionary<string, object> { { "ok", false }, { "error", "bad_keys" } };
+      if (rawKeys == null || rawKeys.Count == 0 || rawKeys.Count > 32) return new Dictionary<string, object> { { "ok", false }, { "error", "bad_keys" } };
       var vks = new List<ushort>();
       foreach (object item in rawKeys) {
         ushort vk;
@@ -727,14 +727,15 @@ public static class FilowActionHelper {
       }
       uint sent = SendAll(inputs, check);
       if (sent > 0 && sent != (uint)inputs.Count) {
-        // Release all keys so nothing stays stuck down
+        // Release just the keys still down in the successfully inserted prefix.
         var up = new List<INPUT>();
-        for (int i = vks.Count - 1; i >= 0; i--) {
+        int held = Math.Min((int)sent, inputs.Count - (int)sent);
+        for (int i = held - 1; i >= 0; i--) {
           ushort vk = vks[i];
           uint ext = EXTENDED_VKS.Contains(vk) ? KEYEVENTF_EXTENDEDKEY : 0;
           up.Add(MakeKey(vk, (ushort)MapVirtualKey(vk, 0), ext | KEYEVENTF_KEYUP));
         }
-        SendAll(up, check);
+        SendAll(up, null);
       }
       return new Dictionary<string, object> { { "ok", sent == (uint)inputs.Count }, { "sent", (int)sent }, { "latencyMs", sw.ElapsedMilliseconds } };
     }
@@ -775,7 +776,8 @@ public static class FilowActionHelper {
           long hw = rest.Length > 0 ? long.Parse(rest, CultureInfo.InvariantCulture) : 0;
           IntPtr h = new IntPtr(hw);
           bool ok = hw > 0 && IsWindow(h);
-          if (ok) { if (IsIconic(h)) ShowWindow(h, 9); SetForegroundWindow(h); }
+          if (ok) { if (IsIconic(h)) ShowWindow(h, 9); SetForegroundWindow(h);
+            ok = GetAncestor(GetForegroundWindow(), GA_ROOT) == GetAncestor(h, GA_ROOT); }
           res = new Dictionary<string, object> { { "ok", ok } };
         } else if (cmd == "exec") {
           res = ExecAction(rest);

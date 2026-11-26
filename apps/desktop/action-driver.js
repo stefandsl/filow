@@ -270,7 +270,11 @@ function createActionDriver(transport = {}) {
     abortTransport();
   }
 
-  return { inspectTarget, captureTarget, readBack, execute, abort };
+  function focusTarget(hwnd) {
+    return sendCommand("focus", { hwnd });
+  }
+
+  return { focusTarget, inspectTarget, captureTarget, readBack, execute, abort };
 }
 
 /**

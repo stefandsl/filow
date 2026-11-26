@@ -1797,10 +1797,13 @@ function createOkFilow(deps) {
     if (!computerUseGranted(c.consent)) {
       return { ok: false, reason: "consent_required", needsConsent: { kind: "computeruse", recipient: computerUseRecipient() } };
     }
+    const restoreFocusAtStart = Boolean(targetHwnd && panel?.isFocused());
+    if (restoreFocusAtStart) panel.blur();
     const ctrl = getComputerUseController();
     return ctrl.run({
       task: typeof task === "string" ? task.slice(0, 1000) : "",
       userId: "presenter",
+      restoreFocusAtStart,
       targetHwnd: Number(targetHwnd) || 0,
       enabled: true,
       offline: isOffline(),
@@ -1822,6 +1825,7 @@ function createOkFilow(deps) {
     noticeOpen = false;
     sendPanel("okfilow:cu:confirm", null);
     const ok = Boolean(answer && answer.confirmed === true && answer.clicked === true && answer.nonce === p.nonce);
+    if (ok) panel?.blur();
     p.resolve({ confirmed: ok, clicked: ok, nonce: ok ? p.nonce : "" });
   });
 
