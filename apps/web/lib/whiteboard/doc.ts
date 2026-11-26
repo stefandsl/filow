@@ -4,15 +4,18 @@
 // that grows by a step or is laid out again keeps them. This file also reads and writes
 // .excalidraw files and is the tool surface an agent drives the board with (read_scene,
 // add/update/delete by id, snapshot/restore, camera). Pure: no DOM.
-import { boundsOf, safeId, stepOf, type BinaryFile, type ExEl, type Scene } from "./scene";
+import { arrowGeometry, boundsOf, safeId, stepOf, type BinaryFile, type ExEl, type Scene } from "./scene";
 import type { Box } from "./layout";
-import { repositionEdgeLabels } from "./check";
+import { avoidEditedObstacles, repositionEdgeLabels } from "./check";
 import { EDIT_COLOURS, type EditChange } from "./edits";
 import { boardFileOk, cleanBoardMedia, filesOf, isVideoFile, MAX_BOARD_MEDIA } from "./media";
 
+type NodeBox = Pick<ExEl, "id" | "x" | "y" | "width" | "height">;
+type CanvasPatch = Partial<ExEl> & { bindingBoxes?: NodeBox[] };
+
 export type SceneEdits = {
   /** Changed properties of compiled elements, by id. */
-  patch: Record<string, Partial<ExEl>>;
+  patch: Record<string, CanvasPatch>;
   /** Elements that are not in the compiled scene (drawn by hand or added by a tool). */
   added: ExEl[];
   /** Compiled elements taken off the board. */
@@ -38,16 +41,100 @@ const arrowGeometryChanged = (p: Partial<ExEl> | undefined) =>
 const labelPositionChanged = (p: Partial<ExEl> | undefined) =>
   Boolean(p && (p.x !== undefined || p.y !== undefined));
 
+type Point = { x: number; y: number };
+type NodeGeometry = { compiled: NodeBox; current: ExEl };
+
+/** Scale positions inside the node and preserve the margin beyond each side. */
+function onCurrentBox({ compiled, current }: NodeGeometry, point: Point): Point {
+  function map(v: number, origin: number, size: number, next: number, nextSize: number) {
+    const fraction = size > 0 ? Math.max(0, Math.min(1, (v - origin) / size)) : 0;
+    return v + (next - origin) + (nextSize - size) * fraction;
+  }
+  return {
+    x: map(point.x, compiled.x, compiled.width, current.x, current.width),
+    y: map(point.y, compiled.y, compiled.height, current.y, current.height),
+  };
+}
+
+function anchoredGeometry(e: ExEl, node: NodeGeometry) {
+  if (e.points?.length) {
+    return arrowGeometry(e.points.map(([x, y]) => onCurrentBox(node, { x: e.x + x, y: e.y + y })));
+  }
+  if (e.type === "text") {
+    const center = onCurrentBox(node, { x: e.x + e.width / 2, y: e.y + e.height / 2 });
+    return { x: center.x - e.width / 2, y: center.y - e.height / 2 };
+  }
+  const start = onCurrentBox(node, e);
+  const end = onCurrentBox(node, { x: e.x + e.width, y: e.y + e.height });
+  return { ...start, width: end.x - start.x, height: end.y - start.y };
+}
+
+/** Carry compiled ports with their boxes. Keep a canvas port while it is still attached. */
+function followBoxEdits(edge: ExEl, patch: Partial<ExEl> | undefined, nodes: Map<string, NodeGeometry>, bindingBoxes?: NodeBox[]) {
+  const edited = arrowGeometryChanged(patch);
+  const current = edited ? { ...edge, ...patch } : edge;
+  const points = current.points;
+  const compiledPoints = edge.points;
+  if (!points || points.length < 2 || !compiledPoints?.length) return;
+  const offset = (end: boolean): Point => {
+    const binding = end ? current.endBinding : current.startBinding;
+    const original = end ? edge.endBinding : edge.startBinding;
+    const node = binding && nodes.get(binding.elementId);
+    if (!node || !binding) return { x: 0, y: 0 };
+    const [dx, dy] = points[end ? points.length - 1 : 0];
+    const x = current.x + dx, y = current.y + dy;
+    const saved = Array.isArray(bindingBoxes) && bindingBoxes.find(b => b?.id === binding.elementId &&
+      [b.x, b.y, b.width, b.height].every(Number.isFinite));
+    if (saved) {
+      const port = onCurrentBox({ compiled: saved, current: node.current }, { x, y });
+      return { x: port.x - x, y: port.y - y };
+    }
+    if (binding.elementId !== original?.elementId) return { x: 0, y: 0 };
+    if (edited) {
+      const box = node.current;
+      // Older saves have absolute points only. Recover detached rectangular ports.
+      const gap = Math.max(box.x - x, x - box.x - box.width, box.y - y, y - box.y - box.height);
+      if (box.type !== "rectangle" || (gap >= 0 && gap <= binding.gap + 2)) return { x: 0, y: 0 };
+    }
+    const [cx, cy] = compiledPoints[end ? compiledPoints.length - 1 : 0];
+    const port = onCurrentBox(node, { x: edge.x + cx, y: edge.y + cy });
+    return { x: port.x - x, y: port.y - y };
+  };
+  const start = offset(false), end = offset(true);
+  if (!start.x && !start.y && !end.x && !end.y) return;
+  return arrowGeometry(points.map(([x, y], i) => {
+    const t = i / (points.length - 1);
+    return { x: current.x + x + start.x * (1 - t) + end.x * t, y: current.y + y + start.y * (1 - t) + end.y * t };
+  }));
+}
 /** The scene as it stands: compiled elements with their edits, then the added ones. */
 export function applyEdits(base: Scene, edits: SceneEdits): Scene {
   const gone = new Set(edits.deleted);
   const patches = cleanPatch(edits.patch);
   const els: ExEl[] = [];
+  const nodes = new Map<string, NodeGeometry>();
+  for (const e of base.elements) {
+    if (e.customData?.wb?.role === "node" && !gone.has(e.id)) {
+      nodes.set(e.id, { compiled: e, current: patches[e.id] ? { ...e, ...patches[e.id] } : e });
+    }
+  }
+  const routed = new Set<string>();
   const movedArrows: string[] = [];
   for (const e of base.elements) {
     if (gone.has(e.id)) continue;
-    const p = patches[e.id];
-    if (e.type === "arrow" && arrowGeometryChanged(p) && !labelPositionChanged(patches[`${e.id}-t`])) {
+    let p = patches[e.id];
+    const target = e.customData?.wb?.target ?? e.containerId;
+    const node = target && nodes.get(target);
+    if (node && node.compiled !== node.current) {
+      p = { ...anchoredGeometry(e, node), ...p };
+    } else if (e.type === "arrow") {
+      const geometry = followBoxEdits(e, p, nodes, edits.patch?.[e.id]?.bindingBoxes);
+      if (geometry) {
+        p = { ...p, ...geometry };
+        routed.add(e.id);
+      }
+    }
+    if (routed.has(e.id) || (e.type === "arrow" && arrowGeometryChanged(p) && !labelPositionChanged(patches[`${e.id}-t`]))) {
       movedArrows.push(e.id);
     }
     els.push(p ? { ...e, ...p, version: (e.version ?? 1) + 1 } : e);
@@ -59,6 +146,7 @@ export function applyEdits(base: Scene, edits: SceneEdits): Scene {
     const a = cleanElement(raw);
     if (!have.has(a.id)) { have.add(a.id); els.push(a); }
   }
+  if (routed.size) avoidEditedObstacles(els, routed);
   const files = { ...base.files, ...edits.files };
   if (movedArrows.length) {
     // Re-attach unbound edge labels (`${arrowId}-t`) when an arrow moved without an explicit label position patch (including reopened old edits).
@@ -130,6 +218,18 @@ export function commitCanvasEdits(
     files: { ...edits.files, ...hand.files },
   };
   const liveEls = els.filter((e) => !e.isDeleted);
+  // Canvas diffs are sparse. Save the full edited path and the boxes its ports were
+  // measured against so a later layout can replay the drag and its bend exactly.
+  const liveNodes = new Map(liveEls.filter(e => e.customData?.wb?.role === "node").map(e => [e.id, e]));
+  for (const e of liveEls) {
+    if (e.type !== "arrow" || !e.points || !arrowGeometryChanged(hand.patch[e.id])) continue;
+    const bindingBoxes: NodeBox[] = [];
+    for (const binding of [e.startBinding, e.endBinding]) {
+      const box = binding && liveNodes.get(binding.elementId);
+      if (box) bindingBoxes.push({ id: box.id, x: box.x, y: box.y, width: box.width, height: box.height });
+    }
+    if (bindingBoxes.length && merged.patch[e.id]) Object.assign(merged.patch[e.id], { x: e.x, y: e.y, points: e.points, bindingBoxes });
+  }
   const movedArrows = liveEls
     .filter(
       (e) =>
@@ -306,7 +406,10 @@ export function applyOps(base: Scene, edits: SceneEdits, ops: ToolOp[]): { edits
     for (const k of EDITABLE) if (o.props[k] !== undefined) (props as Record<Editable, unknown>)[k] = o.props[k];
     for (const k of ["strokeColor", "backgroundColor"] as const) if (props[k] !== undefined && !(typeof props[k] === "string" && COLOUR.test(props[k] as string))) delete props[k];
     if (isAdded >= 0) next.added[isAdded] = { ...next.added[isAdded], ...props };
-    else next.patch[o.id] = { ...next.patch[o.id], ...props };
+    else {
+      next.patch[o.id] = { ...next.patch[o.id], ...props };
+      if (target.type === "arrow" && arrowGeometryChanged(props)) delete next.patch[o.id].bindingBoxes;
+    }
     // a recoloured box or arrow takes its label along when the label had the default ink
     if (props.strokeColor) {
       for (const lid of companions(scene, o.id)) {
