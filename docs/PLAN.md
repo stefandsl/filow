@@ -234,7 +234,7 @@ Use an existing fixture or saved lesson. Approve the slice when the reply's reve
 
 **Acceptance test.** Repeat the same packaged 30-minute paced microphone capture with the default wake setting on main and the branch on the same machine. Main used about 6.0 CPU cores on average (5.99 to 6.01), about 1.5 GB peak private memory and had zero drops. The branch uses at most one core on average and no more peak private memory than main. Wake recall on the frozen held-out set stays the same and drops stay at zero.
 
-**Verification.** Report average CPU cores, peak private memory, drops and wake recall on the frozen held-out set for both builds. Repeat the comparison on a low-spec 4-core machine and report the same measures.
+**Verification.** Report average CPU cores, peak private memory, drops and wake recall on the frozen held-out set for both builds. Repeat the comparison on a low-spec 4-core machine and report the same measures. Peak private memory varies by about 100 MB between runs of the same build, so compare the mean of at least 3 paired runs with a 2% tolerance. Count a drop as a capture gap over 200 ms. Measure end-of-speech latency on a quiet machine, not during a test gate.
 
 - **Requests** R-181
 
