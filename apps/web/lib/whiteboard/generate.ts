@@ -589,7 +589,7 @@ export async function generateLocal(asked: Ask, req: LessonRequest, emit: (e: Le
           items.push({ kind: "node", id: t.id, text: t.text });
         }
       };
-      const picked = (Array.isArray(raw?.relations) ? raw.relations : []).map((n) => plan.relations[Number(n) - 1]).filter(Boolean).slice(0, 3);
+      const picked = (Array.isArray(raw?.relations) ? raw.relations : []).map((n) => plan.relations[Number(n) - 1]).filter(Boolean).slice(0, req.lite ? 1 : 3);
       for (const id of Array.isArray(raw?.things) ? raw.things.slice(0, 3) : []) if (typeof id === "string") show(id);
       // a thing the sentence names is shown with it, picked or not: boxes the lesson talks about are on the board
       for (const t of plan.things) if (!ctx.nodes.has(t.id) && t.text.length >= 3 && sentence.includes(t.text.toLowerCase())) show(t.id);
@@ -608,9 +608,11 @@ export async function generateLocal(asked: Ask, req: LessonRequest, emit: (e: Le
       // A checked relation is drawn as soon as both its things are on the board, picked or not (at most
       // three in a step): it is true, and boxes left unconnected explain nothing.
       const here = new Set([...ctx.nodes.keys(), ...shown]);
+      // Lite reserves the other messages for their own captions.
+      const extraLinks = req.lite ? (picked.length ? 0 : 1) : 3;
       let linked = 0;
       for (const r of plan.relations) {
-        if (linked >= 3 || !here.has(r.from) || !here.has(r.to) || picked.includes(r) || ctx.edges.has(`${r.from}>${r.to}>${r.text.toLowerCase()}`)) continue;
+        if (linked >= extraLinks || !here.has(r.from) || !here.has(r.to) || picked.includes(r) || ctx.edges.has(`${r.from}>${r.to}>${r.text.toLowerCase()}`)) continue;
         items.push({ kind: "edge", from: r.from, to: r.to, text: r.text });
         linked++;
       }

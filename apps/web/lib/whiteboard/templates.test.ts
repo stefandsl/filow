@@ -105,6 +105,12 @@ describe("sceneFromDiagram", () => {
     const ys = [0, 1, 2].map((k) => s.elements.find((e) => e.id === `seq-msg${k}`)!.y);
     expect(ys[0]).toBeLessThan(ys[1]);
     expect(ys[1]).toBeLessThan(ys[2]);
+    const msgs = [0, 1, 2].map((k) => s.elements.find((e) => e.id === `seq-msg${k}`)!.customData?.wb);
+    expect(msgs.map((m) => [m?.role, m?.from, m?.to, m?.order])).toEqual([
+      ["edge", "seq-actor0", "seq-actor1", 0],
+      ["edge", "seq-actor1", "seq-actor0", 1],
+      ["edge", "seq-actor0", "seq-actor1", 2],
+    ]);
   });
   it("draws the Krebs cycle from the reference, whatever list the model gave", () => {
     const k = diagrams.cycle as Extract<Diagram, { template: "cycle" }>;

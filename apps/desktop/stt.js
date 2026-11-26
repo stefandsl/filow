@@ -457,7 +457,7 @@ function speechStatus(userData, { language = "auto", hardware, job } = {}) {
 }
 
 /** Pure: the sherpa-onnx recognizer configuration for a catalogue entry unpacked in `dir`. */
-function recognizerConfig(spec, dir, threads) {
+function recognizerConfig(spec, dir, threads = 1) {
   const file = (name) => path.join(dir, name);
   const modelConfig = { tokens: file(spec.files[spec.files.length - 1]), numThreads: threads, provider: "cpu", debug: 0 };
   if (spec.family === "dolphin") modelConfig.dolphin = { model: file(spec.files[0]) };
@@ -496,7 +496,8 @@ class SttSession {
   }
 
   threads() {
-    return Math.max(2, Math.min(4, (qaHardware()?.cores ?? os.cpus().length) - 2));
+    // sherpa applies this to each ONNX session in the transducer. One runs on the existing worker.
+    return 1;
   }
 
   /** The language to listen for (an explicit one wins over the stored one) and the model to run. */
@@ -531,7 +532,7 @@ class SttSession {
         if (m.type === "ready") {
           this.ready = true;
           // "stt: <key> ready" is what tools/autoloop/e2e/linux.mjs looks for.
-          this.log(`stt: ${pick.model} ready in ${m.loadMs} ms (${threads} threads, ${spec.label}, ${this.use}, ${lang})`);
+          this.log(`stt: ${pick.model} ready in ${m.loadMs} ms (${threads} thread, ${spec.label}, ${this.use}, ${lang})`);
           resolve({ loadMs: m.loadMs, ...info });
         } else if (m.type === "result") this.onResult(m);
         else if (m.type === "error") {

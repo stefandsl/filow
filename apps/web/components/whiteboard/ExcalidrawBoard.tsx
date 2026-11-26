@@ -12,6 +12,21 @@ import type { Slot } from "@/lib/whiteboard/pace";
 import { boundsOf, keyOf, stepOf, type ExEl, type Scene } from "@/lib/whiteboard/scene";
 import { sceneSvg } from "@/lib/whiteboard/excalidraw";
 import { cleanBoardMedia, isVideoFile } from "@/lib/whiteboard/media";
+import {
+  EMPTY_CUE_FRAME,
+  createCueSession,
+  cueAccentColor,
+  cueHaloRadius,
+  cueSignalStyle,
+  extractStepCues,
+  renderedTextBox,
+  scheduleStepCues,
+  type CueFrame,
+  type CueMode,
+  type Pt,
+  type ReceiverBox,
+  type Rect,
+} from "@/lib/whiteboard/motion";
 
 export type DrawnInfo = { visible: ExEl[]; complete: boolean; svg: SVGSVGElement };
 export type ExcalidrawBoardProps = {
@@ -19,6 +34,16 @@ export type ExcalidrawBoardProps = {
   scene: Scene;
   /** The step whose things are new: they draw on, the rest is already there. */
   current: number;
+  /** Increments on every step display or replay so presentation cues restart cleanly. */
+  turn?: number;
+  /** Expected duration of the current step in ms, used to fit edge cues inside the step slot. */
+  stepMs?: number;
+  /** True while the current step is actively playing or replaying (false on Pause, Done, Edit, file open). */
+  cueActive?: boolean;
+  /** Optional reduced-motion override for deterministic tests; defaults to prefers-reduced-motion. */
+  reducedMotion?: boolean;
+  /** Optional clock override for deterministic tests; defaults to performance.now. */
+  now?: () => number;
   /** When each new thing of the current step is drawn (ms from the start of the step). */
   timing?: Map<string, Slot>;
   /** The step is over (paused, stepped by hand, the voice ended): everything of it is shown. */
@@ -62,21 +87,153 @@ const frameOf = (els: ExEl[]): Box => {
   return f ? { x: f.x, y: f.y, w: f.width, h: f.height } : { x: 0, y: 0, w: 1200, h: 720 };
 };
 const signature = (els: ExEl[]) => els.map((e) => `${e.id}:${e.version ?? 0}:${e.versionNonce ?? 0}:${e.x},${e.y},${e.width},${e.height}:${e.strokeColor}:${e.fontSize ?? ""}`).join("|");
+const ptsAttr = (pts: Pt[]) => pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+const chevronPath = (x: number, y: number, angle: number, size: number, tipOffset = 2) => {
+  const spread = 2.52;
+  const tipX = x + Math.cos(angle) * tipOffset;
+  const tipY = y + Math.sin(angle) * tipOffset;
+  const x1 = tipX + Math.cos(angle + spread) * size;
+  const y1 = tipY + Math.sin(angle + spread) * size;
+  const x2 = tipX + Math.cos(angle - spread) * size;
+  const y2 = tipY + Math.sin(angle - spread) * size;
+  return `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${tipX.toFixed(1)} ${tipY.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+};
+function ReceiverOutline({
+  receiver,
+  color,
+  strokeWidth,
+  strokeOpacity,
+  fillOpacity,
+  dash,
+  pad = 6,
+}: {
+  receiver: ReceiverBox;
+  color: string;
+  strokeWidth: number;
+  strokeOpacity: number;
+  fillOpacity?: number;
+  dash?: string;
+  pad?: number;
+}) {
+  const fill = fillOpacity ? color : "none";
+  if (receiver.shape === "ellipse") {
+    return (
+      <ellipse
+        cx={receiver.x + receiver.w / 2}
+        cy={receiver.y + receiver.h / 2}
+        rx={receiver.w / 2 + pad}
+        ry={receiver.h / 2 + pad}
+        fill={fill}
+        fillOpacity={fillOpacity ?? 0}
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeOpacity={strokeOpacity}
+        strokeDasharray={dash}
+      />
+    );
+  }
+  if (receiver.shape === "diamond") {
+    const cx = receiver.x + receiver.w / 2;
+    const cy = receiver.y + receiver.h / 2;
+    const pts = [
+      `${cx},${receiver.y - pad}`,
+      `${receiver.x + receiver.w + pad},${cy}`,
+      `${cx},${receiver.y + receiver.h + pad}`,
+      `${receiver.x - pad},${cy}`,
+    ].join(" ");
+    return (
+      <polygon
+        points={pts}
+        fill={fill}
+        fillOpacity={fillOpacity ?? 0}
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeOpacity={strokeOpacity}
+        strokeDasharray={dash}
+        strokeLinejoin="round"
+      />
+    );
+  }
+  return (
+    <rect
+      x={receiver.x - pad}
+      y={receiver.y - pad}
+      width={receiver.w + pad * 2}
+      height={receiver.h + pad * 2}
+      rx={receiver.roundness ? 14 : 4}
+      ry={receiver.roundness ? 14 : 4}
+      fill={fill}
+      fillOpacity={fillOpacity ?? 0}
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeOpacity={strokeOpacity}
+      strokeDasharray={dash}
+    />
+  );
+}
 
-export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, camera, label, onPick, pickLabel, onDrawn, videoLabels }: ExcalidrawBoardProps) {
+export function ExcalidrawBoard({
+  scene,
+  current,
+  turn = 0,
+  stepMs = 0,
+  cueActive,
+  reducedMotion,
+  now,
+  timing,
+  rest,
+  dark,
+  animate,
+  camera,
+  label,
+  onPick,
+  pickLabel,
+  onDrawn,
+  videoLabels,
+}: ExcalidrawBoardProps) {
   const host = useRef<HTMLDivElement>(null);
+  const cueSvgRef = useRef<SVGSVGElement>(null);
   const els = scene.elements;
   const board = frameOf(els);
+  const [hostWidth, setHostWidth] = useState(0);
+  useEffect(() => {
+    const node = host.current;
+    if (!node) return;
+    const measure = () => setHostWidth(node.getBoundingClientRect().width);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
+  const [prefersReduced, setPrefersReduced] = useState(false);
+  useEffect(() => {
+    if (reducedMotion !== undefined || typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setPrefersReduced(mq.matches);
+    update();
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, [reducedMotion]);
+  const isReduced = reducedMotion ?? prefersReduced;
   // the keys of the current step, in the order they are drawn
   const stepKeys = useMemo(() => [...new Set(els.filter((e) => stepOf(e) === current).map(keyOf))], [els, current]);
   const keysSig = stepKeys.join("|");
   const [revealed, setRevealed] = useState<Set<string>>(() => new Set(stepKeys));
   const lens = useRef(new Map<string, number>());
+  const prevStep = useRef<number>(-1);
 
   useEffect(() => {
     const keys = keysSig ? keysSig.split("|") : [];
-    if (rest || !timing || !animate) {
+    const sameStep = prevStep.current === current;
+    prevStep.current = current;
+    if (rest || !timing || !animate || isReduced) {
       setRevealed(new Set(keys));
+      return;
+    }
+    // Replaying a step whose items are already on the board keeps the prepared drawing intact.
+    if (sameStep) {
+      setRevealed((prev) => (keys.every((k) => prev.has(k)) ? prev : new Set(keys)));
       return;
     }
     setRevealed(new Set(keys.filter((k) => !timing.has(k))));
@@ -86,7 +243,7 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
       return setTimeout(() => setRevealed((prev) => (prev.has(k) ? prev : new Set(prev).add(k))), slot.at);
     });
     return () => timers.forEach(clearTimeout);
-  }, [keysSig, current, timing, rest, animate]);
+  }, [keysSig, current, turn, timing, rest, animate, isReduced]);
 
   const visible = useMemo(() => els.filter((e) => {
     const s = stepOf(e);
@@ -94,6 +251,34 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
   }), [els, current, revealed]);
   const sig = signature(visible);
   const complete = visible.length === els.filter((e) => stepOf(e) <= current).length;
+
+  // Presentation-only directed edge cues (lib/whiteboard/motion.ts): never stored in the scene or exports.
+  const stepCues = useMemo(() => extractStepCues(scene, current), [scene, current]);
+  const cueActiveFlag = cueActive ?? !rest;
+  const cueMode: CueMode = !cueActiveFlag || !stepCues.length ? "off" : !animate || isReduced ? "static" : "motion";
+  const scheduledCues = useMemo(
+    () => (cueMode === "motion" ? scheduleStepCues(stepCues, timing, stepMs) : []),
+    [cueMode, stepCues, timing, stepMs],
+  );
+  const [cueFrame, setCueFrame] = useState<CueFrame>(EMPTY_CUE_FRAME);
+  const nowRef = useRef(now);
+  nowRef.current = now;
+  useEffect(() => {
+    if (cueMode === "off") {
+      setCueFrame(EMPTY_CUE_FRAME);
+      return;
+    }
+    const session = createCueSession({
+      mode: cueMode,
+      cues: stepCues,
+      scheduled: scheduledCues,
+      now: () => (nowRef.current ? nowRef.current() : performance.now()),
+      scheduleFrame: (cb) => requestAnimationFrame(cb),
+      cancelFrame: (id) => cancelAnimationFrame(id),
+      onFrame: setCueFrame,
+    });
+    return () => session.cancel();
+  }, [cueMode, stepCues, scheduledCues, current, turn]);
 
   // The camera moves smoothly to where it is asked to look (as excalidraw-mcp's camera does).
   const view = useRef<Box | null>(null);
@@ -103,11 +288,13 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
   // up for a board with no frame at 0,0 too (a .excalidraw file opened from disk).
   const origin = useRef({ x: 0, y: 0 });
   const viewBox = (a: Box) => `${a.x - origin.current.x} ${a.y - origin.current.y} ${a.w} ${a.h}`;
+  const sceneViewBox = (a: Box) => `${a.x} ${a.y} ${a.w} ${a.h}`;
   useEffect(() => {
     const svgOf = () => host.current?.querySelector("svg");
-    if (!view.current || !animate || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    if (!view.current || !animate || isReduced) {
       view.current = { ...target };
       svgOf()?.setAttribute("viewBox", viewBox(target));
+      cueSvgRef.current?.setAttribute("viewBox", sceneViewBox(target));
       return;
     }
     let raf = 0;
@@ -116,18 +303,28 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
       const k = 0.14;
       a.x += (target.x - a.x) * k; a.y += (target.y - a.y) * k; a.w += (target.w - a.w) * k; a.h += (target.h - a.h) * k;
       svgOf()?.setAttribute("viewBox", viewBox(a));
+      cueSvgRef.current?.setAttribute("viewBox", sceneViewBox(a));
       if (Math.abs(target.x - a.x) + Math.abs(target.y - a.y) + Math.abs(target.w - a.w) + Math.abs(target.h - a.h) > 0.5) raf = requestAnimationFrame(tick);
       else view.current = { ...target };
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [target.x, target.y, target.w, target.h, animate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [target.x, target.y, target.w, target.h, animate, isReduced]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Render: exportToSvg, then morphdom so only the new nodes are added (and animate).
   const queue = useRef<Promise<void>>(Promise.resolve());
   const latest = useRef(0);
   const restRef = useRef(rest);
   restRef.current = rest;
+  // Pausing or settling strips transient draw-on classes so strokes/labels finish immediately
+  // and later replays never restart CSS fade animations on already-drawn elements.
+  useEffect(() => {
+    if (!rest || !host.current) return;
+    host.current.querySelectorAll(".wb-in").forEach((node) => {
+      node.classList.remove("wb-in", "wb-stroke", "wb-fade");
+      node.removeAttribute("pathLength");
+    });
+  }, [rest]);
   const onDrawnRef = useRef(onDrawn);
   onDrawnRef.current = onDrawn;
   useEffect(() => {
@@ -199,9 +396,181 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
   // what is on the board, counted by kind (the end-to-end test reads these)
   const count = (f: (e: ExEl) => boolean) => visible.filter(f).length;
   const words = visible.filter((e) => e.type === "text").map((e) => (e.originalText ?? e.text ?? "").replace(/\s+/g, " ").trim()).filter(Boolean);
+  const activeEdgeId = cueFrame.signals[0]?.edgeId ?? cueFrame.arrivals[0]?.edgeId ?? cueFrame.staticEmphasis[0]?.edgeId;
+  const showCueLayer = cueFrame.signals.length > 0 || cueFrame.arrivals.length > 0 || cueFrame.staticEmphasis.length > 0;
+  const activeView = view.current ?? target;
+  const cssPerScene = hostWidth > 0 && activeView.w > 0 ? hostWidth / activeView.w : 0.65;
+  const toScene = (cssPx: number) => cssPx / Math.max(0.25, cssPerScene);
+  const visibleTextBoxes = useMemo(() => {
+    if (!showCueLayer) return [] as Rect[];
+    const byId = new Map(visible.map((e) => [e.id, e]));
+    return visible
+      .filter((e) => !e.isDeleted && e.type === "text")
+      .map((e) => renderedTextBox(e, byId))
+      .filter((b): b is Rect => b !== null);
+  }, [visible, showCueLayer]);
+  const externalTextMasks = useMemo(() => {
+    const receiverIds = new Set<string>();
+    for (const a of cueFrame.arrivals) receiverIds.add(a.receiver.id);
+    for (const st of cueFrame.staticEmphasis) if (st.receiver) receiverIds.add(st.receiver.id);
+    if (!receiverIds.size) return [] as Rect[];
+    const byId = new Map(visible.map((e) => [e.id, e]));
+    return visible
+      .filter((e) => !e.isDeleted && e.type === "text" && (!e.containerId || !receiverIds.has(e.containerId)))
+      .map((e) => renderedTextBox(e, byId))
+      .filter((b): b is Rect => b !== null);
+  }, [visible, cueFrame.arrivals, cueFrame.staticEmphasis]);
+  const outlineMaskId = `wb-cue-mask-${current}`;
   return (
-    <div className={`wb-ex${animate ? " wb-ex-animate" : ""}${dark ? " wb-ex-dark" : ""}`} style={{ aspectRatio: `${target.w} / ${target.h}`, width: `min(100%, calc((100vh - 150px) * ${(target.w / target.h).toFixed(4)}))` } as CSSProperties} role="group" aria-label={label} data-step={current} data-elements={visible.length} data-complete={complete || undefined} data-nodes={count((e) => e.customData?.wb?.role === "node" && e.type !== "text")} data-edges={count((e) => e.customData?.wb?.role === "edge")} data-formulas={count((e) => typeof e.customData?.tex === "string")} data-plots={count((e) => /^b-.*-ax$/.test(e.id))} data-cards={count((e) => e.customData?.wb?.role === "block" && e.strokeStyle === "dashed")} data-sketches={count((e) => e.type === "image" && !e.customData?.media)} data-media={count((e) => e.type === "image" && Boolean(cleanBoardMedia(e.customData?.media)))}>
+    <div
+      className={`wb-ex${animate ? " wb-ex-animate" : ""}${dark ? " wb-ex-dark" : ""}${rest ? " wb-settled" : ""}`}
+      style={{ aspectRatio: `${target.w} / ${target.h}`, width: `min(100%, calc((100vh - 150px) * ${(target.w / target.h).toFixed(4)}))` } as CSSProperties}
+      role="group"
+      aria-label={label}
+      data-step={current}
+      data-elements={visible.length}
+      data-complete={complete || undefined}
+      data-nodes={count((e) => e.customData?.wb?.role === "node" && e.type !== "text")}
+      data-edges={count((e) => e.customData?.wb?.role === "edge")}
+      data-formulas={count((e) => typeof e.customData?.tex === "string")}
+      data-plots={count((e) => /^b-.*-ax$/.test(e.id))}
+      data-cards={count((e) => e.customData?.wb?.role === "block" && e.strokeStyle === "dashed")}
+      data-sketches={count((e) => e.type === "image" && !e.customData?.media)}
+      data-media={count((e) => e.type === "image" && Boolean(cleanBoardMedia(e.customData?.media)))}
+      data-cue-mode={cueMode}
+      data-cue-phase={cueFrame.phase}
+      data-cue-edge={activeEdgeId || undefined}
+      data-cue-signals={cueFrame.signals.length}
+      data-cue-arrivals={cueFrame.arrivals.length}
+      data-cue-static={cueFrame.staticEmphasis.length}
+    >
       <div ref={host} className="wb-ex-host" />
+      {showCueLayer && (
+        <svg
+          ref={cueSvgRef}
+          className="wb-cue-layer"
+          data-wb-cue="layer"
+          viewBox={sceneViewBox(activeView)}
+          aria-hidden="true"
+          focusable="false"
+        >
+          {externalTextMasks.length > 0 && (
+            <defs>
+              <mask
+                id={outlineMaskId}
+                maskUnits="userSpaceOnUse"
+                x={activeView.x - 40}
+                y={activeView.y - 40}
+                width={activeView.w + 80}
+                height={activeView.h + 80}
+              >
+                <rect x={activeView.x - 40} y={activeView.y - 40} width={activeView.w + 80} height={activeView.h + 80} fill="#ffffff" />
+                {externalTextMasks.map((tb, i) => (
+                  <rect key={i} x={tb.x - 2} y={tb.y - 2} width={tb.w + 4} height={tb.h + 4} fill="#000000" />
+                ))}
+              </mask>
+            </defs>
+          )}
+          {cueFrame.signals.map((s) => {
+            const st = cueSignalStyle(s.color, dark);
+            const dotR = toScene(s.overLabel ? st.overLabelDotRadiusPx : st.dotRadiusPx);
+            const rawHaloR = toScene(s.overLabel ? st.overLabelHaloRadiusPx : st.haloRadiusPx);
+            const haloR = cueHaloRadius(s, rawHaloR, dotR + toScene(1), visibleTextBoxes);
+            const haloOp = s.overLabel ? st.overLabelHaloOpacity : st.haloOpacity;
+            const ringW = toScene(2);
+            const chevSize = toScene(s.overLabel ? 4.2 : 4.8);
+            const chevW = toScene(2);
+            return (
+              <g key={`sig-${s.edgeId}`} data-wb-cue="signal" data-edge={s.edgeId} data-from={s.fromId} data-to={s.toId}>
+                {s.trail.length >= 2 && (
+                  <polyline
+                    points={ptsAttr(s.trail)}
+                    fill="none"
+                    stroke={st.fill}
+                    strokeWidth={toScene(s.overLabel ? 3 : 4.5)}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeOpacity={dark ? (s.overLabel ? 0.35 : 0.55) : s.overLabel ? 0.28 : 0.45}
+                  />
+                )}
+                <circle data-wb-cue-halo="1" cx={s.x} cy={s.y} r={haloR} fill={st.fill} fillOpacity={haloOp} />
+                <circle data-wb-cue-dot="1" cx={s.x} cy={s.y} r={dotR} fill={st.fill} stroke={st.ringStroke} strokeWidth={ringW} />
+                <path
+                  d={chevronPath(s.x, s.y, s.angle, chevSize, toScene(1.6))}
+                  fill="none"
+                  stroke={st.chevronStroke}
+                  strokeWidth={chevW}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </g>
+            );
+          })}
+          {cueFrame.arrivals.map((a) => {
+            const accent = cueAccentColor(a.color, dark);
+            const op = Math.max(0, Math.min(1, a.intensity));
+            const maskUrl = externalTextMasks.length > 0 ? `url(#${outlineMaskId})` : undefined;
+            return (
+              <g key={`arr-${a.edgeId}`} data-wb-cue="arrival" data-edge={a.edgeId} data-to={a.receiver.id}>
+                <g mask={maskUrl}>
+                  <ReceiverOutline receiver={a.receiver} color={accent} strokeWidth={toScene(5)} strokeOpacity={op * (dark ? 0.32 : 0.24)} pad={a.outlinePad} />
+                  <ReceiverOutline receiver={a.receiver} color={accent} strokeWidth={toScene(2.8)} strokeOpacity={op * 0.95} fillOpacity={op * (dark ? 0.12 : 0.06)} pad={a.outlinePad} />
+                </g>
+                <path
+                  d={chevronPath(a.tip.x, a.tip.y, a.tip.angle, toScene(8.5), toScene(1.8))}
+                  fill="none"
+                  stroke={accent}
+                  strokeWidth={toScene(2.6)}
+                  strokeOpacity={op * 0.9}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </g>
+            );
+          })}
+          {cueFrame.staticEmphasis.map((st) => {
+            const accent = cueAccentColor(st.color, dark);
+            const maskUrl = externalTextMasks.length > 0 ? `url(#${outlineMaskId})` : undefined;
+            return (
+              <g key={`st-${st.edgeId}`} data-wb-cue="static" data-edge={st.edgeId} data-from={st.fromId} data-to={st.toId}>
+                {st.tail.length >= 2 && (
+                  <polyline
+                    points={ptsAttr(st.tail)}
+                    fill="none"
+                    stroke={accent}
+                    strokeWidth={toScene(3.2)}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeOpacity={dark ? 0.65 : 0.48}
+                  />
+                )}
+                <path
+                  d={chevronPath(st.tip.x, st.tip.y, st.tip.angle, toScene(8.5), toScene(1.8))}
+                  fill="none"
+                  stroke={accent}
+                  strokeWidth={toScene(2.8)}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeOpacity={0.95}
+                />
+                {st.receiver && (
+                  <g mask={maskUrl}>
+                    <ReceiverOutline
+                      receiver={st.receiver}
+                      color={accent}
+                      strokeWidth={toScene(2.6)}
+                      strokeOpacity={0.92}
+                      fillOpacity={dark ? 0.12 : 0.06}
+                      dash={`${toScene(7).toFixed(1)} ${toScene(4.5).toFixed(1)}`}
+                      pad={st.outlinePad}
+                    />
+                  </g>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      )}
       {/* what the board says, for a screen reader (the drawing itself is hidden from it) */}
       <ul className="wb-sr">{words.map((w, i) => <li key={i}>{w}</li>)}</ul>
       {/* A GIF or a video on the board is shown over its element as it is (lib/whiteboard/media.ts): the dark

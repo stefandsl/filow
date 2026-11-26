@@ -4,8 +4,8 @@
 // fixOps turns the problems into edits a layout engine can make without a model: smaller type, a
 // bent arrow, a label slid along its arrow, a thing moved back onto the board. Pure: no DOM; in the
 // page the text sizes come from Excalidraw's own measuring first, in tests and scripts from estimates.
-import { boundsOf, keyOf, type ExEl, type Scene } from "./scene";
-import type { Box } from "./layout";
+import { arrowGeometry, boundsOf, keyOf, type ExEl, type Scene } from "./scene";
+import { placeEdgeLabel, type Box } from "./layout";
 import type { ToolOp } from "./doc";
 import { chemText, texToText } from "./tex";
 
@@ -45,6 +45,126 @@ export function pathPoints(e: ExEl, per = 16): Array<{ x: number; y: number }> {
   return out;
 }
 
+type Pt = { x: number; y: number };
+
+export function cumulativeLengths(pts: Pt[]): number[] {
+  const out = [0];
+  for (let i = 1; i < pts.length; i++) {
+    out.push(out[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+  }
+  return out;
+}
+
+/** Point and tangent angle (radians) along a polyline at arc-length fraction `frac` in [0, 1]. */
+export function samplePolyline(pts: Pt[], frac: number): { x: number; y: number; angle: number } {
+  if (pts.length === 0) return { x: 0, y: 0, angle: 0 };
+  if (pts.length === 1) return { x: pts[0].x, y: pts[0].y, angle: 0 };
+  const lengths = cumulativeLengths(pts);
+  const total = lengths[lengths.length - 1];
+  if (total <= 1e-6) return { x: pts[0].x, y: pts[0].y, angle: 0 };
+  const dist = Math.max(0, Math.min(1, frac)) * total;
+  let seg = 0;
+  while (seg < lengths.length - 2 && lengths[seg + 1] < dist) seg++;
+  const segLen = lengths[seg + 1] - lengths[seg];
+  const local = segLen > 1e-6 ? (dist - lengths[seg]) / segLen : 0;
+  const a = pts[seg];
+  const b = pts[seg + 1];
+  return {
+    x: a.x + (b.x - a.x) * local,
+    y: a.y + (b.y - a.y) * local,
+    angle: Math.atan2(b.y - a.y, b.x - a.x),
+  };
+}
+
+/**
+ * Re-places unbound edge labels (`${arrowId}-t`) for the named arrows using `layout.ts`
+ * `placeEdgeLabel`, keeping each label off its own stroke and clear of shapes, other labels and
+ * other arrows. Used when canvas edits commit and when saved boards with old edits reopen.
+ */
+export function repositionEdgeLabels(
+  scene: Scene,
+  arrowIds: Iterable<string>,
+): Record<string, { x: number; y: number }> {
+  const els = scene.elements.filter((e) => !e.isDeleted);
+  const byId = new Map(els.map((e) => [e.id, e]));
+  const targets: Array<{ arrow: ExEl; label: ExEl }> = [];
+  const seen = new Set<string>();
+  for (const id of arrowIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const arrow = byId.get(id);
+    if (!arrow || arrow.type !== "arrow" || !Array.isArray(arrow.points) || arrow.points.length < 2) continue;
+    const label = byId.get(`${arrow.id}-t`);
+    if (!label || label.type !== "text" || label.containerId) continue;
+    targets.push({ arrow, label });
+  }
+  if (!targets.length) return {};
+
+  const frame = byId.get("wb-frame");
+  const rawBoard = frame ? boxOf(frame) : boundsOf(els) ?? { x: 0, y: 0, w: 1200, h: 720 };
+  const rule = byId.get("wb-rule");
+  const top = rule && rawBoard.h > 120 ? Math.max(rawBoard.y, rule.y + 8) : rawBoard.y;
+  const board: Box = { x: rawBoard.x, y: top, w: rawBoard.w, h: Math.max(60, rawBoard.y + rawBoard.h - top) };
+
+  const movingLabelIds = new Set(targets.map((t) => t.label.id));
+  const nodeBoxes = els.filter(e => isShape(e) || role(e) === "mark").map(boxOf);
+  const fixedLabels = els
+    .filter((e) => e.type === "text" && !e.containerId && !movingLabelIds.has(e.id))
+    .map(boxOf);
+  const samplesById = new Map<string, Array<{ x: number; y: number }>>();
+  for (const e of els) {
+    if ((e.type === "arrow" || e.type === "line") && Array.isArray(e.points) && e.points.length >= 2) {
+      samplesById.set(e.id, pathPoints(e, 24));
+    }
+  }
+
+  const placed = new Map<string, { box: Box; hits: number }>();
+  const runFor = (arrow: ExEl, label: ExEl, extraLabels: Box[]) => {
+    const ownPts = samplesById.get(arrow.id) ?? pathPoints(arrow, 24);
+    const otherStrokes: Array<Array<{ x: number; y: number }>> = [];
+    for (const [id, pts] of samplesById) {
+      if (id !== arrow.id) otherStrokes.push(pts);
+    }
+    const res = placeEdgeLabel({
+      pointAt: (t) => samplePolyline(ownPts, t),
+      ownSamples: ownPts,
+      requireOffStroke: true,
+      size: { w: Math.max(4, label.width), h: Math.max(4, label.height) },
+      board,
+      nodes: nodeBoxes,
+      labels: [...fixedLabels, ...extraLabels],
+      otherStrokes,
+    });
+    return {
+      box: res.box ?? { x: label.x, y: label.y, w: label.width, h: label.height },
+      hits: res.hits,
+    };
+  };
+
+  for (const { arrow, label } of targets) {
+    const others = [...placed.values()].map((p) => p.box);
+    placed.set(label.id, runFor(arrow, label, others));
+  }
+  if (targets.length > 1) {
+    for (const { arrow, label } of targets) {
+      const current = placed.get(label.id)!;
+      const others = [...placed.entries()].filter(([id]) => id !== label.id).map(([, p]) => p.box);
+      const overlapsLater = others.some((o) => overlap(o, current.box, -2));
+      if (current.hits > 0 || overlapsLater) {
+        const again = runFor(arrow, label, others);
+        if (again.hits <= current.hits) placed.set(label.id, again);
+      }
+    }
+  }
+
+  const out: Record<string, { x: number; y: number }> = {};
+  for (const { label } of targets) {
+    const box = placed.get(label.id)!.box;
+    out[label.id] = { x: Math.round(box.x * 10) / 10, y: Math.round(box.y * 10) / 10 };
+  }
+  return out;
+}
+
 /** Shapes an arrow runs through without joining them (its own ends and its label do not count). */
 function crossed(a: ExEl, shapes: ExEl[], byId: Map<string, ExEl>): ExEl[] {
   const ends = new Set([a.startBinding?.elementId, a.endBinding?.elementId].filter(Boolean) as string[]);
@@ -56,12 +176,50 @@ function crossed(a: ExEl, shapes: ExEl[], byId: Map<string, ExEl>): ExEl[] {
     if (ends.has(s.id) || keyOf(s) === keyOf(a)) continue;
     // a shape that holds one of the arrow's ends (a cell row, a group) is not crossed either
     if ([...ends].some((id) => { const end = byId.get(id); return end && contains(boxOf(s), boxOf(end)); })) continue;
-    const b = shrink(boxOf(s), 4);
+    const b = shrink(boxOf(s), s.type === "text" ? -2 : 4);
     if (inner.some((pt) => pt.x > b.x && pt.x < b.x + b.w && pt.y > b.y && pt.y < b.y + b.h)) hits.push(s);
   }
   return hits;
 }
 
+/** Use the same bend candidates for the scene checker and for newly attached lesson arrows. */
+function routeAround(a: ExEl, obstacles: ExEl[], byId: Map<string, ExEl>, board: Box, hit?: ExEl) {
+  if (!a.points || a.points.length < 2) return;
+  const start = { x: a.x + a.points[0][0], y: a.y + a.points[0][1] };
+  const end = { x: a.x + a.points[a.points.length - 1][0], y: a.y + a.points[a.points.length - 1][1] };
+  const m = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  const len = Math.hypot(end.x - start.x, end.y - start.y) || 1;
+  const nx = -(end.y - start.y) / len, ny = (end.x - start.x) / len;
+  // a smooth bend to one side, further and further; else round the box it crossed, over or under
+  const tries: Array<Array<{ x: number; y: number }>> = [50, -50, 90, -90, 140, -140, 200, -200, 280, -280].map((off) => [start, { x: m.x + nx * off, y: m.y + ny * off }, end]);
+
+  if (hit) {
+    const hb = boxOf(hit);
+    const l = Math.min(start.x, end.x) < hb.x ? hb.x - 24 : hb.x + hb.w + 24;
+    const r = l === hb.x - 24 ? hb.x + hb.w + 24 : hb.x - 24;
+    for (const y of [hb.y - 28, hb.y + hb.h + 28]) tries.push([start, { x: l, y }, { x: r, y }, end]);
+  }
+  for (const route of tries) {
+    const trial: ExEl = { ...a, ...arrowGeometry(route), roundness: { type: 2 } };
+    if (!crossed(trial, obstacles, byId).length && contains(board, boxOf(trial), 2)) {
+      return trial;
+    }
+  }
+}
+
+export function avoidEditedObstacles(elements: ExEl[], routed: Set<string>) {
+  const byId = new Map(elements.map(e => [e.id, e]));
+  const frame = byId.get("wb-frame");
+  if (!frame) return;
+  const obstacles = elements.filter(e => isShape(e) || role(e) === "mark" || (e.type === "text" && !e.containerId));
+  for (const [i, edge] of elements.entries()) {
+    if (!routed.has(edge.id)) continue;
+    const [hit] = crossed(edge, obstacles, byId);
+    if (!hit) continue;
+    const trial = routeAround(edge, obstacles, byId, boxOf(frame), hit);
+    if (trial) elements[i] = trial;
+  }
+}
 /** A word of the label that the wrapped text breaks over two lines ("Sunlig / ht"). Scripts without spaces are broken anywhere by design. */
 export function brokenWord(t: ExEl): boolean {
   const original = String(t.originalText ?? "");
@@ -184,32 +342,23 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
       const a = byId.get(p.ids[0]);
       if (!a || done.has(a.id) || !a.points || a.points.length < 2) continue;
       done.add(a.id);
-      const start = { x: a.x + a.points[0][0], y: a.y + a.points[0][1] };
-      const end = { x: a.x + a.points[a.points.length - 1][0], y: a.y + a.points[a.points.length - 1][1] };
-      const m = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
-      const len = Math.hypot(end.x - start.x, end.y - start.y) || 1;
-      const nx = -(end.y - start.y) / len, ny = (end.x - start.x) / len;
-      // a smooth bend to one side, further and further; else round the box it crossed, over or under
-      const tries: Array<Array<{ x: number; y: number }>> = [50, -50, 90, -90, 140, -140, 200, -200, 280, -280].map((off) => [start, { x: m.x + nx * off, y: m.y + ny * off }, end]);
-      const hit = byId.get(p.ids[1]);
-      if (hit) {
-        const hb = boxOf(hit);
-        const l = Math.min(start.x, end.x) < hb.x ? hb.x - 24 : hb.x + hb.w + 24;
-        const r = l === hb.x - 24 ? hb.x + hb.w + 24 : hb.x - 24;
-        for (const y of [hb.y - 28, hb.y + hb.h + 28]) tries.push([start, { x: l, y }, { x: r, y }, end]);
-      }
-      for (const route of tries) {
-        const pts = route.map((pt) => [pt.x - start.x, pt.y - start.y] as [number, number]);
-        const trial: ExEl = { ...a, x: start.x, y: start.y, points: pts, roundness: { type: 2 } };
-        if (!crossed(trial, shapes, byId).length && contains(board, boxOf(trial), 2)) {
-          ops.push({ op: "update", id: a.id, props: { x: start.x, y: start.y, points: pts, roundness: { type: 2 } } });
-          const lid = a.boundElements?.find((b) => b.type === "text")?.id;
-          const lab = lid ? byId.get(lid) : undefined;
-          // its label goes to the middle of the new path
-          const mid = pathPoints(trial, 12);
-          const at = mid[Math.floor(mid.length / 2)];
-          if (lab && at) ops.push({ op: "update", id: lab.id, props: { x: at.x - lab.width / 2, y: at.y - lab.height / 2 } });
-          break;
+      const trial = routeAround(a, shapes, byId, board, byId.get(p.ids[1]));
+      if (trial) {
+        ops.push({ op: "update", id: a.id, props: { x: trial.x, y: trial.y, points: trial.points, roundness: trial.roundness } });
+        const lid = a.boundElements?.find((b) => b.type === "text")?.id ?? (byId.get(`${a.id}-t`)?.type === "text" ? `${a.id}-t` : undefined);
+        const lab = lid ? byId.get(lid) : undefined;
+        if (lab) {
+          if (!lab.containerId) {
+            const moved = repositionEdgeLabels(
+              { elements: els.map((e) => (e.id === a.id ? trial : e)), files: scene.files },
+              [a.id],
+            )[lab.id];
+            if (moved) ops.push({ op: "update", id: lab.id, props: { x: moved.x, y: moved.y } });
+          } else {
+            const mid = pathPoints(trial, 12);
+            const at = mid[Math.floor(mid.length / 2)];
+            if (at) ops.push({ op: "update", id: lab.id, props: { x: at.x - lab.width / 2, y: at.y - lab.height / 2 } });
+          }
         }
       }
     } else if (p.kind === "overlap") {
@@ -217,12 +366,15 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
       for (const id of p.ids) {
         const t = byId.get(id);
         if (!t || t.type !== "text" || done.has(id)) continue;
-        const host = t.containerId ? byId.get(t.containerId) : undefined;
+        const host = t.containerId ? byId.get(t.containerId) : t.id.endsWith("-t") ? byId.get(t.id.slice(0, -2)) : undefined;
         if (t.containerId && host?.type !== "arrow") continue;
         done.add(id);
         const skip = new Set([id, ...(host ? [host.id] : [])]);
         let spot: Box | null;
-        if (host) {
+        if (host && host.type === "arrow" && !t.containerId) {
+          const moved = repositionEdgeLabels(scene, [host.id])[t.id];
+          spot = moved ? { x: moved.x, y: moved.y, w: t.width, h: t.height } : null;
+        } else if (host && host.type === "arrow") {
           const pts = pathPoints(host, 24);
           const order = pts.map((pt, k) => ({ pt, k })).sort((u, v) => Math.abs(u.k - pts.length / 2) - Math.abs(v.k - pts.length / 2));
           spot = order.map(({ pt }) => centredAt(t, pt)).find((b) => free(b, skip)) ?? null;
@@ -244,7 +396,7 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
       if (now !== was) ops.push({ op: "update", id: t.id, props: { text: now, originalText: fix(String(t.originalText ?? was)) } });
     } else if (p.kind === "offscreen") {
       const e = byId.get(p.ids[0]);
-      if (!e || done.has(e.id) || e.containerId) continue;
+      if (!e || done.has(e.id) || e.containerId || e.customData?.wb?.target) continue;
       done.add(e.id);
       const b = boxOf(e);
       const dx = b.x < board.x ? board.x - b.x + 4 : b.x + b.w > board.x + board.w ? board.x + board.w - (b.x + b.w) - 4 : 0;

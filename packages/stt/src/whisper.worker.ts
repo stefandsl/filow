@@ -6,7 +6,10 @@ import { env, pipeline, type AutomaticSpeechRecognitionPipeline } from "@hugging
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 // ONNX runtime wasm files are served by the app itself (apps/web/public/ort), not a CDN.
-if (env.backends?.onnx?.wasm) env.backends.onnx.wasm.wasmPaths = "/ort/";
+if (env.backends?.onnx?.wasm) {
+  env.backends.onnx.wasm.wasmPaths = "/ort/";
+  env.backends.onnx.wasm.numThreads = 1;
+}
 
 type In =
   | { type: "load"; model: string }
@@ -32,6 +35,7 @@ async function load(model: string) {
     const device = hasWebGpu ? "webgpu" : "wasm";
     asr = (await pipeline("automatic-speech-recognition", model, {
       device,
+      session_options: { intraOpNumThreads: 1, interOpNumThreads: 1, executionMode: "sequential" },
       dtype: hasWebGpu ? "fp32" : "q8",
       // loaded/total per file: the page adds them up into one number for the model (issue #4).
       progress_callback: (p: { status: string; file?: string; progress?: number; loaded?: number; total?: number }) =>

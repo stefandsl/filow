@@ -58,7 +58,7 @@ Filow is a live speaking companion: it listens as you present, checks off your t
 
 Review the proposed recipient before confirming a spoken delivery. If you correct the name while the review is open, check the revised row. All languages currently require confirmation.
 
-On the whiteboard, you can ask for a repeating process as a cycle or ask to compare two subjects. If the requested layout or board item cannot be identified, name it again.
+On the whiteboard, you can ask for a repeating process as a cycle or ask to compare two subjects. If the requested layout or board item cannot be identified, name it again. When you move a box on the canvas, the labels follow its arrows. Later steps draw arrows, circles and highlights at the new box position. In Lite lessons, one arrowhead and its receiver are highlighted for each message.
 
 Voice ticks require your permission and an installed Gemma 4 E2B. Choose the Gemma offer in Day-by-day and download it in Local models if needed. Withdraw permission in Settings. You can always tick manually or confirm a typed report.
 
@@ -715,8 +715,7 @@ Settings lists **Nemotron 3.5 streaming speech-to-text** (NVIDIA, 450 MB downloa
 runs it with sherpa-onnx in a worker thread, so words appear as you say them and a sentence is
 committed about 1.2 s after you pause, instead of Whisper's 4-second windows. It covers English,
 Italian, Romanian and Russian (and more) and detects the language by itself, or follows the
-**Spoken language** setting. Measured on a Core Ultra 7 laptop, CPU only: 105 ms of work per 560 ms
-of speech on 4 threads (RTF 0.19), 2 s to load. Local mode picks it automatically when it is
+**Spoken language** setting. Live recognition uses one inference thread on every desktop profile. Local mode picks it automatically when it is
 downloaded; Whisper stays the fallback and the only option in the browser and the PowerPoint pane.
 
 ### Translate the points

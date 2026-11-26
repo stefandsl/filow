@@ -1686,7 +1686,6 @@ function truecaseRuntime() {
     userData, logLine,
     fork: (script) => require("electron").utilityProcess.fork(script, [], { serviceName: "Filow punctuation", stdio: "ignore" }),
     download: require("./download").download, sha256File: require("./integrity").sha256File,
-    threads: () => Math.max(2, Math.min(4, Math.floor((require("./qa.js").qaHardware?.()?.cores ?? os.cpus().length) / 2))),
   });
   return truecase;
 }
