@@ -107,7 +107,7 @@ export function repositionEdgeLabels(
   const board: Box = { x: rawBoard.x, y: top, w: rawBoard.w, h: Math.max(60, rawBoard.y + rawBoard.h - top) };
 
   const movingLabelIds = new Set(targets.map((t) => t.label.id));
-  const nodeBoxes = els.filter(isShape).map(boxOf);
+  const nodeBoxes = els.filter(e => isShape(e) || role(e) === "mark").map(boxOf);
   const fixedLabels = els
     .filter((e) => e.type === "text" && !e.containerId && !movingLabelIds.has(e.id))
     .map(boxOf);
@@ -211,7 +211,7 @@ export function avoidEditedObstacles(elements: ExEl[], routed: Set<string>) {
   const byId = new Map(elements.map(e => [e.id, e]));
   const frame = byId.get("wb-frame");
   if (!frame) return;
-  const obstacles = elements.filter(e => isShape(e) || (e.type === "text" && !e.containerId));
+  const obstacles = elements.filter(e => isShape(e) || role(e) === "mark" || (e.type === "text" && !e.containerId));
   for (const [i, edge] of elements.entries()) {
     if (!routed.has(edge.id)) continue;
     const [hit] = crossed(edge, obstacles, byId);
@@ -396,7 +396,7 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
       if (now !== was) ops.push({ op: "update", id: t.id, props: { text: now, originalText: fix(String(t.originalText ?? was)) } });
     } else if (p.kind === "offscreen") {
       const e = byId.get(p.ids[0]);
-      if (!e || done.has(e.id) || e.containerId) continue;
+      if (!e || done.has(e.id) || e.containerId || e.customData?.wb?.target) continue;
       done.add(e.id);
       const b = boxOf(e);
       const dx = b.x < board.x ? board.x - b.x + 4 : b.x + b.w > board.x + board.w ? board.x + board.w - (b.x + b.w) - 4 : 0;

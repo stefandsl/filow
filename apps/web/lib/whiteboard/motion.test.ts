@@ -6,7 +6,7 @@ import { validateLesson } from "./lesson";
 import { drawMsFor, sceneStepSchedule, stepSchedule } from "./pace";
 import { boardLesson, sceneFromLayout, type ExEl } from "./scene";
 import { readDiagram, sceneFromDiagram, workedExample } from "./templates";
-import { pathPoints } from "./check";
+import { checkScene, fixOps, pathPoints } from "./check";
 import {
   createCueSession,
   cueAccentColor,
@@ -531,7 +531,7 @@ describe("X-10 round 2 regressions: on-arrow path, label/box/outline clearance, 
 });
 
 describe("X-10 label placement and static receivers", () => {
-  it("attaches the next ACK to the dragged Client and keeps its label clear", () => {
+  it.each([2, 3])("keeps later marks and arrows on the dragged Client at step index %i", step => {
     const shown = boardLesson(tcpLesson);
     const reply = sceneFromLayout(layoutBoard(shown, 1, "wide"));
     const drag: Record<string, Partial<ExEl>> = {
@@ -541,26 +541,43 @@ describe("X-10 label placement and static receivers", () => {
       "a-server-client": { x: 571.3, y: 403.1, points: [[0, 0], [-183.6, 29.2], [-350.7, 65]] },
     };
     const edits = commitCanvasEdits(reply, noEdits(), reply.elements.map(e => ({ ...e, ...drag[e.id] })))!;
-    const next = applyEdits(sceneFromLayout(layoutBoard(shown, 2, "wide")), edits);
+    const next = applyEdits(sceneFromLayout(layoutBoard(shown, step, "wide")), edits);
     const byId = new Map(next.elements.map(e => [e.id, e]));
     const client = byId.get("n-client")!;
-    const ack = byId.get("a-client-server-2")!;
-    const stroke = pathPoints(ack, 200);
-    const start = stroke[0];
-    const gap = Math.max(client.x - start.x, start.x - client.x - client.width,
-      client.y - start.y, start.y - client.y - client.height);
-    expect(gap).toBeGreaterThanOrEqual(0);
-    expect(gap).toBeLessThanOrEqual(12);
-    const replyLabel = renderedTextRect(byId.get("a-server-client-t")!, byId);
-    expect(stroke.some(pt => rectsOverlap(replyLabel, { ...pt, w: 0, h: 0 }))).toBe(false);
-    const label = byId.get(ack.id + "-t")!;
-    const rect = renderedTextRect(label, byId);
-    expect(stroke.some(pt => rectsOverlap(rect, { ...pt, w: 0, h: 0 }, 1))).toBe(false);
-    for (const e of next.elements) {
-      if (e === label || e.id === "wb-frame") continue;
-      if (e.type === "text" || ["rectangle", "ellipse", "diamond"].includes(e.type)) {
-        const box = e.type === "text" ? renderedTextRect(e, byId) : { x: e.x, y: e.y, w: e.width, h: e.height };
-        expect(rectsOverlap(rect, box), e.id).toBe(false);
+    if (step === 3) {
+      const circle = byId.get("m-client-circle")!;
+      const centerGap = Math.hypot(circle.x + circle.width / 2 - client.x - client.width / 2,
+        circle.y + circle.height / 2 - client.y - client.height / 2);
+      expect(centerGap).toBeLessThanOrEqual(2);
+      const clipped = { ...next, elements: next.elements.map(e =>
+        e === client || e === circle ? { ...e, x: e.x - 100 } : e) };
+      const offscreen = checkScene(clipped).filter(p => p.kind === "offscreen");
+      expect(offscreen.some(p => p.ids.includes(circle.id))).toBe(true);
+      expect(fixOps(clipped, offscreen).some(op => "id" in op && op.id === circle.id)).toBe(false);
+      expect(circle.x).toBeLessThanOrEqual(client.x);
+      expect(circle.y).toBeLessThanOrEqual(client.y);
+      expect(circle.x + circle.width).toBeGreaterThanOrEqual(client.x + client.width);
+      expect(circle.y + circle.height).toBeGreaterThanOrEqual(client.y + client.height);
+    }
+    expect(byId.has("a-client-server-2")).toBe(true);
+    for (const arrow of next.elements.filter(e => e.type === "arrow" && e.startBinding && e.endBinding)) {
+      const pts = pathPoints(arrow, 200);
+      for (const [pt, box] of [[pts[0], byId.get(arrow.startBinding!.elementId)!],
+        [pts[pts.length - 1], byId.get(arrow.endBinding!.elementId)!]] as const) {
+        const gap = Math.max(box.x - pt.x, pt.x - box.x - box.width, box.y - pt.y, pt.y - box.y - box.height);
+        expect(gap, arrow.id).toBeGreaterThanOrEqual(0);
+        expect(gap, arrow.id).toBeLessThanOrEqual(12);
+      }
+      const label = byId.get(arrow.id + "-t")!;
+      const rect = renderedTextRect(label, byId);
+      for (const other of next.elements) {
+        if (other === label || other.id === "wb-frame") continue;
+        if (other.type === "arrow") {
+          expect(pathPoints(other, 200).some(pt => rectsOverlap(rect, { ...pt, w: 0, h: 0 }, 1)), label.id).toBe(false);
+        } else if (["text", "rectangle", "ellipse", "diamond"].includes(other.type)) {
+          const obstacle = other.type === "text" ? renderedTextRect(other, byId) : { x: other.x, y: other.y, w: other.width, h: other.height };
+          expect(rectsOverlap(rect, obstacle), label.id + " overlaps " + other.id).toBe(false);
+        }
       }
     }
   });

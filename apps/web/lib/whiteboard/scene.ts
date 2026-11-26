@@ -66,7 +66,9 @@ export type WbMeta = {
   step: number;
   key: string;
   role: "frame" | "title" | "node" | "label" | "edge" | "mark" | "block" | "pointer";
-  /** Explicit directed edge metadata (X-10): sender element id, receiver element id, reveal order. */
+  /** Element ID of the node this annotation follows. */
+  target?: string;
+  /** Directed edge endpoints and reveal order. */
   from?: string;
   to?: string;
   order?: number;
@@ -227,7 +229,7 @@ function edgeEls(e: PlacedEdge, used: Set<string>, shapes: Map<string, ExEl>, or
 }
 
 function markEls(m: BoardLayout["marks"][number], targetColour: string): ExEl[] {
-  const meta: WbMeta = { step: m.step, key: m.key, role: "mark" };
+  const meta: WbMeta = { step: m.step, key: m.key, role: "mark", target: nodeId(m.target) };
   const id = `m-${safeId(m.target)}-${m.style}`;
   const b = m.box;
   if (m.style === "circle") return [el(id, "ellipse", { x: b.x - 16, y: b.y - 14, w: b.w + 32, h: b.h + 28 }, meta, { strokeColor: INK.mark, strokeWidth: 2.5 })];

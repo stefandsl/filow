@@ -60,7 +60,7 @@ Filow è un compagno di parola dal vivo: ti ascolta mentre presenti, spunta i tu
 
 Controlla il destinatario proposto prima di confermare una consegna a voce. Se correggi il nome mentre la proposta è aperta, verifica la nuova riga. Al momento tutte le lingue richiedono conferma.
 
-Sulla lavagna puoi chiedere di rappresentare un processo ciclico o di confrontare due argomenti. Se Filow non riconosce la disposizione o l’elemento della lavagna, indica di nuovo quale intendi. Quando sposti un riquadro sulla lavagna, le etichette seguono le sue frecce. Le frecce aggiunte nei passaggi successivi si collegano al riquadro spostato. Nelle lezioni Lite, per ogni messaggio vengono evidenziati la punta della freccia e il destinatario.
+Sulla lavagna puoi chiedere di rappresentare un processo ciclico o di confrontare due argomenti. Se Filow non riconosce la disposizione o l’elemento della lavagna, indica di nuovo quale intendi. Quando sposti un riquadro sulla lavagna, le etichette seguono le sue frecce. Nei passaggi successivi, frecce, cerchi ed evidenziazioni seguono la nuova posizione del riquadro. Nelle lezioni Lite, per ogni messaggio vengono evidenziati la punta della freccia e il destinatario.
 
 Le spunte vocali richiedono il tuo permesso e Gemma 4 E2B installato. Autorizza Gemma in Giorno per giorno e, se necessario, scaricalo nei modelli locali. Puoi revocare il permesso nelle Impostazioni, spuntare a mano o confermare un resoconto scritto.
 
