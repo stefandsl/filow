@@ -74,6 +74,7 @@ export type OkFilowStatus = {
   /** Experimental Gemini Computer Use planner (X-14 pilot): off by default. */
   computerUse?: boolean;
   computerUseAvailable?: boolean;
+  computerUseDriver?: "filow" | "agent-desktop";
   agentCli?: string;
   onboarded?: boolean;
   /** What the user allowed or refused to send outside, per kind and recipient. */
@@ -263,6 +264,7 @@ export type OkFilowBridge = {
   };
   /** Experimental Gemini Computer Use pilot (X-14). */
   computerUse?: {
+    asset?(op: "status" | "install" | "remove"): Promise<{ available: boolean; installed: boolean; bytes: number; sha256: string }>;
     start(task: string, targetHwnd?: number): Promise<{ ok: boolean; reason?: string; needsConsent?: { kind: "computeruse"; recipient: Recipient } }>;
     stop(reason?: string): Promise<boolean>;
     confirm(answer: { nonce: string; confirmed: boolean; clicked: boolean }): void;

@@ -222,6 +222,62 @@ public static class FilowActionHelper {
     } finally { CloseHandle(p); }
   }
 
+  [StructLayout(LayoutKind.Sequential)]
+  struct BasicLimits {
+    public long processTime, jobTime;
+    public uint flags;
+    public UIntPtr minWorkingSet, maxWorkingSet;
+    public uint activeProcesses;
+    public UIntPtr affinity;
+    public uint priority, scheduling;
+  }
+
+  [StructLayout(LayoutKind.Sequential)]
+  struct ExtendedLimits {
+    public BasicLimits basic;
+    public ulong readOps, writeOps, otherOps, readBytes, writeBytes, otherBytes;
+    public UIntPtr processMemory, jobMemory, peakProcessMemory, peakJobMemory;
+  }
+
+  [StructLayout(LayoutKind.Sequential)]
+  struct ProcessInfo {
+    public IntPtr exitStatus, peb, affinity, priority, pid, parent;
+  }
+
+  [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr handle, int infoClass, out ProcessInfo info, int size, out int length);
+  [DllImport("kernel32.dll")] static extern IntPtr CreateJobObject(IntPtr attributes, string name);
+  [DllImport("kernel32.dll")] static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref ExtendedLimits limits, uint size);
+  [DllImport("kernel32.dll")] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+  // The kernel releases this handle on helper exit, including a crash or parent pipe EOF.
+  static IntPtr ownedJob;
+  static bool OwnDriverTree(uint pid) {
+    if (ownedJob != IntPtr.Zero) return false;
+    const uint SET_QUOTA = 0x0100, TERMINATE = 0x0001;
+    IntPtr child = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SET_QUOTA | TERMINATE, false, pid);
+    if (child == IntPtr.Zero) return false;
+    try {
+      ProcessInfo mine, theirs;
+      int size = Marshal.SizeOf(typeof(ProcessInfo)), length;
+      using (var self = Process.GetCurrentProcess()) {
+        if (NtQueryInformationProcess(self.Handle, 0, out mine, size, out length) != 0 ||
+            NtQueryInformationProcess(child, 0, out theirs, size, out length) != 0 ||
+            mine.parent == IntPtr.Zero || mine.parent != theirs.parent || theirs.pid.ToInt64() != pid) return false;
+      }
+      var image = new StringBuilder(1024);
+      int chars = image.Capacity;
+      if (!QueryFullProcessImageName(child, 0, image, ref chars) ||
+          !String.Equals(Path.GetFileName(image.ToString()), "agent-desktop.exe", StringComparison.OrdinalIgnoreCase)) return false;
+      IntPtr job = CreateJobObject(IntPtr.Zero, null);
+      if (job == IntPtr.Zero) return false;
+      var limits = new ExtendedLimits();
+      limits.basic.flags = 0x2000; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+      if (!SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf(typeof(ExtendedLimits))) ||
+          !AssignProcessToJobObject(job, child)) { CloseHandle(job); return false; }
+      ownedJob = job;
+      return true;
+    } finally { CloseHandle(child); }
+  }
+
   static string ExeName(uint pid) {
     IntPtr p = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
     if (p == IntPtr.Zero) return "";
@@ -254,6 +310,28 @@ public static class FilowActionHelper {
     };
   }
 
+  // A Chromium window may expose its toolbar before its document provider is ready.
+  static bool? ScanPassword(IntPtr hwnd, bool browser) {
+    var timer = Stopwatch.StartNew();
+    do {
+      var root = AutomationElement.FromHandle(hwnd);
+      if (root != null) {
+        var content = browser ? root.FindFirst(TreeScope.Descendants, new AndCondition(
+          new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Document),
+          new PropertyCondition(AutomationElement.IsOffscreenProperty, false))) : root;
+        if (content != null && content.FindFirst(TreeScope.Children, Condition.TrueCondition) != null) {
+          var visiblePassword = root.FindFirst(TreeScope.Descendants, new AndCondition(
+            new PropertyCondition(AutomationElement.IsPasswordProperty, true),
+            new PropertyCondition(AutomationElement.IsOffscreenProperty, false)));
+          if (timer.ElapsedMilliseconds >= 1500) return null;
+          return visiblePassword != null;
+        }
+      }
+      Thread.Sleep(50);
+    } while (timer.ElapsedMilliseconds < 1500);
+    return null;
+  }
+
   static Dictionary<string, object> InspectWindow(long rawHwnd, uint parentPid) {
     IntPtr hwnd = rawHwnd > 0 ? new IntPtr(rawHwnd) : GetForegroundWindow();
     if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return new Dictionary<string, object> { { "ok", false }, { "error", "no_window" } };
@@ -267,7 +345,7 @@ public static class FilowActionHelper {
     uint dpi = 96;
     try { dpi = GetDpiForWindow(hwnd); if (dpi == 0) dpi = 96; } catch { dpi = 96; }
     bool password = false;
-    bool passwordChecked = false;
+    bool? scan = null;
     string focusCls = "";
     var gi = new GUITHREADINFO { cbSize = Marshal.SizeOf(typeof(GUITHREADINFO)) };
     if (tid != 0 && GetGUIThreadInfo(tid, ref gi) && gi.hwndFocus != IntPtr.Zero) {
@@ -276,7 +354,6 @@ public static class FilowActionHelper {
       long style = GetWindowLongPtr(gi.hwndFocus, GWL_STYLE).ToInt64();
       if ((style & ES_PASSWORD) != 0 && string.Equals(focusCls, "Edit", StringComparison.OrdinalIgnoreCase)) {
         password = true;
-        passwordChecked = true;
       }
     }
     var focusedInfo = new Dictionary<string, object>();
@@ -288,7 +365,6 @@ public static class FilowActionHelper {
         var fe = AutomationElement.FocusedElement;
         if (fe != null) {
           bool isPw = fe.Current.IsPassword;
-          passwordChecked = true;
           if (isPw) { password = true; hasPasswordField = true; }
           focusedInfo["name"] = (fe.Current.Name ?? "").Trim();
           focusedInfo["type"] = fe.Current.ControlType.ProgrammaticName.Replace("ControlType.", "");
@@ -299,19 +375,11 @@ public static class FilowActionHelper {
             focusedInfo["value"] = val.Length > 400 ? val.Substring(0, 400) : val;
           }
         }
-      } catch { }
-      if (!hasPasswordField) {
-        try {
-          var root = AutomationElement.FromHandle(hwnd);
-          if (root != null) {
-            var pwEl = root.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.IsPasswordProperty, true));
-            if (pwEl != null) {
-              passwordChecked = true;
-              if (!pwEl.Current.IsOffscreen) { hasPasswordField = true; password = true; }
-            }
-          }
-        } catch { }
-      }
+        bool browser = cls.ToString().StartsWith("Chrome_WidgetWin", StringComparison.OrdinalIgnoreCase)
+          || cls.ToString() == "MozillaWindowClass" || cls.ToString() == "IEFrame";
+        scan = hasPasswordField ? true : ScanPassword(hwnd, browser);
+        if (scan == true) { hasPasswordField = true; password = true; }
+      } catch { scan = null; }
     }
     int elev = IsElevated(pid);
     int selfElev = IsElevated(parentPid > 0 ? parentPid : selfPid);
@@ -329,7 +397,8 @@ public static class FilowActionHelper {
       { "selfElevated", selfElev },
       { "password", password },
       { "hasPasswordField", hasPasswordField },
-      { "passwordChecked", passwordChecked },
+      { "passwordChecked", scan.HasValue },
+      { "passwordUnknown", !scan.HasValue },
       { "bounds", RectDict(bounds) },
       { "monitorBounds", RectDict(mi.rcMonitor) },
       { "virtualScreen", VirtualScreenDict() },
@@ -419,6 +488,14 @@ public static class FilowActionHelper {
   static Dictionary<string, object> CaptureWindow(long rawHwnd, int maxWidth, uint parentPid) {
     IntPtr hwnd = rawHwnd > 0 ? new IntPtr(rawHwnd) : GetForegroundWindow();
     if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return new Dictionary<string, object> { { "ok", false }, { "error", "no_window" } };
+    var info = InspectWindow(hwnd.ToInt64(), parentPid);
+    if (!Equals(info["ok"], true)) return info;
+    foreach (var field in new[] { "own", "elevated", "password", "passwordUnknown" }) {
+      if (Equals(info[field], true)) {
+        string reason = field == "own" ? "own_window" : field == "elevated" ? "elevated_target" : "password_field";
+        return new Dictionary<string, object> { { "ok", false }, { "error", reason } };
+      }
+    }
     RECT bounds = WindowBounds(hwnd);
     int w = bounds.R - bounds.L;
     int h = bounds.B - bounds.T;
@@ -452,7 +529,6 @@ public static class FilowActionHelper {
           finalBmp.Save(ms, ImageFormat.Png);
           b64 = Convert.ToBase64String(ms.ToArray());
         }
-        var info = InspectWindow(hwnd.ToInt64(), parentPid);
         var elements = ReadUiaElements(hwnd, bounds, 600, 250);
         return new Dictionary<string, object> {
           { "ok", true },
@@ -521,14 +597,19 @@ public static class FilowActionHelper {
   [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
   [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(POINT point);
 
-  static void CheckTarget(IntPtr hwnd, Dictionary<string, object> bounds, List<POINT> points) {
-    IntPtr root = GetAncestor(hwnd, GA_ROOT);
-    if (root == IntPtr.Zero || IsIconic(hwnd) || GetAncestor(GetForegroundWindow(), GA_ROOT) != root)
-      throw new DispatchRefusal("target_not_foreground");
+  static RECT CheckBounds(IntPtr hwnd, Dictionary<string, object> bounds) {
     RECT rect = WindowBounds(hwnd);
     if (bounds == null || GetInt(bounds, "x", int.MinValue) != rect.L || GetInt(bounds, "y", int.MinValue) != rect.T ||
         GetInt(bounds, "width", -1) != rect.R - rect.L || GetInt(bounds, "height", -1) != rect.B - rect.T)
       throw new DispatchRefusal("target_changed");
+    return rect;
+  }
+
+  static void CheckTarget(IntPtr hwnd, Dictionary<string, object> bounds, List<POINT> points) {
+    IntPtr root = GetAncestor(hwnd, GA_ROOT);
+    if (root == IntPtr.Zero || IsIconic(hwnd) || GetAncestor(GetForegroundWindow(), GA_ROOT) != root)
+      throw new DispatchRefusal("target_not_foreground");
+    RECT rect = CheckBounds(hwnd, bounds);
     foreach (POINT point in points) {
       if (point.X < rect.L || point.X >= rect.R || point.Y < rect.T || point.Y >= rect.B ||
           GetAncestor(WindowFromPoint(point), GA_ROOT) != root) throw new DispatchRefusal("target_not_foreground");
@@ -592,11 +673,27 @@ public static class FilowActionHelper {
     long hwndVal = req.ContainsKey("hwnd") && req["hwnd"] != null ? Convert.ToInt64(req["hwnd"], CultureInfo.InvariantCulture) : 0;
     var hwnd = new IntPtr(hwndVal);
     var bounds = req.ContainsKey("bounds") ? req["bounds"] as Dictionary<string, object> : null;
+    // Semantic refs are resolved by UI Automation on the captured root. This check cannot inject input.
+    if (action == "check_ref_target") {
+      uint pid;
+      int expectedPid = GetInt(req, "pid", 0);
+      if (hwnd == IntPtr.Zero || !IsWindow(hwnd) || GetAncestor(hwnd, GA_ROOT) != hwnd || IsIconic(hwnd) ||
+          expectedPid <= 0 || GetWindowThreadProcessId(hwnd, out pid) == 0 || pid != (uint)expectedPid)
+        throw new DispatchRefusal("target_changed");
+      if (req.ContainsKey("foreground") && Equals(req["foreground"], true) && GetAncestor(GetForegroundWindow(), GA_ROOT) != hwnd)
+        throw new DispatchRefusal("target_not_foreground");
+      CheckBounds(hwnd, bounds);
+      return new Dictionary<string, object> { { "ok", true } };
+    }
     var points = new List<POINT>();
     if (req.ContainsKey("physX") || req.ContainsKey("physY")) {
       points.Add(new POINT { X = GetInt(req, "physX", int.MinValue), Y = GetInt(req, "physY", int.MinValue) });
     }
     Action check = delegate { CheckTarget(hwnd, bounds, points); };
+    if (action == "check_target") {
+      check();
+      return new Dictionary<string, object> { { "ok", true } };
+    }
     var inputs = new List<INPUT>();
     if (action == "move" || action == "click" || action == "double_click" || action == "triple_click" ||
         action == "right_click" || action == "middle_click" || action == "mouse_down" || action == "mouse_up") {
@@ -773,6 +870,8 @@ public static class FilowActionHelper {
           int maxW = parts.Length >= 2 ? int.Parse(parts[1], CultureInfo.InvariantCulture) : 1280;
           uint ppid = parts.Length >= 3 ? uint.Parse(parts[2], CultureInfo.InvariantCulture) : 0;
           res = CaptureWindow(hw, maxW, ppid);
+        } else if (cmd == "own_tree") {
+          res = new Dictionary<string, object> { { "ok", OwnDriverTree(uint.Parse(rest, CultureInfo.InvariantCulture)) } };
         } else if (cmd == "readback") {
           long hw = rest.Length > 0 ? long.Parse(rest, CultureInfo.InvariantCulture) : 0;
           res = ReadBackWindow(hw);

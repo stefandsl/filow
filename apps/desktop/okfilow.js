@@ -74,6 +74,7 @@ const DEFAULTS = {
   memory: false,
   /** Experimental Gemini Computer Use pilot (X-14): off by default. */
   computerUse: false,
+  computerUseDriver: "filow",
   /** Its folder; empty means "okfilow-answers" in the app's data folder (see defaultAnswerDir). */
   answerDir: "",
   /** What the user allowed or refused to send outside, per kind and recipient ("ask:openrouter/google"). */
@@ -183,6 +184,7 @@ function nextCfg(was, patch) {
   next.pauseKey = keyChoice(next.pauseKey, PAUSE_KEYS);
   next.answerLog = next.answerLog === true;
   next.memory = next.memory === true;
+  if (next.computerUseDriver !== "agent-desktop") next.computerUseDriver = "filow";
   next.computerUse = next.computerUse === true;
   next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
   if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";
@@ -1149,7 +1151,7 @@ function createOkFilow(deps) {
    * Stops the answer in progress (the Stop button, Escape): the panel ends the request, the voice and
    * the pointing. False when no answer was in progress, so Escape keeps its other meanings then.
    */
-  function cancelComputerUse(source) {
+  function dismissComputerUseConfirm() {
     if (pendingCuConfirm) {
       const p = pendingCuConfirm;
       pendingCuConfirm = null;
@@ -1157,6 +1159,9 @@ function createOkFilow(deps) {
       sendPanel("okfilow:cu:confirm", null);
       p.resolve({ confirmed: false, clicked: false });
     }
+  }
+  function cancelComputerUse(source) {
+    dismissComputerUseConfirm();
     return computerUseController ? computerUseController.stop(String(source || "stop")) : false;
   }
   function stopAnswer(source) {
@@ -1768,26 +1773,60 @@ function createOkFilow(deps) {
   // these modules. Load them only when the pilot starts; an absent module disables the pilot.
   let pendingCuConfirm = null;
   let computerUseController = null;
-  function getComputerUseController() {
-    if (computerUseController) return computerUseController;
+  let controllerDriver = null;
+  let driverAsset = null;
+  function getAsset() {
+    if (!driverAsset) {
+      try { driverAsset = require("./agent-desktop-asset").agentDesktopAsset(userData); }
+      catch { return null; }
+    }
+    return driverAsset;
+  }
+  ipcMain.handle("okfilow:cu:asset", guard(async (op) => {
+    const asset = getAsset();
+    if (!asset) return op === "status" ? { available: false, installed: false, bytes: 0, sha256: "" } : { ok: false, reason: "unavailable" };
+    if (op === "status") return asset.status();
+    if (op === "install" && isOffline()) throw new Error("offline_mode");
+    if (op === "remove") {
+      cancelComputerUse("driver_removed");
+      setCfg({ computerUseDriver: "filow" });
+    }
+    return asset.change(op);
+  }));
+  function getComputerUseController(selected) {
+    if (computerUseController?.active()) return { controller: computerUseController };
     let cu;
     try {
       cu = {
         ...require("./action-driver"),
         ...require("./gemini-cu-planner"),
         ...require("./action-loop"),
+        ...require("./agent-desktop-driver"),
       };
-    } catch {
-      return null;
-    }
+    } catch { return null; }
+    const asset = getAsset();
+    if (!asset) return null;
     const { createWindowsActionDriver, createGeminiPlanner, createComputerUseController } = cu;
-    const driver = deps.actionDriver || createWindowsActionDriver({ log: logLine });
+    let driver = deps.actionDriver;
+    if (!driver) {
+      const observer = createWindowsActionDriver({ log: logLine });
+      if (selected === "agent-desktop") {
+        let exe;
+        try { exe = asset.verifiedExe(); }
+        catch { return { error: "driver_integrity" }; }
+        driver = cu.createAgentDesktopDriver({ observer, exe, stateDir: asset.stateDir });
+      } else {
+        driver = { ...observer, finishTurn: observer.abort };
+      }
+    }
+    controllerDriver = selected;
     const planner = deps.computerUsePlanner || createGeminiPlanner();
     computerUseController = createComputerUseController({
       planner,
       driver,
       logLine,
       onState: (s) => {
+        if (!s.active) dismissComputerUseConfirm();
         sendPanel("okfilow:cu:state", s);
         sendOverlays("okfilow:cu:state", s);
         if (s.active) setMode("acting", { intent: s.intent || "" });
@@ -1798,19 +1837,22 @@ function createOkFilow(deps) {
         else outbound.end(id);
       },
     });
-    return computerUseController;
+    return { controller: computerUseController };
   }
   ipcMain.handle("okfilow:cu:start", guard(async (task, targetHwnd) => {
     const c = cfg();
     if (app.isPackaged || !c.enabled || !c.computerUse) return { ok: false, reason: "disabled" };
-    const ctrl = getComputerUseController();
-    if (!ctrl) return { ok: false, reason: "disabled" };
+    const result = getComputerUseController(c.computerUseDriver);
+    if (!result) return { ok: false, reason: "disabled" };
     if (isOffline()) return { ok: false, reason: "offline_mode" };
     if (!computerUseGranted(c.consent)) {
       return { ok: false, reason: "consent_required", needsConsent: { kind: "computeruse", recipient: computerUseRecipient() } };
     }
+    if (result.error) return { ok: false, reason: result.error };
+    if (controllerDriver !== c.computerUseDriver) return { ok: false, reason: "driver_busy" };
+    const ctrl = result.controller;
     const restoreFocusAtStart = Boolean(targetHwnd && panel?.isFocused());
-    if (restoreFocusAtStart) panel.blur();
+    if (restoreFocusAtStart && controllerDriver !== "agent-desktop") panel.blur();
     return ctrl.run({
       task: typeof task === "string" ? task.slice(0, 1000) : "",
       userId: "presenter",
@@ -1836,7 +1878,7 @@ function createOkFilow(deps) {
     noticeOpen = false;
     sendPanel("okfilow:cu:confirm", null);
     const ok = Boolean(answer && answer.confirmed === true && answer.clicked === true && answer.nonce === p.nonce);
-    if (ok) panel?.blur();
+    if (ok && controllerDriver !== "agent-desktop") panel?.blur();
     p.resolve({ confirmed: ok, clicked: ok, nonce: ok ? p.nonce : "" });
   });
 

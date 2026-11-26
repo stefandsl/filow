@@ -488,6 +488,23 @@ describe("X-14 Gemini Computer Use: require_confirmation, Stop, and log safety",
     expect(nextCfg(DEFAULTS, { computerUse: true }).computerUse).toBe(true);
   });
 
+  it("refuses an unknown password scan before capture or input", async () => {
+    const { runComputerUseTask } = require("./action-loop.js");
+    const planner = { start: vi.fn() };
+    const driver = {
+      inspectTarget: vi.fn(async () => ({ ...safeTarget, passwordUnknown: true })),
+      captureTarget: vi.fn(), execute: vi.fn(), abort: vi.fn(),
+    };
+    const result = await runComputerUseTask({
+      task: "Type a note", userId: "u1", targetHwnd: 12345, enabled: true,
+      offline: false, consentGranted: true, driver, planner,
+    });
+    expect(result.reason).toBe("password_field");
+    expect(result.bytesSent).toBe(0);
+    expect(driver.captureTarget).not.toHaveBeenCalled();
+    expect(driver.execute).not.toHaveBeenCalled();
+    expect(planner.start).not.toHaveBeenCalled();
+  });
   it("refuses a window containing a visible password element BEFORE sending any screenshot to the planner (R322)", async () => {
     const { runComputerUseTask } = require("./action-loop.js");
     const planner = { start: vi.fn(), continueWithResult: vi.fn() };

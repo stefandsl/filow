@@ -301,6 +301,9 @@ const en = {
   resizeItem: "Resize",
   // Computer Use pilot (X-14, Gemini desktop planner behind Filow's grant gate)
   computerUse: "Act in another app (experimental, Gemini)",
+  driverLabel: "Action driver",
+  driverDownload: "Download agent-desktop",
+  driverRemove: "Delete agent-desktop",
   computerUseHint: "Off by default. Sends screenshots of the target window only to Google to plan one step at a time. Filow checks every step and stops at once on Esc.",
   notice_computeruse: "Your task and screenshots of the target window go to {who} so Filow can plan each step. Only the target window is sent, never your whole desktop. Filow checks every step before any click or key. On the free tier, Google may use this content to improve its products.",
   kind_computeruse: "Screenshots of the target window (computer use)",

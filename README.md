@@ -879,3 +879,5 @@ Settings offers model deletion only for completed downloads recorded by Filow in
 The optional matching model requests missing files from Hugging Face only after you approve that download. Private practice works without it.
 
 When Day-by-day checks a report, it shows progress while the local model loads. If the model is unavailable, tick the task manually.
+
+The Windows installer excludes the experimental agent-desktop driver. Its download will appear in OK Filow settings once Filow hosts a signed build. In a development copy with the pilot binary installed, the presenter can select or remove it in those settings.

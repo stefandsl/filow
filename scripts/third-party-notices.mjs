@@ -168,6 +168,12 @@ const out = [
   "(pinned commit `77c9797e943aad63bbc963b7fd092a9e51c07863`, Copyright 2025 Google LLC,",
   "Apache License 2.0, http://www.apache.org/licenses/LICENSE-2.0).",
   "",
+  "## Optional agent-desktop driver",
+  "",
+  "Filow excludes this driver from the installer. An optional user download awaits a signed, hosted build.",
+  "agent-desktop v1.3.1, Vercel Labs, Apache License 2.0. Source and license:",
+  "https://github.com/vercel-labs/agent-desktop/tree/b0b7277bea09b770ef9d1fb45aad667bc432cd57",
+  "",
   "## npm packages",
   "",
 ];

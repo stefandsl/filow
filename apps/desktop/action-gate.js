@@ -101,7 +101,7 @@ function evaluateActionGate({ binding, target, action, elements = [], confirmedG
   const hitEl = elementAtCoords(action, elements);
   const focused = target.focusedElement || {};
   if (
-    target.password === true ||
+    target.passwordUnknown === true || target.hasPasswordField === true || target.password === true ||
     focused.isPassword === true ||
     hitEl?.isPassword === true ||
     PASSWORD_PATTERN.test(String(focused.name || "")) ||

@@ -371,6 +371,21 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R404 (X-14): Release keys still held after a partial hotkey send even when foreground ownership changes. Check the release path has no target predicate and contains only key-up events.
 - R405 (X-14): Freeze the confirmation scoring and label simulated ownership probes before a trial. Check both task read-backs, the refusal evidence and the scripted confirmation counts.
 - R406 (2026-11-26, X-14): Keep a computer-use driver out of the packaged app until its trial passes: leave the driver, gate, loop, planner and native helper out of `build.files` and `asarUnpack`, and load them only when the pilot starts so a missing module answers "unavailable". Check: cu-packaging.test.ts.
+- R420 (2026-11-26, X-14): Consume a headless snapshot before its first dispatch and bind the full qualified ref to the gated window and control. Check a replay, ambiguous target and stale ref for zero fallback calls.
+- R421 (2026-11-26, X-14): Cancel the owned MCP tree on Stop and finish every pending call on child exit. Check Stop during dispatch, a child crash and headless-only process arguments.
+- R422 (2026-11-26, X-14): Attach the MCP server to a kill-on-close job before its first request. Check that server death closes the owner while a worker is still alive.
+- R423 (2026-11-26, X-14): Let the pinned binary create its private state root inside a unique turn folder. Check a real scoped snapshot on Windows with inherited directory permissions.
+- R424 (2026-11-26, X-14): Check the captured root HWND, owning PID and bounds immediately before a headless ref call. Check a granted click with the panel focused and refuse a changed process or rectangle before sending a tool request.
+- R425 (2026-11-26, X-14): Start the panel with all pilot modules absent. Check disabled and enabled starts, asset status and an install request through the trusted IPC sender.
+- R426 (2026-11-26, X-14): Count driver tool requests at each refusal. Check duplicate nodes, a foreign ref prefix, stale frame, denied ownership and a failed target check, then exercise a fresh bound ref.
+- R427 (2026-11-26, X-14): Keep the controller that owns an active turn through supersession and select the configured driver when idle. Check helper shutdown, integrity failure and zero fallback dispatches.
+- R428 (2026-11-26, X-14): Keep the installer and download controls closed until a signed driver is hosted. Check package inputs, asset status and direct install refusal.
+- R429 (2026-11-26, X-14): Share the explicit pilot-only list across package inclusion, exclusion and missing-module tests. Check both require scanners and load the panel with the listed modules withheld.
 - R410 (2026-11-26, X-14b): Hide the computer-use control in packaged builds and refuse saved opt-ins when the pilot is absent. Check: invoke start from the panel with a packaged shell and with missing modules.
 - R411 (2026-11-26, X-14b): Verify hotkey recovery on the compiled helper and focus restoration through panel IPC. Check: enumerate every prefix of a three-key chord, then deny focus with the panel focused and unfocused.
 - R412 (2026-11-26, X-14b): Run safety probes before live planning and score ordered inputs alongside independent read-back. Check: replay an extra first click, a swapped pair and a completed task followed by planner failure.
+- R430 (2026-11-26, X-14b): R406 superseded by R410 for the missing-module start result. Check packaged and source starts with the modules withheld.
+- R431 (2026-11-26, X-14b): Require a ready password scan before capturing or dispatching. Check both drivers with an unknown scan and open the password page five times without a readiness sleep.
+- R432 (2026-11-26, X-14b): Bind point-free edits to the unique focused snapshot ref and keyboard commands to the granted window. Check nonempty edits, focus, key chords and scroll amount against emitted tool requests.
+- R433 (2026-11-26, X-14b): Preserve masked transport and cleanup errors and attribute focus events to individual actions. Check timeout and connection-refused replays and record HWND, process and pointer observations.
+- R434 (2026-11-26, X-14b): Preserve the focus spy and driver injection boundaries when combining panel fixtures. Check focus refusal and active-controller supersession in the same suite.

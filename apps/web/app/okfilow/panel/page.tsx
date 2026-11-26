@@ -225,6 +225,8 @@ export default function OkFilowPanel() {
   const [notice, setNotice] = useState<NoticeRequest | null>(null);
   const [outSnap, setOutSnap] = useState<OutboundSnapshot>({ active: false, kinds: [], names: [] });
   const [recipients, setRecipients] = useState<BuddyRecipients | null>(null);
+  const [driverAsset, setDriverAsset] = useState<{available: boolean; installed: boolean; bytes: number; sha256: string} | null>(null);
+  const [driverBusy, setDriverBusy] = useState(false);
   const [cuState, setCuState] = useState<{ active: boolean; intent: string }>({ active: false, intent: "" });
   const [cuConfirm, setCuConfirm] = useState<{ nonce: string; category: string; explanation: string; intent: string; action: string; targetExe: string; targetTitle: string } | null>(null);
   const outRef = useRef<OutboundController | null>(null);
@@ -232,6 +234,7 @@ export default function OkFilowPanel() {
   useEffect(() => {
     const b = okFilowBridge();
     setBridge(b);
+    void b?.computerUse?.asset?.("status").then(setDriverAsset).catch(() => {});
     if (!b) return;
     void b.status().then(setStatus);
     void outRef.current?.recipients();
@@ -1915,6 +1918,24 @@ export default function OkFilowPanel() {
               <input type="checkbox" checked={c.computerUse === true && !c.offline} disabled={c.offline} onChange={(e) => void configure({ computerUse: e.target.checked })} />
             </label>
             <p className="okf-hint">{t("computerUseHint")}</p>
+            {c.computerUse && driverAsset && (driverAsset.available || driverAsset.installed) && <div>
+              <label className="okf-row">{t("driverLabel")}
+                <select value={c.computerUseDriver ?? "filow"} disabled={driverBusy || cuState.active}
+                  onChange={(e) => void configure({ computerUseDriver: e.target.value === "agent-desktop" ? "agent-desktop" : "filow" })}>
+                  <option value="filow">Filow</option>
+                  {driverAsset.installed && <option value="agent-desktop">agent-desktop</option>}
+                </select>
+              </label>
+              <p className="okf-hint">agent-desktop v1.3.1 · Apache-2.0 · {driverAsset.bytes.toLocaleString()} B<br />SHA256 <code style={{ overflowWrap: "anywhere" }}>{driverAsset.sha256}</code></p>
+              <button type="button" disabled={driverBusy || cuState.active || (!driverAsset.installed && c.offline)} onClick={async () => {
+                setDriverBusy(true);
+                try {
+                  const result = await bridge.computerUse?.asset?.(driverAsset.installed ? "remove" : "install");
+                  if (result) setDriverAsset(result);
+                  setStatus(await bridge.status());
+                } catch (e) { fail(String(e)); } finally { setDriverBusy(false); }
+              }}>{t(driverAsset.installed ? "driverRemove" : "driverDownload")}</button>
+            </div>}
           </>}
           <MemorySettings bridge={bridge} status={c} t={t} configure={configure} lang={lang} learned={learned} />
           {c.answerLog && <div className="okf-row">

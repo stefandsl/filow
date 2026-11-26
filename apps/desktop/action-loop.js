@@ -11,6 +11,11 @@ const DEFAULT_MAX_STEPS = 12;
 const HARD_MAX_STEPS = 25;
 const DEFAULT_MAX_DURATION_MS = 90_000;
 
+function unsafeCapture(shot) {
+  return shot.info?.passwordUnknown || shot.info?.hasPasswordField || shot.info?.password ||
+    shot.elements?.some(e => e?.isPassword === true);
+}
+
 /**
  * Removes base64 screenshots, data URLs, and API keys before any metadata touches logs.
  */
@@ -126,7 +131,7 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
         metrics.refusals.push({ step: 0, category: "elevated_target" });
         return { ok: false, reason: "elevated_target", ...metrics };
       }
-      if (initialTarget.password === true || initialTarget.hasPasswordField === true) {
+      if (initialTarget.passwordUnknown === true || initialTarget.password === true || initialTarget.hasPasswordField === true) {
         metrics.refusals.push({ step: 0, category: "password_field" });
         return { ok: false, reason: "password_field", ...metrics };
       }
@@ -139,7 +144,7 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
       }
       let shot = await driver.captureTarget(boundHwnd, { maxWidth: 1280 });
       if (isStopped()) return { ok: false, reason: "stopped", ...metrics };
-      if (Array.isArray(shot.elements) && shot.elements.some((e) => e && e.isPassword === true)) {
+      if (unsafeCapture(shot)) {
         metrics.refusals.push({ step: 0, category: "password_field" });
         return { ok: false, reason: "password_field", ...metrics };
       }
@@ -280,6 +285,7 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
         const execRes = await driver.execute(call, {
           hwnd: boundHwnd,
           targetRect: shot.bounds,
+          snapshotId: shot.snapshotId,
           signal: abort.signal,
         });
         const driverMs = Number.isFinite(execRes?.latencyMs) ? execRes.latencyMs : Date.now() - d0;
@@ -305,6 +311,7 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
         shot = await driver.captureTarget(boundHwnd, { maxWidth: 1280 });
         if (isStopped()) return { ok: false, reason: "stopped", ...metrics };
 
+        if (unsafeCapture(shot)) throw new Error("password_field");
         onOutbound("begin", outId);
         try {
           const m0 = Date.now();
@@ -336,6 +343,10 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
       if (isStopped() || err?.name === "AbortError") {
         return { ok: false, reason: "stopped", ...metrics };
       }
+      if (err?.message === "password_field") {
+        metrics.refusals.push({ step: metrics.steps, category: "password_field" });
+        return { ok: false, reason: "password_field", ...metrics };
+      }
       if (err instanceof QuotaOrBillingError) {
         log("quota_or_billing", { turnId, status: err.status });
         return { ok: false, reason: "quota_or_billing", error: err.message, ...metrics };
@@ -344,6 +355,7 @@ function createComputerUseController({ planner, driver, logLine = () => {}, onSt
       return { ok: false, reason: "error", error: sanitizeString(err?.message || String(err)), ...metrics };
     } finally {
       if (active === runState) {
+        driver.finishTurn?.();
         active = null;
         onState({ active: false, mode: "idle", stopped: runState.stopped, intent: "" });
       }

@@ -1,3 +1,4 @@
+import { pilotOnly } from "./cu-packaging-fixture";
 import fs from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
@@ -7,6 +8,5 @@ it("packages every local module the main process requires", () => {
   const sources = fs.readdirSync(__dirname).filter((f) => /^(main|okfilow[\w-]*|dictation[\w-]*)\.js$/.test(f));
   const required = new Set(sources.flatMap((f) => [...fs.readFileSync(path.join(__dirname, f), "utf8").matchAll(/require\("\.\/([\w-]+)"\)/g)].map((m) => `${m[1]}.js`)));
   // X-14 pilot modules are loaded lazily and stay out of the download until their trial passes (R406).
-  const pilotOnly = ["action-driver.js", "action-gate.js", "action-loop.js", "gemini-cu-planner.js"];
   expect([...required].filter((r) => !files.includes(r) && !pilotOnly.includes(r) && fs.existsSync(path.join(__dirname, r)))).toEqual([]);
 });
