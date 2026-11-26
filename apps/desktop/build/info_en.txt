@@ -9,6 +9,12 @@ WHAT'S NEW
 All versions: https://github.com/stefandsl/filow-releases/releases
 Report a problem: in Filow, open the Filow menu > Report a problem. Filow saves a report file that you send privately; it sends nothing itself.
 
+# Filow 0.9.45 (Internal beta)
+
+Background listening uses less CPU. Whiteboard messages travel along their arrows, and labels and later marks follow boxes you move. The narrated welcome tour has a clearer opening line in Russian.
+
+Internal speech tests now use a fixed set of English and Italian examples. This build excludes the computer-use pilots.
+
 # Filow 0.9.44 (Preview)
 
 Filow asks before contacting Hugging Face to download the point-matching model. If you used the pre-filter before, allow the download once in Settings.

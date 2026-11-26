@@ -230,7 +230,7 @@ describe("computer-use panel IPC", () => {
       expect(await start(evt, "Choose Next", 17)).toEqual({ ok: false, reason: "disabled" });
       expect(requests).toEqual([]);
       const asset = ipcHandle.get("okfilow:cu:asset")!;
-      expect(await asset(evt, "status")).toEqual({ available: false, installed: false, bytes: 0, sha256: "" });
+      expect(await asset(evt, "status")).toBeNull();
       expect(await asset(evt, "install")).toEqual({ ok: false, reason: "unavailable" });
       config.computerUse = true;
       expect(await start(evt, "Choose Next", 17)).toEqual({ ok: false, reason: "unavailable" });

@@ -9,6 +9,12 @@ NOVITÀ
 Tutte le versioni: https://github.com/stefandsl/filow-releases/releases
 Segnalazioni: in Filow, apri il menu Filow > Segnala un problema. Filow salva un file di segnalazione che invii tu in privato; da solo non invia nulla.
 
+# Filow 0.9.45 (Beta interna)
+
+L’ascolto in background usa meno CPU. Sulla lavagna i messaggi seguono le frecce. Se sposti un riquadro, le etichette e i segni successivi seguono la nuova posizione. La prima frase della guida vocale in russo è più chiara.
+
+I test interni sul parlato usano gli stessi esempi in inglese e italiano. Questa versione esclude le funzioni sperimentali di controllo del computer.
+
 # Filow 0.9.44 (Anteprima)
 
 Filow chiede il permesso prima di contattare Hugging Face per scaricare il modello che riconosce i punti del copione. Se usavi il pre-filtro, autorizza il download una volta nelle Impostazioni.

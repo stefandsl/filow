@@ -1912,11 +1912,13 @@ export default function OkFilowPanel() {
             <span>{t("answerLog")}</span>
             <input type="checkbox" checked={c.answerLog === true} onChange={(e) => void configure({ answerLog: e.target.checked })} />
           </label>
-          <label className="okf-row">
-            <span>{t("computerUse")}</span>
-            <input type="checkbox" checked={c.computerUse === true && !c.offline} disabled={c.offline} onChange={(e) => void configure({ computerUse: e.target.checked })} />
-          </label>
-          <p className="okf-hint">{t("computerUseHint")}</p>
+          {driverAsset && <>
+            <label className="okf-row">
+              <span>{t("computerUse")}</span>
+              <input type="checkbox" checked={c.computerUse === true && !c.offline} disabled={c.offline} onChange={(e) => void configure({ computerUse: e.target.checked })} />
+            </label>
+            <p className="okf-hint">{t("computerUseHint")}</p>
+          </>}
           {c.computerUse && driverAsset && (driverAsset.available || driverAsset.installed) && <div>
             <label className="okf-row">{t("driverLabel")}
               <select value={c.computerUseDriver ?? "filow"} disabled={driverBusy || cuState.active}

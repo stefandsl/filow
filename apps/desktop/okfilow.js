@@ -1784,7 +1784,7 @@ function createOkFilow(deps) {
   }
   ipcMain.handle("okfilow:cu:asset", guard(async (op) => {
     const asset = getAsset();
-    if (!asset) return op === "status" ? { available: false, installed: false, bytes: 0, sha256: "" } : { ok: false, reason: "unavailable" };
+    if (!asset) return op === "status" ? null : { ok: false, reason: "unavailable" };
     if (op === "status") return asset.status();
     if (op === "install" && isOffline()) throw new Error("offline_mode");
     if (op === "remove") {

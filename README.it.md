@@ -892,4 +892,4 @@ Il modello di confronto facoltativo richiede i file mancanti a Hugging Face solo
 
 Quando Giorno per giorno verifica un resoconto, mostra un messaggio durante il caricamento del modello locale. Se il modello non è disponibile, spunta manualmente l’attività.
 
-Il programma di installazione per Windows esclude il driver sperimentale agent-desktop. Il download apparirà nelle impostazioni di OK Filow quando Filow pubblicherà una versione firmata. In una copia di sviluppo con il driver già installato, chi presenta può selezionarlo o rimuoverlo dalle stesse impostazioni.
+Il programma di installazione per Windows esclude le funzioni sperimentali di controllo del computer e nasconde la relativa impostazione. Il download apparirà nelle impostazioni di OK Filow quando Filow pubblicherà una versione firmata. In una copia di sviluppo con il driver già installato, chi presenta può selezionarlo o rimuoverlo dalle stesse impostazioni.

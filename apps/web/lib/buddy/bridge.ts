@@ -263,7 +263,7 @@ export type OkFilowBridge = {
   };
   /** Experimental Gemini Computer Use pilot (X-14). */
   computerUse?: {
-    asset?(op: "status" | "install" | "remove"): Promise<{ available: boolean; installed: boolean; bytes: number; sha256: string }>;
+    asset?(op: "status" | "install" | "remove"): Promise<{ available: boolean; installed: boolean; bytes: number; sha256: string } | null>;
     start(task: string, targetHwnd?: number): Promise<{ ok: boolean; reason?: string; needsConsent?: { kind: "computeruse"; recipient: Recipient } }>;
     stop(reason?: string): Promise<boolean>;
     confirm(answer: { nonce: string; confirmed: boolean; clicked: boolean }): void;
