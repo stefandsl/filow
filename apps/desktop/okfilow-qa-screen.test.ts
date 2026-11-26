@@ -39,7 +39,11 @@ class FakeContents {
   setWindowOpenHandler() {}
   send(channel: string) { this.sent.push(channel); }
 }
+const panelBlur = vi.fn();
+let panelFocused = true;
 class FakeWindow {
+  isFocused() { return panelFocused; }
+  blur() { panelBlur(); }
   webContents = new FakeContents();
   visible = false;
   constructor() { counts.windows++; contentsMade.push(this.webContents); }
@@ -93,12 +97,15 @@ let api: Api;
 let event: { sender: FakeContents; senderFrame: { url: string } };
 let created: { createQaScreen: (dir: string, deps: Record<string, unknown>) => { count: number; capture: (images: boolean, maxWidth?: number) => Shot } };
 const lines: string[] = [];
-const settings = { okFilow: { enabled: true, seeScreen: "auto", provider: "local" } };
+let missingPilot = false;
+const focusTarget = vi.fn(async () => ({ ok: false }));
+const settings = { okFilow: { enabled: true, computerUse: true, consent: { "computeruse:google/gemini-computer-use": { state: "granted" } }, seeScreen: "auto", provider: "local" } };
 const loader = Module as unknown as { _load: (r: string, ...rest: unknown[]) => unknown };
 const original = loader._load;
 
 beforeAll(() => {
   loader._load = function (request: string, ...rest: unknown[]) {
+    if (missingPilot && request === "./action-driver") throw Error("Missing pilot module");
     if (request === "electron") return fakeElectron;
     return original.call(this, request, ...rest);
   };
@@ -107,7 +114,8 @@ beforeAll(() => {
   created = okf;
   api = okf.createOkFilow({
     appUrl: "http://127.0.0.1:4811", getSettings: () => settings, saveSettings: () => {}, iconPath: "", logLine: (l: string) => lines.push(l),
-    sttLocal: { modelReady: () => false }, userData: tmp, menuText: (k: string) => k, isOffline: () => true, elementReader: null,
+    sttLocal: { modelReady: () => false }, userData: tmp, menuText: (k: string) => k, isOffline: () => false,
+    actionDriver: { inspectTarget: async () => ({ hwnd: 42 }), focusTarget, captureTarget: async () => { throw Error("unexpected capture"); } }, elementReader: null,
     dictation: { status: () => ({ enabled: false, chord: "" }), cfg: () => ({ enabled: false }), onChange() {}, activeChord: () => null, diag: { mark() {} } },
   });
   api.togglePanel();
@@ -117,6 +125,41 @@ afterAll(() => {
   delete process.env.FILOW_OKF_QA_SCREEN;
   // only the folder this file made
   if (path.basename(tmp).startsWith("okf-qa-screen-") && path.dirname(tmp) === path.resolve(os.tmpdir())) fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+describe("computer use through the panel IPC", () => {
+  const send = (channel: string, ...args: unknown[]) => {
+    const sender = findPanel();
+    return ipcHandle.get(channel)!({ sender, senderFrame: sender.mainFrame }, ...args);
+  };
+
+  it("hides the packaged setting and disables a saved opt-in", async () => {
+    fakeElectron.app.isPackaged = true;
+    try {
+      expect(send("okfilow:status")).toMatchObject({ computerUseAvailable: false });
+      expect(await send("okfilow:cu:start", "Choose", 42)).toMatchObject({ reason: "disabled" });
+    } finally { fakeElectron.app.isPackaged = false; }
+  });
+
+  it("answers disabled when the pilot modules are absent", async () => {
+    missingPilot = true;
+    try {
+      expect(await send("okfilow:cu:start", "Choose", 42)).toMatchObject({ reason: "disabled" });
+    } finally { missingPilot = false; }
+  });
+
+  it("blurs a focused panel and refuses capture when initial target restoration fails", async () => {
+    expect(await send("okfilow:cu:start", "Choose", 42)).toMatchObject({ reason: "target_not_foreground" });
+    expect(panelBlur).toHaveBeenCalledOnce();
+    expect(focusTarget).toHaveBeenCalledWith(42);
+    expect(panelBlur.mock.invocationCallOrder[0]).toBeLessThan(focusTarget.mock.invocationCallOrder[0]);
+    panelFocused = false;
+    try {
+      await send("okfilow:cu:start", "Choose", 42);
+      expect(panelBlur).toHaveBeenCalledTimes(1);
+      expect(focusTarget).toHaveBeenCalledTimes(1);
+    } finally { panelFocused = true; }
+  });
 });
 
 describe("FILOW_OKF_QA_SCREEN: OK Filow's synthetic screen", () => {

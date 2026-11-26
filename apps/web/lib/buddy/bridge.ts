@@ -73,6 +73,7 @@ export type OkFilowStatus = {
   memory?: boolean;
   /** Experimental Gemini Computer Use planner (X-14 pilot): off by default. */
   computerUse?: boolean;
+  computerUseAvailable?: boolean;
   agentCli?: string;
   onboarded?: boolean;
   /** What the user allowed or refused to send outside, per kind and recipient. */

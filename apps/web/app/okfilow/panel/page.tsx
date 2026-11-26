@@ -1909,11 +1909,13 @@ export default function OkFilowPanel() {
             <span>{t("answerLog")}</span>
             <input type="checkbox" checked={c.answerLog === true} onChange={(e) => void configure({ answerLog: e.target.checked })} />
           </label>
-          <label className="okf-row">
-            <span>{t("computerUse")}</span>
-            <input type="checkbox" checked={c.computerUse === true && !c.offline} disabled={c.offline} onChange={(e) => void configure({ computerUse: e.target.checked })} />
-          </label>
-          <p className="okf-hint">{t("computerUseHint")}</p>
+          {c.computerUseAvailable && <>
+            <label className="okf-row">
+              <span>{t("computerUse")}</span>
+              <input type="checkbox" checked={c.computerUse === true && !c.offline} disabled={c.offline} onChange={(e) => void configure({ computerUse: e.target.checked })} />
+            </label>
+            <p className="okf-hint">{t("computerUseHint")}</p>
+          </>}
           <MemorySettings bridge={bridge} status={c} t={t} configure={configure} lang={lang} learned={learned} />
           {c.answerLog && <div className="okf-row">
             <button type="button" className="okf-link" onClick={() => void okFilowBridge()?.deleteAnswers().then((n) => setNote(t("answersDeleted").replace("{n}", String(n))))}>{t("deleteAnswers")}</button>

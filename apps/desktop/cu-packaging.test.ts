@@ -17,6 +17,5 @@ describe("computer-use pilot packaging", () => {
     const src = readFileSync(new URL("./okfilow.js", import.meta.url), "utf8");
     const topLevel = src.split("function getComputerUseController")[0];
     expect(topLevel).not.toMatch(/require\("\.\/(action-driver|action-loop|gemini-cu-planner)"\)/);
-    expect(src).toMatch(/reason: "unavailable"/);
   });
 });

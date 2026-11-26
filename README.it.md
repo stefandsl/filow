@@ -753,6 +753,8 @@ ripetere il confronto: `docs/gauntlet/BASELINE.md`.
 
 ## OK Filow, l'aiutante sullo schermo
 
+L’impostazione sperimentale per controllare il computer è disponibile solo quando si avvia Filow dal codice sorgente.
+
 Per pronunciare la richiesta, scegli **Parla o scrivi** sulla lavagna preparata quando la finestra della lezione è pronta. Scegli il pulsante per parlare, di’ «Apri Cloud Lab» e invia le parole registrate. Controlla la bozza sulla lavagna prima di approvare. Se il microfono non è disponibile, puoi scrivere direttamente sulla lavagna.
 
 Nel suggeritore desktop, scegli **Lavagna preparata sul ciclo dell’acqua** per sospendere l’ascolto al punto corrente. Scegli una fotografia locale delle nuvole e segui le quattro frecce con la classe. **Torna al mio punto** chiude la lavagna. Riavvia l’ascolto quando vuoi riprendere. La foto resta sul computer.

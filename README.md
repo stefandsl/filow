@@ -744,6 +744,8 @@ rerun the comparison: `docs/gauntlet/BASELINE.md`.
 
 ## OK Filow, the screen helper
 
+The experimental computer-use setting is available only when running Filow from source.
+
 To speak the Cloud Lab request, choose **Talk or type** on the prepared board after the lesson window is ready. Choose **Speak**, say “Open Cloud Lab”, then send the spoken words. Check the draft back on the board before approving. Typing in the board also works when the microphone is unavailable.
 
 On the desktop prompter, select **Prepared water-cycle board** to pause tracking at your current point. Choose a local cloud photograph and follow the four arrows with your class. **Return to my point** closes the board. Start listening again when you are ready. The photo stays on this computer.

@@ -588,6 +588,23 @@ describe("X-14 dispatch boundaries", () => {
     expect(driver.execute).toHaveBeenCalledTimes(canFocus ? 1 : 0);
   });
 
+  it.skipIf(process.platform !== "win32")("releases exactly the held keys for every prefix of a three-key chord", () => {
+    const { execFileSync } = require("node:child_process");
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const dir = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "cu-chord-"));
+    try {
+      execFileSync(process.execPath, [require.resolve("./native/action/build.mjs"), "--out", dir]);
+      const probe = [
+        "$ErrorActionPreference='Stop'",
+        "[void][Reflection.Assembly]::LoadFrom((Resolve-Path './filow-action.exe').Path)",
+        "0..6 | ForEach-Object { '[' + ([FilowActionHelper]::KeysToRelease([UInt16[]](17,16,65), $_) -join ',') + ']' }",
+      ].join("; ");
+      const rows = execFileSync("powershell.exe", ["-NoProfile", "-Command", probe], { cwd: dir, encoding: "utf8" });
+      expect(rows.trim().split(/\r?\n/)).toEqual(["[]", "[17]", "[16,17]", "[65,16,17]", "[16,17]", "[17]", "[]"]);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }, 20_000);
+
   it("releases partially sent hotkeys even if the target lost focus", () => {
     const native = require("node:fs").readFileSync(require.resolve("./native/action/filow-action.cs"), "utf8");
     expect(native).toMatch(/SendAll\(up, null\)/);

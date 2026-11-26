@@ -3,7 +3,7 @@
 // bubble, pointing), a small panel window that is also the "brain" (mic, speech-to-text, the
 // /api/buddy/ask call, the voice), a tray icon, the hold-to-talk hotkey and the screenshots.
 // Screenshots stay in memory; every OK Filow window is excluded from capture.
-const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut: electronShortcuts, nativeImage, shell, systemPreferences } = require("electron");
+const { app, BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut: electronShortcuts, nativeImage, shell, systemPreferences } = require("electron");
 const { globalInputOff, shortcutsFor, REFUSED_INSERT } = require("./global-input");
 /** Test isolation (global-input.js): no hook, no global shortcut, no typing into other windows, no focus taken. */
 const INPUT_OFF = globalInputOff();
@@ -1537,7 +1537,7 @@ function createOkFilow(deps) {
     // Dictation keeps its own settings (dictation.js); the panel shows its switch and keys from here.
     const d = dictation.status({ talkHotkey: c.hotkey, hook: Boolean(hook) });
     // answerDir: the folder the log writes to, also when the user has not picked one (the panel shows its name).
-    return { ...c, wakeWord: wake?.status().enabled === true, wake: wake?.status(), answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d, ...(QA_MIC_DELAY ? { qaMicDelayMs: QA_MIC_DELAY } : {}) };
+    return { ...c, computerUseAvailable: app.isPackaged === false, wakeWord: wake?.status().enabled === true, wake: wake?.status(), answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d, ...(QA_MIC_DELAY ? { qaMicDelayMs: QA_MIC_DELAY } : {}) };
   }
 
   // ---- IPC (only OK Filow's own windows) ----
@@ -1765,7 +1765,7 @@ function createOkFilow(deps) {
 
   // ---- X-14 Computer Use pilot (Gemini planner behind Filow's grant gate) ----
   // X-14: no driver ships in the default download until it passes, so the packaged app has none of
-  // these modules. Load them only when the pilot starts; when they are absent it is unavailable.
+  // these modules. Load them only when the pilot starts; an absent module disables the pilot.
   let pendingCuConfirm = null;
   let computerUseController = null;
   function getComputerUseController() {
@@ -1802,13 +1802,13 @@ function createOkFilow(deps) {
   }
   ipcMain.handle("okfilow:cu:start", guard(async (task, targetHwnd) => {
     const c = cfg();
-    if (!c.enabled || !c.computerUse) return { ok: false, reason: "disabled" };
+    if (app.isPackaged || !c.enabled || !c.computerUse) return { ok: false, reason: "disabled" };
+    const ctrl = getComputerUseController();
+    if (!ctrl) return { ok: false, reason: "disabled" };
     if (isOffline()) return { ok: false, reason: "offline_mode" };
     if (!computerUseGranted(c.consent)) {
       return { ok: false, reason: "consent_required", needsConsent: { kind: "computeruse", recipient: computerUseRecipient() } };
     }
-    const ctrl = getComputerUseController();
-    if (!ctrl) return { ok: false, reason: "unavailable" };
     const restoreFocusAtStart = Boolean(targetHwnd && panel?.isFocused());
     if (restoreFocusAtStart) panel.blur();
     return ctrl.run({

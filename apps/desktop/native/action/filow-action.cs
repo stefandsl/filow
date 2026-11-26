@@ -1,5 +1,5 @@
 // Filow Windows ActionDriver native helper (X-14 pilot).
-// Compiled at vendor/prestart time with Windows .NET Framework 4 csc.exe (no external SDK).
+// Compiled at development startup with Windows .NET Framework 4 csc.exe (no external SDK).
 // Protocol: one command line in on stdin, one JSON line out on stdout.
 //   inspect <hwnd> <parentPid>           target window metadata, elevation, password status, physical bounds, DPI
 //   capture <hwnd> <maxWidth> <parentPid> target-window-only PNG (PrintWindow) + UIA elements of that window
@@ -729,9 +729,7 @@ public static class FilowActionHelper {
       if (sent > 0 && sent != (uint)inputs.Count) {
         // Release just the keys still down in the successfully inserted prefix.
         var up = new List<INPUT>();
-        int held = Math.Min((int)sent, inputs.Count - (int)sent);
-        for (int i = held - 1; i >= 0; i--) {
-          ushort vk = vks[i];
+        foreach (ushort vk in KeysToRelease(vks, (int)sent)) {
           uint ext = EXTENDED_VKS.Contains(vk) ? KEYEVENTF_EXTENDEDKEY : 0;
           up.Add(MakeKey(vk, (ushort)MapVirtualKey(vk, 0), ext | KEYEVENTF_KEYUP));
         }
@@ -740,6 +738,12 @@ public static class FilowActionHelper {
       return new Dictionary<string, object> { { "ok", sent == (uint)inputs.Count }, { "sent", (int)sent }, { "latencyMs", sw.ElapsedMilliseconds } };
     }
     return new Dictionary<string, object> { { "ok", false }, { "refused", true }, { "error", "unsupported_action" } };
+  }
+
+  // Hotkeys press in order and release in reverse. A partial send leaves a prefix held.
+  public static IEnumerable<ushort> KeysToRelease(IList<ushort> keys, int sent) {
+    int held = Math.Min(sent, 2 * keys.Count - sent);
+    for (int i = held - 1; i >= 0; i--) yield return keys[i];
   }
 
   public static int Main(string[] args) {
