@@ -21,7 +21,10 @@ describe("packaged files", () => {
     expect(files).toContain(module);
   });
   it("include every local module the app requires", () => {
-    const missing = [...required].filter((m) => !files.includes(m));
+    // X-14 pilot modules stay out of the download until their trial passes; okfilow.js loads them
+    // lazily and answers "unavailable" without them (cu-packaging.test.ts, R406).
+    const pilotOnly = ["action-driver.js", "action-gate.js", "action-loop.js", "gemini-cu-planner.js"];
+    const missing = [...required].filter((m) => !files.includes(m) && !pilotOnly.includes(m));
     expect(missing).toEqual([]);
   });
 });

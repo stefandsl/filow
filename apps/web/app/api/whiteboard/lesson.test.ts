@@ -528,6 +528,24 @@ describe("whiteboard lesson, a model that stalls", () => {
     }
   });
 
+  it("reserves each Lite message for the caption that picks it", async () => {
+    const messages = ["SYN", "SYN-ACK", "ACK"];
+    const relations = messages.map((verb, i) => ({
+      verb, from: i === 1 ? "server" : "client", to: i === 1 ? "client" : "server",
+    }));
+    const answers = [
+      JSON.stringify({ title: "Handshake", scene: "flow", steps: messages.map((m) => ({ say: "Send " + m + "." })) }),
+      JUDGE,
+      JSON.stringify({ things: [{ id: "client", text: "Client" }, { id: "server", text: "Server" }], relations }),
+      JSON.stringify({ answers: messages.map((_, i) => ({ n: i + 1, true: true })) }),
+      pick(["client", "server"], ["1", "2", "3"]), pick([], ["2"]), pick([], ["3"]),
+    ];
+    const events: LessonEvent[] = [];
+    await generateLocal(async () => answers.shift() ?? "", { question: "TCP handshake", lang: "en", maxSteps: 4, lite: true }, (e) => events.push(e));
+    expect(stepsOf(events).map((step) => step.items.flatMap((item) => item.kind === "edge" ? [item.text] : [])))
+      .toEqual(messages.map((message) => [message]));
+  });
+
   it("gives a shorter lesson on the Lite tier", async () => {
     const formats: unknown[] = [];
     const ask: Ask = async (c) => {

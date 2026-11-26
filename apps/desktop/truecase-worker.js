@@ -4,7 +4,7 @@
 // process do not mix; a crash or a slow load here also cannot stall Filow's windows. Nothing here opens a
 // network connection: it reads the model files from the folder it is given and answers messages.
 //
-// in:  { type: "init", dir, threads }            out: { type: "ready", ms } or { type: "failed", error }
+// in:  { type: "init", dir }            out: { type: "ready", ms } or { type: "failed", error }
 // in:  { type: "run", id, text }                 out: { type: "done", id, pieces, labels } or { type: "error", id, error }
 // `text` is already stripped and lowercased (truecase-text.js); the answer is one label per piece.
 const fs = require("node:fs");
@@ -16,14 +16,16 @@ let tokenizer = null;
 let config = null;
 let ort = null;
 
-async function init({ dir, threads }) {
+async function init({ dir }) {
   const t0 = Date.now();
   ort = require("onnxruntime-node");
   const { Tokenizer } = require("@huggingface/tokenizers");
   const read = (f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
   config = read("config.json");
   tokenizer = new Tokenizer(read("tokenizer.json"), read("tokenizer_config.json"));
-  session = await ort.InferenceSession.create(path.join(dir, "model_quantized.onnx"), { intraOpNumThreads: threads, executionProviders: ["cpu"] });
+  session = await ort.InferenceSession.create(path.join(dir, "model_quantized.onnx"), {
+    intraOpNumThreads: 1, interOpNumThreads: 1, executionMode: "sequential", executionProviders: ["cpu"],
+  });
   return Date.now() - t0;
 }
 

@@ -97,6 +97,15 @@ describe("speech model catalogue", () => {
     expect(installedKeys(userDataWith("with-vad", ["parakeet-v3", "silero-vad"]))).toEqual(["parakeet-v3"]);
   });
 
+  it("uses a single inference thread for every live recognizer", () => {
+    const threads = new stt.SttSession(root).threads();
+    for (const spec of Object.values(CATALOGUE) as any[]) {
+      if (spec.kind === "vad") continue; // The worker constructs Silero separately below.
+      const config = recognizerConfig(spec, "models", threads);
+      expect(config.modelConfig.numThreads, spec.key).toBe(1);
+    }
+  });
+
   it("builds the recognizer configuration each model family needs", () => {
     const dir = "M";
     const nemo = recognizerConfig(CATALOGUE["parakeet-v3"], dir, 2);
@@ -141,6 +150,7 @@ describe("speech worker, phrase models", () => {
         return { createStream: () => ({ acceptWaveform({ samples }: { samples: Float32Array }) { (this as any).n = samples.length; } }), decode() {}, getResult: (s: any) => ({ text: ` phrase of ${s.n} ` }) };
       },
       Vad: function (config: any) {
+        expect(config.numThreads).toBe(1);
         expect(config.sileroVad.windowSize).toBe(512);
         expect(config.sileroVad.threshold).toBe(0.2); // measured: 0.5 cuts the soft start of phrases
         return {

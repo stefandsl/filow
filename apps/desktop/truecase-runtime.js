@@ -36,7 +36,7 @@ function runtimeFile({ platform = process.platform, arch = process.arch, baseDir
 
 /**
  * deps: { userData, logLine, fork(script) -> utility process ({ postMessage, on("message"|"exit"), kill }),
- *         download, sha256File, threads?, runtimeFile?(), modelExists?(dir), startTimeoutMs?, idleMs?,
+ *         download, sha256File, runtimeFile?(), modelExists?(dir), startTimeoutMs?, idleMs?,
  *         setTimeout?, clearTimeout?, fileUrl?(file) }
  */
 function createTruecaseRuntime(deps) {
@@ -81,7 +81,6 @@ function createTruecaseRuntime(deps) {
     starting = new Promise((resolve, reject) => {
       const t0 = Date.now();
       const c = deps.fork(path.join(__dirname, "truecase-worker.js").replace(/([\\/])app\.asar([\\/])/, "$1app.asar.unpacked$2"));
-      const threads = Math.max(1, Math.min(4, Number(deps.threads ? deps.threads() : 2) || 2));
       const timer = st(() => { try { c.kill(); } catch { /* gone */ } reject(new Error("the model did not load in time")); }, deps.startTimeoutMs || 30000);
       c.on("message", (m) => {
         if (!m || typeof m !== "object") return;
@@ -91,7 +90,7 @@ function createTruecaseRuntime(deps) {
           lastError = "";
           startedMs = Date.now() - t0;
           touch();
-          log(`truecase: model loaded in ${startedMs} ms (onnxruntime, ${threads} threads, this computer only)`);
+          log(`truecase: model loaded in ${startedMs} ms (onnxruntime, one inference thread, this computer only)`);
           resolve();
         } else if (m.type === "failed") { ct(timer); try { c.kill(); } catch { /* gone */ } reject(new Error(m.error || "the model did not load")); }
         else if ((m.type === "done" || m.type === "error") && waiting.has(m.id)) {
@@ -107,7 +106,7 @@ function createTruecaseRuntime(deps) {
         failAll("the model's process stopped");
         reject(new Error("the model's process stopped while loading"));
       });
-      c.postMessage({ type: "init", dir: dir(), threads });
+      c.postMessage({ type: "init", dir: dir() });
     }).catch((e) => { lastError = String((e && e.message) || e).slice(0, 80); log(`truecase: model did not load (${lastError})`); throw e; }).finally(() => { starting = null; });
     return starting;
   }

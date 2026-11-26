@@ -11,6 +11,7 @@
 //   recorded by a page: the natural voice reads the recording in its place (lib/whiteboard/voice.ts).
 //   The narration is recorded even when the lesson's voice is off: it is then not heard while it records.
 import type { ChunkPlayer } from "@/lib/buddy/voice";
+import { stripCueNodes } from "./motion";
 
 export const VIDEO = { fps: 12, width: 1280, height: 720, captionH: 96 };
 
@@ -77,6 +78,8 @@ export async function boardFrame(svg: SVGSVGElement, css: string): Promise<HTMLI
     if (right && Number(right[1]) > 0) to.style.clipPath = cs.clipPath;
   });
   copy.removeAttribute("class");
+  // Transient message-motion cues are presentation state only: never kept in exported video frames.
+  stripCueNodes(copy);
   if (css) {
     const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
     style.textContent = css;

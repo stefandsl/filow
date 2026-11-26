@@ -62,7 +62,17 @@ export type ExEl = {
   customData?: { wb?: WbMeta } & Record<string, unknown>;
   [k: string]: unknown;
 };
-export type WbMeta = { step: number; key: string; role: "frame" | "title" | "node" | "label" | "edge" | "mark" | "block" | "pointer" };
+export type WbMeta = {
+  step: number;
+  key: string;
+  role: "frame" | "title" | "node" | "label" | "edge" | "mark" | "block" | "pointer";
+  /** Element ID of the node this annotation follows. */
+  target?: string;
+  /** Directed edge endpoints and reveal order. */
+  from?: string;
+  to?: string;
+  order?: number;
+};
 export type BinaryFile = { id: string; mimeType: string; dataURL: string; created: number };
 export type Scene = { elements: ExEl[]; files: Record<string, BinaryFile> };
 
@@ -128,14 +138,19 @@ export function labelled(shape: ExEl, label: ExEl): [ExEl, ExEl] {
   return [shape, label];
 }
 
-export function arrow(id: string, pts: Array<{ x: number; y: number }>, meta: WbMeta, rest: Partial<ExEl> = {}): ExEl {
+export function arrowGeometry(pts: Array<{ x: number; y: number }>) {
   const x0 = pts[0].x;
   const y0 = pts[0].y;
   const rel = pts.map((p) => [r1(p.x - x0), r1(p.y - y0)] as [number, number]);
   const xs = rel.map((p) => p[0]);
   const ys = rel.map((p) => p[1]);
-  return el(id, "arrow", { x: x0, y: y0, w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }, meta, {
-    strokeColor: INK.soft, roundness: pts.length > 2 ? { type: 2 } : null, points: rel, lastCommittedPoint: null,
+  return { x: r1(x0), y: r1(y0), width: r1(Math.max(...xs) - Math.min(...xs)), height: r1(Math.max(...ys) - Math.min(...ys)), points: rel };
+}
+
+export function arrow(id: string, pts: Array<{ x: number; y: number }>, meta: WbMeta, rest: Partial<ExEl> = {}): ExEl {
+  const { x, y, width, height, points } = arrowGeometry(pts);
+  return el(id, "arrow", { x, y, w: width, h: height }, meta, {
+    strokeColor: INK.soft, roundness: pts.length > 2 ? { type: 2 } : null, points, lastCommittedPoint: null,
     startBinding: null, endBinding: null, startArrowhead: null, endArrowhead: "arrow", elbowed: false,
     ...rest,
   });
@@ -190,14 +205,14 @@ function nodeEls(nd: PlacedNode): ExEl[] {
 /** The middle of the quadratic curve layout.ts gives an arrow: Excalidraw draws a curve through it. */
 const mid = (e: PlacedEdge) => ({ x: 0.25 * e.x1 + 0.5 * e.cx + 0.25 * e.x2, y: 0.25 * e.y1 + 0.5 * e.cy + 0.25 * e.y2 });
 
-function edgeEls(e: PlacedEdge, used: Set<string>, shapes: Map<string, ExEl>): ExEl[] {
+function edgeEls(e: PlacedEdge, used: Set<string>, shapes: Map<string, ExEl>, order: number): ExEl[] {
   let id = `a-${safeId(e.from)}-${safeId(e.to)}`;
   for (let k = 2; used.has(id); k++) id = `a-${safeId(e.from)}-${safeId(e.to)}-${k}`;
   used.add(id);
-  const meta: WbMeta = { step: e.step, key: e.key, role: "edge" };
   const straight = Math.abs((e.cx - (e.x1 + e.x2) / 2)) < 2 && Math.abs(e.cy - (e.y1 + e.y2) / 2) < 2;
   const from = shapes.get(nodeId(e.from));
   const to = shapes.get(nodeId(e.to));
+  const meta: WbMeta = { step: e.step, key: e.key, role: "edge", ...(from && to ? { from: from.id, to: to.id, order } : {}) };
   const a = arrow(id, straight ? [{ x: e.x1, y: e.y1 }, { x: e.x2, y: e.y2 }] : [{ x: e.x1, y: e.y1 }, mid(e), { x: e.x2, y: e.y2 }], meta, {
     startBinding: from ? { elementId: from.id, focus: 0, gap: 6 } : null,
     endBinding: to ? { elementId: to.id, focus: 0, gap: 6 } : null,
@@ -207,12 +222,14 @@ function edgeEls(e: PlacedEdge, used: Set<string>, shapes: Map<string, ExEl>): E
   if (!e.label) return [a];
   const size = Math.round(e.label.font * 0.95);
   const lb = e.label.box;
-  const label = text(`${id}-t`, e.label.lines, size, { cx: lb.x + lb.w / 2, cy: lb.y + lb.h / 2 }, { ...meta, role: "label" }, { strokeColor: INK.soft, originalText: e.label.lines.join(" ") });
-  return labelled(a, label);
+  // Unbound edge label: Excalidraw keeps it at the exact off-stroke position layout.ts chose instead
+  // of snapping it onto the arrow midpoint and masking the stroke.
+  const label = text(`${id}-t`, e.label.lines, size, { cx: lb.x + lb.w / 2, cy: lb.y + lb.h / 2 }, { step: e.step, key: e.key, role: "label" }, { strokeColor: INK.soft, originalText: e.label.lines.join(" ") });
+  return [a, label];
 }
 
 function markEls(m: BoardLayout["marks"][number], targetColour: string): ExEl[] {
-  const meta: WbMeta = { step: m.step, key: m.key, role: "mark" };
+  const meta: WbMeta = { step: m.step, key: m.key, role: "mark", target: nodeId(m.target) };
   const id = `m-${safeId(m.target)}-${m.style}`;
   const b = m.box;
   if (m.style === "circle") return [el(id, "ellipse", { x: b.x - 16, y: b.y - 14, w: b.w + 32, h: b.h + 28 }, meta, { strokeColor: INK.mark, strokeWidth: 2.5 })];
@@ -488,11 +505,12 @@ export function sceneFromLayout(source: BoardLayout, opts: SceneOptions = {}): S
     // per node: its shape, its label, then the arrows that become possible (the skill's progressive order)
     const pending = layout.edges.filter((e) => e.step === step);
     const drawn = new Set(layout.nodes.filter((n) => n.step < step).map((n) => n.id));
+    let edgeOrder = 0;
     const flush = () => {
       for (let i = 0; i < pending.length; ) {
         const e = pending[i];
         if (drawn.has(e.from) && drawn.has(e.to)) {
-          els.push(...edgeEls(e, used, shapes));
+          els.push(...edgeEls(e, used, shapes, edgeOrder++));
           pending.splice(i, 1);
         } else i++;
       }
@@ -505,7 +523,7 @@ export function sceneFromLayout(source: BoardLayout, opts: SceneOptions = {}): S
       flush();
     }
     flush();
-    for (const e of pending) els.push(...edgeEls(e, used, shapes));
+    for (const e of pending) els.push(...edgeEls(e, used, shapes, edgeOrder++));
     if (dia) els.push(...diagramEls(dia, step, diaShapes));
     for (const m of layout.marks.filter((x) => x.step === step)) els.push(...markEls(m, stepColour(step)));
     for (const b of layout.blocks.filter((x) => x.step === step)) els.push(...blockEls(b, files));

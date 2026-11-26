@@ -1766,13 +1766,22 @@ function createOkFilow(deps) {
   });
 
   // ---- X-14 Computer Use pilot (Gemini planner behind Filow's grant gate) ----
-  const { createWindowsActionDriver } = require("./action-driver");
-  const { createGeminiPlanner } = require("./gemini-cu-planner");
-  const { createComputerUseController } = require("./action-loop");
+  // X-14: no driver ships in the default download until it passes, so the packaged app has none of
+  // these modules. Load them only when the pilot starts; when they are absent it is unavailable.
   let pendingCuConfirm = null;
   let computerUseController = null;
-  const asset = require("./agent-desktop-asset").agentDesktopAsset(userData);
+  let controllerDriver = null;
+  let driverAsset = null;
+  function getAsset() {
+    if (!driverAsset) {
+      try { driverAsset = require("./agent-desktop-asset").agentDesktopAsset(userData); }
+      catch { return null; }
+    }
+    return driverAsset;
+  }
   ipcMain.handle("okfilow:cu:asset", guard(async (op) => {
+    const asset = getAsset();
+    if (!asset) return op === "status" ? { available: false, installed: false, bytes: 0, sha256: "" } : { ok: false, reason: "unavailable" };
     if (op === "status") return asset.status();
     if (op === "install" && isOffline()) throw new Error("offline_mode");
     if (op === "remove") {
@@ -1781,12 +1790,33 @@ function createOkFilow(deps) {
     }
     return asset.change(op);
   }));
-  function getComputerUseController() {
-    if (computerUseController?.active()) cancelComputerUse("superseded");
-    const observer = createWindowsActionDriver({ log: logLine });
-    const driver = deps.actionDriver || (cfg().computerUseDriver === "agent-desktop"
-      ? require("./agent-desktop-driver").createAgentDesktopDriver({ observer, exe: asset.verifiedExe(), stateDir: asset.stateDir })
-      : { ...observer, finishTurn: observer.abort });
+  function getComputerUseController(selected) {
+    if (computerUseController?.active()) return { controller: computerUseController };
+    let cu;
+    try {
+      cu = {
+        ...require("./action-driver"),
+        ...require("./gemini-cu-planner"),
+        ...require("./action-loop"),
+        ...require("./agent-desktop-driver"),
+      };
+    } catch { return null; }
+    const asset = getAsset();
+    if (!asset) return null;
+    const { createWindowsActionDriver, createGeminiPlanner, createComputerUseController } = cu;
+    let driver = deps.actionDriver;
+    if (!driver) {
+      const observer = createWindowsActionDriver({ log: logLine });
+      if (selected === "agent-desktop") {
+        let exe;
+        try { exe = asset.verifiedExe(); }
+        catch { return { error: "driver_integrity" }; }
+        driver = cu.createAgentDesktopDriver({ observer, exe, stateDir: asset.stateDir });
+      } else {
+        driver = { ...observer, finishTurn: observer.abort };
+      }
+    }
+    controllerDriver = selected;
     const planner = deps.computerUsePlanner || createGeminiPlanner();
     computerUseController = createComputerUseController({
       planner,
@@ -1803,7 +1833,7 @@ function createOkFilow(deps) {
         else outbound.end(id);
       },
     });
-    return computerUseController;
+    return { controller: computerUseController };
   }
   ipcMain.handle("okfilow:cu:start", guard(async (task, targetHwnd) => {
     const c = cfg();
@@ -1812,9 +1842,13 @@ function createOkFilow(deps) {
     if (!computerUseGranted(c.consent)) {
       return { ok: false, reason: "consent_required", needsConsent: { kind: "computeruse", recipient: computerUseRecipient() } };
     }
+    const result = getComputerUseController(c.computerUseDriver);
+    if (!result) return { ok: false, reason: "unavailable" };
+    if (result.error) return { ok: false, reason: result.error };
+    if (controllerDriver !== c.computerUseDriver) return { ok: false, reason: "driver_busy" };
+    const ctrl = result.controller;
     const restoreFocusAtStart = Boolean(targetHwnd && panel?.isFocused());
-    if (restoreFocusAtStart && c.computerUseDriver !== "agent-desktop") panel.blur();
-    const ctrl = getComputerUseController();
+    if (restoreFocusAtStart && controllerDriver !== "agent-desktop") panel.blur();
     return ctrl.run({
       task: typeof task === "string" ? task.slice(0, 1000) : "",
       userId: "presenter",
@@ -1840,7 +1874,7 @@ function createOkFilow(deps) {
     noticeOpen = false;
     sendPanel("okfilow:cu:confirm", null);
     const ok = Boolean(answer && answer.confirmed === true && answer.clicked === true && answer.nonce === p.nonce);
-    if (ok) panel?.blur();
+    if (ok && controllerDriver !== "agent-desktop") panel?.blur();
     p.resolve({ confirmed: ok, clicked: ok, nonce: ok ? p.nonce : "" });
   });
 

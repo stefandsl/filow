@@ -97,7 +97,7 @@ describe("setupChoices", () => {
     const c = setupChoices("lite", machine(8, 4));
     expect(c.decision).toEqual({ provider: "matcher", model: null });
     expect(c.gate).toEqual({ on: true, narrow: true });
-    expect(c.stt).toEqual({ backend: "sherpa", threads: 2, browserWhisper: "onnx-community/whisper-base" });
+    expect(c.stt).toEqual({ backend: "sherpa", threads: 1, browserWhisper: "onnx-community/whisper-base" });
     expect(c.screenHelper).toEqual({ mode: "text", model: "lfm3-vl", waitsForDecisions: false });
     expect(c.models.some((m) => m.name === "clef-flash")).toBe(false);
     expect(setupChoices("lite", machine(4, 2)).screenHelper).toEqual({ mode: "none", model: null, waitsForDecisions: false, lacking: "memory" });
@@ -108,7 +108,7 @@ describe("setupChoices", () => {
     const c = setupChoices("standard", machine(16, 8, igpu));
     expect(c.decision.provider).toBe("matcher");
     expect(c.screenHelper).toEqual({ mode: "picture", model: "lfm3-vl", waitsForDecisions: false });
-    expect(c.stt.threads).toBe(4);
+    expect(c.stt.threads).toBe(1);
     expect(c.models.filter((m) => m.use === "take").map((m) => m.name)).toEqual(["nemotron-streaming", "paraphrase-multilingual-MiniLM-L12-v2"]);
   });
 
@@ -120,8 +120,8 @@ describe("setupChoices", () => {
     expect(c.stt.browserWhisper).toBe("onnx-community/whisper-small");
   });
 
-  it("speech threads follow stt.js: 2 to 4, two cores left to the app", () => {
-    expect([2, 4, 5, 6, 8, 22].map(sttThreads)).toEqual([2, 2, 3, 4, 4, 4]);
+  it("every setup reports the single speech inference thread", () => {
+    expect([2, 4, 5, 6, 8, 22].map(sttThreads)).toEqual([1, 1, 1, 1, 1, 1]);
   });
 });
 

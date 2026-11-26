@@ -5,7 +5,10 @@ import { env, pipeline, type FeatureExtractionPipeline } from "@huggingface/tran
 
 env.allowLocalModels = false;
 env.useBrowserCache = true;
-if (env.backends?.onnx?.wasm) env.backends.onnx.wasm.wasmPaths = "/ort/";
+if (env.backends?.onnx?.wasm) {
+  env.backends.onnx.wasm.wasmPaths = "/ort/";
+  env.backends.onnx.wasm.numThreads = 1;
+}
 
 type In = { type: "load"; model: string } | { type: "embed"; id: number; texts: string[] };
 type Out =
@@ -25,6 +28,7 @@ async function load(model: string) {
     const t0 = Date.now();
     fe = (await pipeline("feature-extraction", model, {
       dtype: "q8",
+      session_options: { intraOpNumThreads: 1, interOpNumThreads: 1, executionMode: "sequential" },
       // loaded/total per file: client.ts adds them up into one number for the model (issue #4).
       progress_callback: (p: { status: string; file?: string; progress?: number; loaded?: number; total?: number }) =>
         post({ type: "progress", file: p.file, progress: p.progress, loaded: p.loaded, total: p.total, status: p.status }),

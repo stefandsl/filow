@@ -168,7 +168,7 @@ const usableGpu = (m: MachineInfo) => m.gpu.kind === "unified" || (m.gpu.kind ==
  *   p95 1.7 s; on the CPU alone (Core i9-13900KF) even a 1.7B model takes 6 to 14 s per decision, so
  *   Clef needs the GPU. A card Ollama cannot use (Intel Arc, most Radeons) counts as none.
  * - standard: 12 GB of RAM and 6 logical cores (a typical 16 GB laptop), or a usable discrete GPU
- *   with 4 GB: room for 4 speech threads and for the 1.5 GB picture model next to the app.
+ *   with 4 GB: room for speech recognition and the 1.5 GB picture model next to the app.
  * - lite: everything else (old laptops, 4 to 8 GB, 2 to 4 cores, no graphics card).
  */
 export function recommendProfile(m: MachineInfo): { profile: SetupProfileId; reason: ProfileReason } {
@@ -185,13 +185,9 @@ export function recommendProfile(m: MachineInfo): { profile: SetupProfileId; rea
   return { profile: "lite", reason: m.ramGb < 12 ? "low-ram" : "few-cores" };
 }
 
-/**
- * Speech threads: the rule apps/desktop/stt.js applies (2 to 4, leaving two cores to the app),
- * measured on the i9 test PC as RTF 0.61 at 1 thread, 0.33 at 2 and 0.22 at 4. stt.js applies it
- * itself; the setup reports it so the numbers on screen and in tests are the ones that run.
- */
-export function sttThreads(cores: number): number {
-  return Math.max(2, Math.min(4, cores - 2));
+/** Each native speech session runs on its recognizer worker without additional inference threads. */
+export function sttThreads(_cores: number): number {
+  return 1;
 }
 
 /** Gemma 4 E4B and lfm3-vl are both on this computer already: Best quality answers with the pair (setupChoices). */

@@ -61,6 +61,7 @@
 .wb-frame:has(.wb-ex), .wb-frame:has(.wb-canvas) { display: block; }
 .wb-ex { position: relative; margin: 0 auto; line-height: 0; }
 .wb-ex-host, .wb-ex-host > svg { display: block; width: 100%; height: 100%; }
+.wb-cue-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .wb-hot { position: absolute; padding: 0; border: 0; border-radius: 10px; background: transparent; cursor: pointer; }
 .wb-hot:hover { background: rgba(25, 113, 194, 0.07); }
 .wb-ex-dark .wb-hot:hover { background: rgba(165, 216, 255, 0.1); }

@@ -157,14 +157,7 @@
       "okfilow-rects.js",
       "ollama-runtime.js",
       "local-ownership.js",
-      "action-driver.js",
-      "agent-desktop-driver.js",
-      "agent-desktop-asset.js",
-      "action-gate.js",
-      "action-loop.js",
-      "gemini-cu-planner.js",
-      "native/uia/bin/okfilow-uia.exe",
-      "native/action/bin/filow-action.exe"
+      "native/uia/bin/okfilow-uia.exe"
     ],
     "asar": true,
     "extraResources": [
@@ -314,7 +307,6 @@
       "tts-audio.js",
       "truecase-worker.js",
       "native/uia/bin/**",
-      "native/action/bin/**",
       "node_modules/onnxruntime-node/**",
       "node_modules/onnxruntime-common/**",
       "node_modules/@huggingface/tokenizers/**",

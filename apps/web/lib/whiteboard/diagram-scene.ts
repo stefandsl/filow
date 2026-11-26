@@ -28,12 +28,16 @@ export function diagramEls(d: PlacedDiagram, step: number, shapes: Map<string, E
     const label = text(`${id}-t`, n.lines, Math.round(n.font * HAND_SCALE * 10) / 10, { cx: n.box.x + n.box.w / 2, cy: n.box.y + n.box.h / 2 }, { ...meta, role: "label" }, { originalText: words });
     out.push(...labelled(shape, label));
   }
+  let edgeOrder = 0;
   d.links.forEach((l) => {
     if (l.step !== step) return;
-    const meta: WbMeta = { step, key: l.key, role: "edge" };
+    const fromShape = shapes.get(l.from);
+    const toShape = shapes.get(l.to);
+    const directed = l.head && fromShape && toShape;
+    const meta: WbMeta = { step, key: l.key, role: "edge", ...(directed ? { from: fromShape.id, to: toShape.id, order: edgeOrder++ } : {}) };
     const id = `da-${safeId(l.key.slice(2))}`;
-    const from = l.bound ? shapes.get(l.from) : undefined;
-    const to = l.bound ? shapes.get(l.to) : undefined;
+    const from = l.bound ? fromShape : undefined;
+    const to = l.bound ? toShape : undefined;
     const a = arrow(id, l.pts, meta, {
       strokeStyle: l.dashed ? "dashed" : "solid",
       endArrowhead: l.head ? "arrow" : null,
@@ -49,7 +53,7 @@ export function diagramEls(d: PlacedDiagram, step: number, shapes: Map<string, E
     if (!l.label) { out.push(a); return; }
     const lb = l.label.box;
     const words = l.label.lines.join(" ");
-    out.push(...labelled(a, text(`${id}-t`, l.label.lines, Math.round(l.label.font * 0.95), { cx: lb.x + lb.w / 2, cy: lb.y + lb.h / 2 }, { ...meta, role: "label" }, { strokeColor: INK.soft, originalText: words })));
+    out.push(...labelled(a, text(`${id}-t`, l.label.lines, Math.round(l.label.font * 0.95), { cx: lb.x + lb.w / 2, cy: lb.y + lb.h / 2 }, { step, key: l.key, role: "label" }, { strokeColor: INK.soft, originalText: words })));
   });
   for (const ln of d.lines) if (ln.step === step) out.push(line(`dl-${safeId(ln.key.slice(2))}`, ln.pts, { step, key: ln.key, role: "block" }, { strokeColor: INK.faint, strokeStyle: "dashed", strokeWidth: 1.5 }));
   return out;
