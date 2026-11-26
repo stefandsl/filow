@@ -214,6 +214,8 @@ Use an existing fixture or saved lesson. Approve the slice when the reply's reve
 
 **Verification.** Five repeats per task per driver with one fixed planner model. Report success rate, steps, median and p95 latency, wrong actions, focus steals, effect after Stop, refusals and bytes that left the PC, per driver. Pass with zero wrong actions, zero effect after Stop, 100% refusals, at least 90% success on tasks with a rich accessibility tree and a median action of at most 500 ms. A driver that steals focus fails; do not patch around it in prompts. Each dispatch needs a fresh snapshot id. Record the chosen driver, pinned version, SHA256 and the SmartScreen and Smart App Control result. Snapshots stay local and out of logs.
 
+**Windows pilot build.** The v1.3.1 source pin is Rust 1.89.0 (minimal profile), target `x86_64-pc-windows-msvc`, with Cargo.lock and `cargo +1.89.0 build --locked --release -p agent-desktop`. The source and release binaries matched on the scoped snapshot and invalid-ref probes. The build is not byte-reproducible: the PE timestamps and file sizes differ. The upstream release uses an explicit target on a hosted Windows runner. Matching the Rust version and lockfile does not pin the Windows SDK, linker or build timestamp. Settings hide the download pending a Filow-signed, hosted build.
+
 **License.** agent-desktop is Apache-2.0. Keep its notice with any copied or vendored code and pin the revision.
 
 - **Requests** R-179

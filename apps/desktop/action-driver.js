@@ -274,11 +274,11 @@ function createActionDriver(transport = {}) {
     return sendCommand("focus", { hwnd });
   }
 
-  function checkTarget(hwnd, bounds, point) {
-    return sendCommand("exec", { action: "check_target", hwnd, bounds, physX: point.x, physY: point.y });
+  function checkRefTarget(hwnd, bounds, pid) {
+    return sendCommand("exec", { action: "check_ref_target", hwnd, bounds, pid });
   }
 
-  return { ownProcessTree: pid => sendCommand("own_tree", { pid }), checkTarget, focusTarget, inspectTarget, captureTarget, readBack, execute, abort };
+  return { ownProcessTree: pid => sendCommand("own_tree", { pid }), checkRefTarget, focusTarget, inspectTarget, captureTarget, readBack, execute, abort };
 }
 
 /**

@@ -1,3 +1,4 @@
+import { pilotOnly } from "./cu-packaging-fixture";
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -23,7 +24,6 @@ describe("packaged files", () => {
   it("include every local module the app requires", () => {
     // X-14 pilot modules stay out of the download until their trial passes; okfilow.js loads them
     // lazily and answers "unavailable" without them (cu-packaging.test.ts, R406).
-    const pilotOnly = ["action-driver.js", "action-gate.js", "action-loop.js", "gemini-cu-planner.js"];
     const missing = [...required].filter((m) => !files.includes(m) && !pilotOnly.includes(m));
     expect(missing).toEqual([]);
   });

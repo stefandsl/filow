@@ -4,7 +4,6 @@ const cp = require("node:child_process");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { elementAtCoords } = require("./action-gate");
-const { mapNormalizedToPhysical } = require("./action-driver");
 
 function killWindowsTree(pid) {
   const taskkill = path.join(process.env.SystemRoot, "System32", "taskkill.exe");
@@ -81,7 +80,11 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
     start();
     const mine = child;
     const owned = await ownership;
-    if (!mine || mine !== child || !owned?.ok) throw new Error("driver_ownership_failed");
+    if (!mine || mine !== child) throw new Error("driver_ownership_failed");
+    if (!owned?.ok) {
+      end("driver_ownership_failed", true);
+      throw new Error("driver_ownership_failed");
+    }
     if (pending) throw new Error("driver_busy");
     const id = ++seq;
     return new Promise((resolve, reject) => {
@@ -115,7 +118,6 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
       const hit = elementAtCoords(action, shot.elements);
       if (!hit || hit.isPassword) throw new Error("unbound_target");
       const rect = shot.bounds;
-      const point = mapNormalizedToPhysical(action.args.x, action.args.y, rect);
       const matches = [];
       const stack = [shot.tree.tree];
       while (stack.length) {
@@ -142,7 +144,7 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
         args.direction = action.args.direction;
         args.amount = 1;
       } else throw new Error("unsupported_action");
-      const check = await observer.checkTarget(ctx.hwnd, rect, point);
+      const check = await observer.checkRefTarget(ctx.hwnd, rect, shot.info.pid);
       if (!check?.ok) throw new Error(check?.error || "target_changed");
       if (epoch !== generation || ctx.signal?.aborted) throw new Error("aborted");
       await call(tool, args);

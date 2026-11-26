@@ -375,3 +375,9 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R421 (2026-11-26, X-14): Cancel the owned MCP tree on Stop and finish every pending call on child exit. Check Stop during dispatch, a child crash and headless-only process arguments.
 - R422 (2026-11-26, X-14): Attach the MCP server to a kill-on-close job before its first request. Check that server death closes the owner while a worker is still alive.
 - R423 (2026-11-26, X-14): Let the pinned binary create its private state root inside a unique turn folder. Check a real scoped snapshot on Windows with inherited directory permissions.
+- R424 (2026-11-26, X-14): Check the captured root HWND, owning PID and bounds immediately before a headless ref call. Check a granted click with the panel focused and refuse a changed process or rectangle before sending a tool request.
+- R425 (2026-11-26, X-14): Start the panel with all pilot modules absent. Check disabled and enabled starts, asset status and an install request through the trusted IPC sender.
+- R426 (2026-11-26, X-14): Count driver tool requests at each refusal. Check duplicate nodes, a foreign ref prefix, stale frame, denied ownership and a failed target check, then exercise a fresh bound ref.
+- R427 (2026-11-26, X-14): Keep the controller that owns an active turn through supersession and select the configured driver when idle. Check helper shutdown, integrity failure and zero fallback dispatches.
+- R428 (2026-11-26, X-14): Keep the installer and download controls closed until a signed driver is hosted. Check package inputs, asset status and direct install refusal.
+- R429 (2026-11-26, X-14): Share the explicit pilot-only list across package inclusion, exclusion and missing-module tests. Check both require scanners and load the panel with the listed modules withheld.

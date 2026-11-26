@@ -878,4 +878,4 @@ The optional matching model requests missing files from Hugging Face only after 
 
 When Day-by-day checks a report, it shows progress while the local model loads. If the model is unavailable, tick the task manually.
 
-In OK Filow settings on Windows x64, enable the experimental computer-use pilot to see the action driver. Download and select agent-desktop v1.3.1 for headless actions on supported controls. The download is optional (1.84 MB, Apache-2.0). You can delete it in the same settings.
+The Windows installer excludes the experimental agent-desktop driver. Its download will appear in OK Filow settings once Filow hosts a signed build. In a development copy with the pilot binary installed, the presenter can select or remove it in those settings.

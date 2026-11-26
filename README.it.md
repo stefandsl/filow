@@ -892,4 +892,4 @@ Il modello di confronto facoltativo richiede i file mancanti a Hugging Face solo
 
 Quando Giorno per giorno verifica un resoconto, mostra un messaggio durante il caricamento del modello locale. Se il modello non è disponibile, spunta manualmente l’attività.
 
-Nelle impostazioni di OK Filow su Windows x64, attiva il controllo sperimentale delle altre app per vedere il driver di azione. Scarica e seleziona agent-desktop v1.3.1 per agire sui controlli supportati senza spostare il puntatore. Il download è facoltativo (1,84 MB, Apache-2.0). Puoi eliminarlo dalle stesse impostazioni.
+Il programma di installazione per Windows esclude il driver sperimentale agent-desktop. Il download apparirà nelle impostazioni di OK Filow quando Filow pubblicherà una versione firmata. In una copia di sviluppo con il driver già installato, chi presenta può selezionarlo o rimuoverlo dalle stesse impostazioni.

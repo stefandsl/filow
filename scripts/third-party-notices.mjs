@@ -170,6 +170,7 @@ const out = [
   "",
   "## Optional agent-desktop driver",
   "",
+  "Filow excludes this driver from the installer. An optional user download awaits a signed, hosted build.",
   "agent-desktop v1.3.1, Vercel Labs, Apache License 2.0. Source and license:",
   "https://github.com/vercel-labs/agent-desktop/tree/b0b7277bea09b770ef9d1fb45aad667bc432cd57",
   "",

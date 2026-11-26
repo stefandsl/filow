@@ -577,14 +577,19 @@ public static class FilowActionHelper {
   [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
   [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(POINT point);
 
-  static void CheckTarget(IntPtr hwnd, Dictionary<string, object> bounds, List<POINT> points) {
-    IntPtr root = GetAncestor(hwnd, GA_ROOT);
-    if (root == IntPtr.Zero || IsIconic(hwnd) || GetAncestor(GetForegroundWindow(), GA_ROOT) != root)
-      throw new DispatchRefusal("target_not_foreground");
+  static RECT CheckBounds(IntPtr hwnd, Dictionary<string, object> bounds) {
     RECT rect = WindowBounds(hwnd);
     if (bounds == null || GetInt(bounds, "x", int.MinValue) != rect.L || GetInt(bounds, "y", int.MinValue) != rect.T ||
         GetInt(bounds, "width", -1) != rect.R - rect.L || GetInt(bounds, "height", -1) != rect.B - rect.T)
       throw new DispatchRefusal("target_changed");
+    return rect;
+  }
+
+  static void CheckTarget(IntPtr hwnd, Dictionary<string, object> bounds, List<POINT> points) {
+    IntPtr root = GetAncestor(hwnd, GA_ROOT);
+    if (root == IntPtr.Zero || IsIconic(hwnd) || GetAncestor(GetForegroundWindow(), GA_ROOT) != root)
+      throw new DispatchRefusal("target_not_foreground");
+    RECT rect = CheckBounds(hwnd, bounds);
     foreach (POINT point in points) {
       if (point.X < rect.L || point.X >= rect.R || point.Y < rect.T || point.Y >= rect.B ||
           GetAncestor(WindowFromPoint(point), GA_ROOT) != root) throw new DispatchRefusal("target_not_foreground");
@@ -648,6 +653,16 @@ public static class FilowActionHelper {
     long hwndVal = req.ContainsKey("hwnd") && req["hwnd"] != null ? Convert.ToInt64(req["hwnd"], CultureInfo.InvariantCulture) : 0;
     var hwnd = new IntPtr(hwndVal);
     var bounds = req.ContainsKey("bounds") ? req["bounds"] as Dictionary<string, object> : null;
+    // Semantic refs are resolved by UI Automation on the captured root. This check cannot inject input.
+    if (action == "check_ref_target") {
+      uint pid;
+      int expectedPid = GetInt(req, "pid", 0);
+      if (hwnd == IntPtr.Zero || !IsWindow(hwnd) || GetAncestor(hwnd, GA_ROOT) != hwnd || IsIconic(hwnd) ||
+          expectedPid <= 0 || GetWindowThreadProcessId(hwnd, out pid) == 0 || pid != (uint)expectedPid)
+        throw new DispatchRefusal("target_changed");
+      CheckBounds(hwnd, bounds);
+      return new Dictionary<string, object> { { "ok", true } };
+    }
     var points = new List<POINT>();
     if (req.ContainsKey("physX") || req.ContainsKey("physY")) {
       points.Add(new POINT { X = GetInt(req, "physX", int.MinValue), Y = GetInt(req, "physY", int.MinValue) });

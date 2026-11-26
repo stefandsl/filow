@@ -1151,7 +1151,7 @@ function createOkFilow(deps) {
    * Stops the answer in progress (the Stop button, Escape): the panel ends the request, the voice and
    * the pointing. False when no answer was in progress, so Escape keeps its other meanings then.
    */
-  function cancelComputerUse(source) {
+  function dismissComputerUseConfirm() {
     if (pendingCuConfirm) {
       const p = pendingCuConfirm;
       pendingCuConfirm = null;
@@ -1159,6 +1159,9 @@ function createOkFilow(deps) {
       sendPanel("okfilow:cu:confirm", null);
       p.resolve({ confirmed: false, clicked: false });
     }
+  }
+  function cancelComputerUse(source) {
+    dismissComputerUseConfirm();
     return computerUseController ? computerUseController.stop(String(source || "stop")) : false;
   }
   function stopAnswer(source) {
@@ -1823,6 +1826,7 @@ function createOkFilow(deps) {
       driver,
       logLine,
       onState: (s) => {
+        if (!s.active) dismissComputerUseConfirm();
         sendPanel("okfilow:cu:state", s);
         sendOverlays("okfilow:cu:state", s);
         if (s.active) setMode("acting", { intent: s.intent || "" });

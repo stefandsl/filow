@@ -1,3 +1,4 @@
+import { pilotOnly } from "./cu-packaging-fixture";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -7,7 +8,7 @@ describe("computer-use pilot packaging", () => {
   const shipped: string[] = [...pkg.build.files, ...(pkg.build.asarUnpack || [])];
 
   it("leaves the driver, gate, loop, planner and native helper out of the packaged app", () => {
-    for (const f of ["agent-desktop-driver.js", "agent-desktop-asset.js", "action-driver.js", "action-gate.js", "action-loop.js", "gemini-cu-planner.js"]) {
+    for (const f of pilotOnly) {
       expect(shipped).not.toContain(f);
     }
     expect(shipped.filter((f) => f.startsWith("native/action/"))).toEqual([]);

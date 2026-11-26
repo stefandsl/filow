@@ -1917,7 +1917,7 @@ export default function OkFilowPanel() {
             <input type="checkbox" checked={c.computerUse === true && !c.offline} disabled={c.offline} onChange={(e) => void configure({ computerUse: e.target.checked })} />
           </label>
           <p className="okf-hint">{t("computerUseHint")}</p>
-          {c.computerUse && driverAsset?.available && <div>
+          {c.computerUse && driverAsset && (driverAsset.available || driverAsset.installed) && <div>
             <label className="okf-row">{t("driverLabel")}
               <select value={c.computerUseDriver ?? "filow"} disabled={driverBusy || cuState.active}
                 onChange={(e) => void configure({ computerUseDriver: e.target.value === "agent-desktop" ? "agent-desktop" : "filow" })}>
