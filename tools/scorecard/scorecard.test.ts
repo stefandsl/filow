@@ -240,16 +240,22 @@ function loadSyntheticDataset(): { fixture: ReturnType<typeof buildSyntheticFixt
   return { fixture, dataset };
 }
 
+// Comparator fixtures exercise semantic receipts without loading model weights in CI.
+function semanticReceipt(arm: ArmResult, calls: number): ArmResult {
+  return { ...arm, stages: ["lexical", "semantic"], embeddingCalls: calls,
+    embedder: { model: "fixture-model", revision: "fixture-revision" } };
+}
+
 describe("X-12 speech scorecard replay and comparator", () => {
-  it("baseline self-comparison reports zero flips, zero regressions, and exit code 0", async () => {
+  it("baseline self-comparison reports zero flips, zero regressions, and invalid lexical verdicts even with an exit override", async () => {
     const { fixture, dataset } = loadSyntheticDataset();
-    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
+    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base", includedFixes: ["C12"] });
     const outDir = makeTempDir("self-cmp");
     const basePath = path.join(outDir, "base.json");
     const outPath = path.join(outDir, "scorecard.json");
     fs.writeFileSync(basePath, JSON.stringify(base, null, 2), "utf8");
 
-    const cli = await runCli([
+    const args = [
       "compare",
       "--manifest",
       fixture.manifestPath,
@@ -263,7 +269,11 @@ describe("X-12 speech scorecard replay and comparator", () => {
       basePath,
       "--out",
       outPath,
-    ]);
+    ];
+    const strict = await runCli(args);
+    expect(strict.exitCode).toBe(1);
+    const cli = await runCli([...args, "--allow-lexical"]);
+    expect(cli.stdout).toBe(strict.stdout);
 
     expect(cli.exitCode).toBe(0);
     const card = JSON.parse(fs.readFileSync(outPath, "utf8"));
@@ -271,16 +281,34 @@ describe("X-12 speech scorecard replay and comparator", () => {
     expect(card.flips.regressedIds).toEqual([]);
     expect(card.flips.changedIds).toEqual([]);
     expect(card.namedRegressions).toEqual([]);
-    expect(card.heldFixes.C6.status).toBe("not yet in review");
-    expect(card.heldFixes.C12.status).toBe("not yet in review");
-    expect(card.heldFixes.C23.status).toBe("not yet in review");
-    expect(card.heldFixes.C27.status).toBe("not yet in review");
-    expect(card.heldFixes.C28.status).toBe("not yet in review");
+    for (const fix of ["C6", "C12", "C23", "C27", "C28"]) {
+      expect(card.heldFixes[fix].status).toBe("NOT VALID (lexical only)");
+      expect(cli.stdout).toContain(`${fix}: NOT VALID (lexical only)`);
+    }
     expect(card.manifestPinOverridden).toBe(true);
     const table = formatScorecardTable(card);
     expect(table).toContain("C12");
     expect(table).toContain("en-syn-001");
     expect(table).toContain("it-syn-002");
+  });
+
+  it("identifies both stage lists when refusing mismatched arms using the same model", async () => {
+    const { dataset } = loadSyntheticDataset();
+    const arm = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
+    const base = semanticReceipt(arm, 4);
+    const candidate = { ...base, stages: ["lexical"], embeddingCalls: 0 };
+    expect(() => compareArms({ dataset, base, candidate }))
+      .toThrow(/stages differ: base=lexical,semantic candidate=lexical/i);
+  });
+
+  it("prints each arm's stages, model and transcript embedding calls", async () => {
+    const { dataset } = loadSyntheticDataset();
+    const arm = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "fixture" });
+    const table = formatScorecardTable(compareArms({
+      dataset, base: semanticReceipt(arm, 4), candidate: semanticReceipt(arm, 7),
+    }));
+    expect(table).toMatch(/Base:[^\n]*stages=lexical,semantic model=fixture-model embedding calls=4/);
+    expect(table).toMatch(/Candidate:[^\n]*stages=lexical,semantic model=fixture-model embedding calls=7/);
   });
 
   it("replays spoken section navigation through production spokenSection and Engine", async () => {
@@ -321,7 +349,7 @@ describe("X-12 speech scorecard replay and comparator", () => {
 
   it("an injected forbidden tick plus a compensating fix gives a named regression and non-zero exit even with flat total accuracy", async () => {
     const { fixture, dataset } = loadSyntheticDataset();
-    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
+    const base = semanticReceipt(await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" }), 3);
 
     // Confirm base fails en-syn-002 (unpunctuated 'later' drops the whole final on origin/main)
     // and passes it-syn-002 (postponement does not tick).
@@ -500,7 +528,7 @@ describe("X-12 speech scorecard replay and comparator", () => {
 
   it("advances a fix only with target improvement, no language loss, no new prohibited tick or section move, and passing ordinary controls", async () => {
     const { dataset } = loadSyntheticDataset();
-    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
+    const base = semanticReceipt(await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" }), 3);
 
     // Clean improvement on C12 with no loss and passing controls -> PASS
     const good: ArmResult = structuredClone(base);
@@ -546,7 +574,7 @@ describe("X-12 speech scorecard replay and comparator", () => {
 
   it("names new misses, cursor and move errors even on already failing controls", async () => {
     const { dataset } = loadSyntheticDataset();
-    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
+    const base = semanticReceipt(await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" }), 3);
     const candidate = structuredClone(base);
     candidate.includedFixes = ["C12"];
     const control = (arm: ArmResult) => arm.cases[0].finals[1].observed;

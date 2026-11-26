@@ -225,9 +225,11 @@ export function compareArms(opts: CompareArmsOptions): Scorecard {
     expectedSourceDigest: opts.expectedCandidateSourceDigest,
   });
 
-  if (JSON.stringify(opts.base.stages) !== JSON.stringify(opts.candidate.stages) ||
-      JSON.stringify(opts.base.embedder) !== JSON.stringify(opts.candidate.embedder)) {
-    throw new Error("Matcher stages or embedding model revisions differ across arms");
+  if (JSON.stringify(opts.base.stages) !== JSON.stringify(opts.candidate.stages)) {
+    throw new Error(`Matcher stages differ: base=${opts.base.stages.join(",")} candidate=${opts.candidate.stages.join(",")}`);
+  }
+  if (JSON.stringify(opts.base.embedder) !== JSON.stringify(opts.candidate.embedder)) {
+    throw new Error("Embedding model revisions differ across arms");
   }
   const orderedIds = opts.dataset.cases.map((c) => c.id);
   const baseSummary = summarizeArm({ ...opts.base, cases: [...baseById.values()] }, orderedIds);
@@ -329,7 +331,12 @@ export function compareArms(opts: CompareArmsOptions): Scorecard {
   const baseControl = baseSummary.byKind.control;
   const candControl = candSummary.byKind.control;
 
+  const lexicalOnly = !opts.base.stages.includes("semantic");
   for (const fix of HELD_FIX_IDS) {
+    if (lexicalOnly) {
+      heldFixes[fix] = { fix, status: "NOT VALID (lexical only)", reasons: [] };
+      continue;
+    }
     if (!candidateFixes.has(fix)) {
       heldFixes[fix] = {
         fix,
@@ -393,6 +400,7 @@ export function compareArms(opts: CompareArmsOptions): Scorecard {
 
   const scorerSha256 = computeScorerDigest();
   const payloadWithoutComparisonHash = {
+    lexicalOnly,
     manifestPinOverridden: opts.dataset.manifestPinOverridden,
     controlRegressions: namedRegressions.filter(r => r.kind === "control").map(r => r.caseId),
     schemaVersion: "x12-scorecard-v1" as const,
@@ -439,8 +447,13 @@ function fmtRatio(n: number, d: number): string {
 export function formatScorecardTable(card: Scorecard): string {
   const lines: string[] = [];
   lines.push(`X-12 Speech Scorecard (${card.datasetVersion}, split: ${card.split})`);
-  lines.push(`Base:      ${card.summary.base.armName} (${card.digests.baseGitSha.slice(0, 10)}, src ${card.digests.baseSourceSha256.slice(0, 10)})`);
-  lines.push(`Candidate: ${card.summary.candidate.armName} (${card.digests.candidateGitSha.slice(0, 10)}, src ${card.digests.candidateSourceSha256.slice(0, 10)})`);
+  for (const [label, arm, sha, source] of [
+    ["Base", card.summary.base, card.digests.baseGitSha, card.digests.baseSourceSha256],
+    ["Candidate", card.summary.candidate, card.digests.candidateGitSha, card.digests.candidateSourceSha256],
+  ] as const) {
+    const model = arm.embedder === "lexical" ? "none" : arm.embedder.model;
+    lines.push(`${label}: ${arm.armName} (${sha.slice(0, 10)}, src ${source.slice(0, 10)}) stages=${arm.stages.join(",")} model=${model} embedding calls=${arm.embeddingCalls}`);
+  }
   lines.push(`Manifest:  ${card.digests.manifestSha256.slice(0, 12)} | Scorer: ${card.digests.scorerSha256.slice(0, 12)} | Comparison: ${card.digests.comparisonSha256.slice(0, 12)}`);
   lines.push("");
 

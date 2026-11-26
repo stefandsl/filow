@@ -48,7 +48,7 @@ export async function runCli(argv: string[]): Promise<{ exitCode: number; stdout
       const usage = [
         "Usage:",
         "  tsx tools/scorecard/cli.ts replay --arm-root <dir> --arm-name <name> --out <file> [--cases-dir <dir>] [--manifest <file>] [--cases <file>] [--split dev|held] [--model-cache <dir> | --lexical-only] [--fixes C12] [--manifest-hash <sha256>]",
-        "  tsx tools/scorecard/cli.ts compare --base <file> --candidate <file> [--cases-dir <dir>] [--manifest <file>] [--cases <file>] [--split dev|held] [--base-root <dir>] [--candidate-root <dir>] [--out <scorecard.json>] [--table-out <table.txt>] [--manifest-hash <sha256>]",
+        "  tsx tools/scorecard/cli.ts compare --base <file> --candidate <file> [--cases-dir <dir>] [--manifest <file>] [--cases <file>] [--split dev|held] [--base-root <dir>] [--candidate-root <dir>] [--out <scorecard.json>] [--table-out <table.txt>] [--allow-lexical] [--manifest-hash <sha256>]",
       ].join("\n") + "\n";
       return { exitCode: 0, stdout: usage, stderr: "" };
     }
@@ -129,7 +129,8 @@ export async function runCli(argv: string[]): Promise<{ exitCode: number; stdout
         fs.writeFileSync(path.resolve(flags["table-out"]), table, "utf8");
       }
 
-      const exitCode = scorecard.namedRegressions.length > 0 ? 1 : 0;
+      const lexicalFailure = scorecard.lexicalOnly && flags["allow-lexical"] !== "true";
+      const exitCode = lexicalFailure || scorecard.namedRegressions.length > 0 ? 1 : 0;
       return { exitCode, stdout: table, stderr: "" };
     }
 

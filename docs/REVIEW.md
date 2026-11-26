@@ -332,3 +332,5 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R370 (2026-11-26, X-12): Expose manifest pin overrides in scorecard output. Check: Compare synthetic arms with a replacement pin and inspect the table and JSON.
 - R371 (2026-11-26, X-12): Use independent invented talks for tracked scorer tests. Check: Replay the synthetic talks and check that their scripts contain no labelled point text.
 - R372 (2026-11-26, X-12): Exercise scorecard safeguards with behavioral mutations. Check: Remove each named rule from the review mutation set and require a failing assertion for each.
+- R373 (2026-11-26, X-12): Print the matcher stages, model and completed transcript embedding calls alongside each arm. Check: Compare two semantic receipts with distinct call counts and inspect both table rows.
+- R374 (2026-11-26, X-12): Invalidate every held-fix verdict when a comparison skips the semantic stage. Check: Compare matching lexical receipts with and without the explicit exit override and verify all five statuses. Compare different stage lists with the same model and require rejection.

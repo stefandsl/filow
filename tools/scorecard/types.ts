@@ -187,13 +187,14 @@ export type NamedRegression = {
 
 export type HeldFixEvaluation = {
   fix: HeldFixId;
-  status: "PASS" | "HOLD" | "not yet in review";
+  status: "PASS" | "HOLD" | "NOT VALID (lexical only)" | "not yet in review";
   reasons: string[];
   targetBase?: { passed: number; total: number };
   targetCandidate?: { passed: number; total: number };
 };
 
 export type Scorecard = {
+  lexicalOnly: boolean;
   manifestPinOverridden: boolean;
   controlRegressions: string[];
   schemaVersion: "x12-scorecard-v1";
