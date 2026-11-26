@@ -47,7 +47,7 @@ export async function runCli(argv: string[]): Promise<{ exitCode: number; stdout
     if (!command || command === "--help" || command === "-h") {
       const usage = [
         "Usage:",
-        "  tsx tools/scorecard/cli.ts replay --arm-root <dir> --arm-name <name> --out <file> [--cases-dir <dir>] [--manifest <file>] [--cases <file>] [--split dev|held] [--fixes C12] [--manifest-hash <sha256>]",
+        "  tsx tools/scorecard/cli.ts replay --arm-root <dir> --arm-name <name> --out <file> [--cases-dir <dir>] [--manifest <file>] [--cases <file>] [--split dev|held] [--model-cache <dir> | --lexical-only] [--fixes C12] [--manifest-hash <sha256>]",
         "  tsx tools/scorecard/cli.ts compare --base <file> --candidate <file> [--cases-dir <dir>] [--manifest <file>] [--cases <file>] [--split dev|held] [--base-root <dir>] [--candidate-root <dir>] [--out <scorecard.json>] [--table-out <table.txt>] [--manifest-hash <sha256>]",
       ].join("\n") + "\n";
       return { exitCode: 0, stdout: usage, stderr: "" };
@@ -75,6 +75,8 @@ export async function runCli(argv: string[]): Promise<{ exitCode: number; stdout
         armRoot,
         armName,
         includedFixes,
+        lexicalOnly: flags["lexical-only"] === "true",
+        modelCache: flags["model-cache"],
       });
 
       ensureParentDir(outPath);

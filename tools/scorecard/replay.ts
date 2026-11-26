@@ -1,6 +1,8 @@
 import { createRequire } from "node:module";
 import path from "node:path";
-import { buildSync } from "esbuild";
+import fs from "node:fs";
+import { createHash } from "node:crypto";
+import type { Embedder, embedPoints } from "@filow/core";
 import type {
   DEFAULT_MATCHER as DefaultMatcherValue,
   Engine as EngineClass,
@@ -8,7 +10,7 @@ import type {
   parseScript as ParseScriptFn,
   spokenSection as SpokenSectionFn,
 } from "@filow/core";
-import { computeScorerDigest, computeSourceDigest, readGitInfo } from "./loader";
+import { bundleArm, computeScorerDigest, computeSourceDigest, readGitInfo } from "./loader";
 import type {
   ArmResult,
   CaseArmResult,
@@ -22,6 +24,9 @@ import type {
 } from "./types";
 
 export type CoreModule = {
+  embedPoints: typeof embedPoints;
+  GATE_MODEL: string;
+  loadEmbedder: typeof import("../../apps/web/lib/gate/embedder").loadEmbedder;
   Engine: typeof EngineClass;
   parseScript: typeof ParseScriptFn;
   matcherDecide: typeof MatcherDecideFn;
@@ -29,24 +34,8 @@ export type CoreModule = {
   spokenSection: typeof SpokenSectionFn;
 };
 
-const coreCache = new Map<string, CoreModule>();
-
-export async function loadCoreModule(armRoot: string): Promise<CoreModule> {
-  const resolved = path.resolve(armRoot);
-  const cached = coreCache.get(resolved);
-  if (cached) return cached;
-
-  const coreEntry = path.join(resolved, "packages", "core", "src", "index.ts");
-  // Bundle the arm's production @filow/core entry in memory via esbuild so CJS dependencies
-  // like fast-json-patch work identically under Vitest and standalone Node/tsx CLI runs.
-  const built = buildSync({
-    entryPoints: [coreEntry],
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    target: "node22",
-    write: false,
-  });
+function loadCoreModule(armRoot: string, built: ReturnType<typeof bundleArm>, cache?: string): CoreModule {
+  const coreEntry = path.resolve(armRoot, "apps/web/lib/gate/embedder.ts");
   const code = built.outputFiles[0]?.text;
   if (!code) {
     throw new Error(`Failed to bundle @filow/core from ${coreEntry}`);
@@ -54,9 +43,36 @@ export async function loadCoreModule(armRoot: string): Promise<CoreModule> {
   const mod = { exports: {} as CoreModule };
   const armRequire = createRequire(coreEntry);
   const fn = new Function("exports", "require", "module", "__filename", "__dirname", code);
-  fn(mod.exports, armRequire, mod, coreEntry, path.dirname(coreEntry));
-  coreCache.set(resolved, mod.exports);
+  // Keep model resolution local while running the arm's original feature extractor,
+  // including its dtype, pooling and normalization. Load native code only on demand.
+  const offlineRequire = (id: string) => {
+    if (id !== "@huggingface/transformers") return armRequire(id);
+    if (!cache) throw new Error("Offline model cache required");
+    const runtime: typeof import("@huggingface/transformers") = armRequire(id);
+    runtime.env.allowLocalModels = true;
+    runtime.env.allowRemoteModels = false;
+    runtime.env.localModelPath = path.resolve(cache);
+    runtime.env.useFSCache = false;
+    return {
+      env: { ...runtime.env },
+      pipeline: runtime.pipeline,
+    };
+  };
+  fn(mod.exports, offlineRequire, mod, coreEntry, path.dirname(coreEntry));
   return mod.exports;
+}
+
+async function offlineModel(core: CoreModule, cache?: string) {
+  if (!cache) throw new Error("Offline model cache required: pass --model-cache or set FILOW_SCORECARD_MODEL_CACHE");
+  const dir = path.join(path.resolve(cache), core.GATE_MODEL);
+  const hash = createHash("sha256");
+  for (const name of ["config.json", "tokenizer.json", "tokenizer_config.json", "onnx/model_quantized.onnx"]) {
+    const file = path.join(dir, name);
+    if (!fs.existsSync(file)) throw new Error(`Offline model missing: ${core.GATE_MODEL}/${name}`);
+    hash.update(name).update(fs.readFileSync(file));
+  }
+  const { embed } = await core.loadEmbedder(core.GATE_MODEL);
+  return { embed, receipt: { model: core.GATE_MODEL, revision: `sha256:${hash.digest("hex")}` } };
 }
 
 function speechOrderOffset(finalText: string, quote: string | undefined, pointText: string): number {
@@ -78,6 +94,8 @@ export async function replayCase(
   frozenCase: FrozenCase,
   talk: FrozenTalk,
   core: CoreModule,
+  embed: Embedder | null,
+  embedTranscript: Embedder | null,
 ): Promise<CaseArmResult> {
   const parsed = core.parseScript(talk.script);
   if (parsed.sections.length !== talk.sections.length) {
@@ -117,13 +135,12 @@ export async function replayCase(
     throw new Error(`Unknown startSection ${frozenCase.startSection} in talk ${talk.id}`);
   }
   const startBullets = parsed.sections[startIdx].bullets;
-  const startBulletIds = new Set(startBullets.map((b) => b.id));
-
-  // Exercise the production matcher's lexical and announcement path offline (no network/model download).
-  const offlineEmbed = async (texts: string[]) => texts.map(() => new Float32Array(1));
+  const bullets = parsed.sections.flatMap(section => section.bullets);
+  const vectors = embed ? await core.embedPoints(embed, bullets, frozenCase.language)
+    : { key: "lexical", ids: [], vectors: [] };
   const decide = core.matcherDecide(
-    offlineEmbed,
-    () => ({ key: "lexical", ids: [], vectors: [] }),
+    embedTranscript ?? (async () => []),
+    () => vectors,
     core.DEFAULT_MATCHER,
   );
 
@@ -146,16 +163,7 @@ export async function replayCase(
 
   const tickedOrder: string[] = [];
   let currentPoint: string | null = null;
-  const finals: FinalResult[] = [];
-  const sectionMoves: SectionMoveCounts = {
-    allowedObserved: 0,
-    allowedExpected: 0,
-    prohibited: 0,
-    missed: 0,
-    voiceMoves: 0,
-  };
-
-  let finalIndex = 0;
+  const observations: ObservedState[] = [];
   for (const event of frozenCase.events) {
     if (event.type === "partial") {
       nowSec += 1;
@@ -180,14 +188,16 @@ export async function replayCase(
     });
 
     await engine.tick();
+    if (engine.getState().engine.error) throw new Error(engine.getState().engine.error);
     // Mirror gauntlet.ts: allow a second tick 2 s later so 2-call confirmation settles on this final.
     nowSec += 2;
     await engine.tick();
+    if (engine.getState().engine.error) throw new Error(engine.getState().engine.error);
 
     const st = engine.getState();
     const startedNow = new Set<string>();
-    for (const b of startBullets) {
-      if (startBulletIds.has(b.id) && st.points[b.id]?.status === "started") {
+    for (const b of bullets) {
+      if (st.points[b.id]?.status === "started") {
         startedNow.add(bulletToPoint.get(b.id)!);
       }
     }
@@ -200,8 +210,8 @@ export async function replayCase(
     // Order newly ticked points by speech order within this final, falling back to script order.
     const newlyTicked = [...startedNow].filter((id) => !tickedBefore.has(id));
     newlyTicked.sort((a, b) => {
-      const bulletA = startBullets.find((x) => bulletToPoint.get(x.id) === a);
-      const bulletB = startBullets.find((x) => bulletToPoint.get(x.id) === b);
+      const bulletA = bullets.find((x) => bulletToPoint.get(x.id) === a);
+      const bulletB = bullets.find((x) => bulletToPoint.get(x.id) === b);
       const evA = bulletA ? st.points[bulletA.id]?.evidence : undefined;
       const evB = bulletB ? st.points[bulletB.id]?.evidence : undefined;
       const quoteA = evA && evA.source === "model" ? evA.quote : undefined;
@@ -231,6 +241,28 @@ export async function replayCase(
       voiceMoveTo,
     };
 
+    observations.push(observed);
+  }
+  return scoreCase(frozenCase, observations);
+}
+
+// The frozen labels define currentPoint by speech order and auto-advance by
+// completion of the starting section. SessionState supplies ticks and navigation.
+export function scoreCase(frozenCase: FrozenCase, observations: ObservedState[]): CaseArmResult {
+  const events = frozenCase.events.filter(e => e.type === "final");
+  if (observations.length !== events.length) throw new Error(`Final count mismatch on case ${frozenCase.id}`);
+  const finals: FinalResult[] = [];
+  const sectionMoves: SectionMoveCounts = {
+    allowedObserved: 0,
+    allowedExpected: 0,
+    prohibited: 0,
+    missed: 0,
+    voiceMoves: 0,
+  };
+
+  for (const [finalIndex, event] of events.entries()) {
+    const observed = observations[finalIndex];
+    const { voiceMoveTo } = observed;
     const expectedSet = new Set(event.expect.ticked);
     const observedSet = new Set(observed.ticked);
     const falseTicks = observed.ticked.filter((id) => !expectedSet.has(id));
@@ -265,7 +297,6 @@ export async function replayCase(
       prohibitedSectionMove,
       missedSectionMove,
     });
-    finalIndex++;
   }
 
   return {
@@ -289,26 +320,37 @@ export type ReplayArmOptions = {
   armRoot: string;
   armName: string;
   includedFixes?: HeldFixId[];
-  coreOverride?: CoreModule;
+  lexicalOnly?: boolean;
+  modelCache?: string;
 };
 
 export async function replayArm(opts: ReplayArmOptions): Promise<ArmResult> {
-  const core = opts.coreOverride ?? (await loadCoreModule(opts.armRoot));
+  const bundle = bundleArm(opts.armRoot);
+  const cache = opts.modelCache ?? process.env.FILOW_SCORECARD_MODEL_CACHE;
+  const core = loadCoreModule(opts.armRoot, bundle, cache);
   const { gitSha, gitDirty } = readGitInfo(opts.armRoot);
-  const { sourceDigest, files: sourceFiles } = computeSourceDigest(opts.armRoot);
+  if (gitDirty) throw new Error("Dirty replay arm");
+  const model = opts.lexicalOnly ? null : await offlineModel(core, cache);
+  const { sourceDigest, files: sourceFiles } = computeSourceDigest(opts.armRoot, bundle);
   const scorerDigest = computeScorerDigest();
 
+  let embeddingCalls = 0;
+  const embedTranscript: Embedder | null = model ? async texts => {
+    const vectors = await model.embed(texts);
+    embeddingCalls++;
+    return vectors;
+  } : null;
   const cases: CaseArmResult[] = [];
   for (const frozenCase of opts.dataset.cases) {
     const talk = opts.dataset.talks.get(frozenCase.talk);
     if (!talk) {
       throw new Error(`Talk ${frozenCase.talk} missing for case ${frozenCase.id}`);
     }
-    cases.push(await replayCase(frozenCase, talk, core));
+    cases.push(await replayCase(frozenCase, talk, core, model?.embed ?? null, embedTranscript));
   }
 
   return {
-    schemaVersion: "x12-arm-v1",
+    schemaVersion: "x12-arm-v2",
     datasetVersion: opts.dataset.version,
     split: opts.dataset.split,
     armName: opts.armName,
@@ -322,7 +364,10 @@ export async function replayArm(opts: ReplayArmOptions): Promise<ArmResult> {
     casesHash: opts.dataset.casesSha256,
     talksHashes: opts.dataset.talksHashes,
     includedFixes: [...(opts.includedFixes ?? [])],
-    embedder: "lexical",
+    armRoot: path.resolve(opts.armRoot),
+    embeddingCalls,
+    stages: model && embeddingCalls ? ["lexical", "semantic"] : ["lexical"],
+    embedder: model?.receipt ?? "lexical",
     cases,
   };
 }

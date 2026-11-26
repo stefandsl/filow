@@ -1,3 +1,4 @@
+import { buildSync } from "esbuild";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -17,19 +18,6 @@ import { HELD_FIX_IDS } from "./types";
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 export const CASES_DIR_ENV = "FILOW_SCORECARD_CASES_DIR";
-
-export const SPEECH_SOURCE_FILES: readonly string[] = [
-  "packages/core/src/anchor.ts",
-  "packages/core/src/api.ts",
-  "packages/core/src/engine.ts",
-  "packages/core/src/gate.ts",
-  "packages/core/src/gauntlet.ts",
-  "packages/core/src/guard.ts",
-  "packages/core/src/matcher.ts",
-  "packages/core/src/script.ts",
-  "packages/core/src/text.ts",
-  "packages/core/src/types.ts",
-];
 
 const SCORER_FILES: readonly string[] = [
   "manifest-pin.json",
@@ -170,6 +158,7 @@ export function loadFrozenDataset(opts: LoadDatasetOptions): FrozenDataset {
   }
 
   return {
+    manifestPinOverridden: opts.expectedManifestSha256 !== undefined,
     version: parsedCases.version,
     split: parsedCases.split,
     manifestSha256,
@@ -181,18 +170,36 @@ export function loadFrozenDataset(opts: LoadDatasetOptions): FrozenDataset {
   };
 }
 
-export function computeSourceDigest(armRoot: string): { sourceDigest: string; files: string[] } {
+export function bundleArm(armRoot: string) {
+  const root = path.resolve(armRoot);
+  return buildSync({
+    absWorkingDir: root,
+    stdin: {
+      contents: 'export * from "./packages/core/src/index"; export { loadEmbedder } from "./apps/web/lib/gate/embedder";',
+      resolveDir: root,
+    },
+    alias: { "@filow/core": path.join(root, "packages/core/src/index.ts") },
+    preserveSymlinks: true,
+    external: ["@huggingface/transformers"],
+    supported: { "dynamic-import": false },
+    bundle: true, platform: "node", format: "cjs", target: "node22",
+    write: false, metafile: true,
+  });
+}
+
+export function computeSourceDigest(armRoot: string, bundle = bundleArm(armRoot)): { sourceDigest: string; files: string[] } {
   const root = path.resolve(armRoot);
   const h = createHash("sha256");
-  const files: string[] = [];
-  for (const rel of SPEECH_SOURCE_FILES) {
+  const files = Object.keys(bundle.metafile.inputs).filter(file => file !== "<stdin>").sort();
+  // The external native inference runtime is resolved from the arm's locked installation.
+  files.push("package-lock.json");
+  for (const rel of files) {
     const full = path.join(root, rel);
     if (!fs.existsSync(full)) {
       throw new Error(`Missing production speech source file in arm: ${rel}`);
     }
     const bytes = fs.readFileSync(full);
     h.update(`${rel}\0${sha256Hex(bytes)}\n`);
-    files.push(rel);
   }
   return { sourceDigest: h.digest("hex"), files };
 }
@@ -205,7 +212,7 @@ export function readGitInfo(armRoot: string): { gitSha: string; gitDirty: boolea
   }
   const porcelain = execFileSync(
     "git",
-    ["-C", root, "status", "--porcelain", "--", "packages/core/src"],
+    ["--no-optional-locks", "-C", root, "status", "--porcelain"],
     { encoding: "utf8" },
   ).trim();
   return { gitSha: gitSha.toLowerCase(), gitDirty: porcelain.length > 0 };

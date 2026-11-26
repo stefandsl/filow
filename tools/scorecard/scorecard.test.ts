@@ -1,7 +1,8 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { compareArms, formatScorecardTable } from "./compare";
 import { runCli } from "./cli";
 import { computeSourceDigest, loadFrozenDataset } from "./loader";
@@ -11,6 +12,25 @@ import type { ArmResult, FrozenCase, FrozenDataset, FrozenTalk } from "./types";
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const TMP_ROOT = path.join(REPO_ROOT, "tmp", "scorecard-test");
 const createdDirs: string[] = [];
+
+// Exercise freshness against a clean, disposable production tree, including when
+// the developer is running the suite with uncommitted changes in the scorer.
+let armRoot: string;
+beforeAll(() => {
+  fs.mkdirSync(TMP_ROOT, { recursive: true });
+  armRoot = fs.mkdtempSync(path.join(TMP_ROOT, "source-"));
+  for (const rel of ["packages/core/src", "apps/web/lib/gate/embedder.ts", "package-lock.json"]) {
+    fs.cpSync(path.join(REPO_ROOT, rel), path.join(armRoot, rel), { recursive: true });
+  }
+  fs.writeFileSync(path.join(armRoot, ".gitignore"), "node_modules/\n");
+  fs.symlinkSync(path.join(REPO_ROOT, "node_modules"), path.join(armRoot, "node_modules"), "junction");
+  const git = (...args: string[]) => execFileSync("git", ["-C", armRoot, ...args], { stdio: "pipe" });
+  git("init", "-q");
+  git("add", ".gitignore", "apps", "packages", "package-lock.json");
+  git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+    "-c", "commit.gpgSign=false", "commit", "-qm", "Synthetic replay arm");
+});
+afterAll(() => fs.rmSync(armRoot, { recursive: true, force: true }));
 
 function sha256(content: string | Buffer): string {
   return createHash("sha256").update(content).digest("hex");
@@ -45,23 +65,23 @@ function buildSyntheticFixture(): { dir: string; manifestPath: string; casesPath
             id: "syn-en.s1",
             title: "Results",
             points: [
-              { id: "syn-en.rev", text: "Revenue grew 18% year on year" },
-              { id: "syn-en.churn", text: "Churn fell to 4%" },
+              { id: "syn-en.bells", text: "Quartz bells ring every morning" },
+              { id: "syn-en.lanterns", text: "Copper lanterns shine at dusk" },
             ],
           },
           {
             id: "syn-en.s2",
             title: "Roadmap",
-            points: [{ id: "syn-en.price", text: "New pricing starts in March" }],
+            points: [{ id: "syn-en.ribbons", text: "Silver ribbons mark the trail" }],
           },
         ],
         script: [
           "# Results",
-          "- Revenue grew 18% year on year",
-          "- Churn fell to 4%",
+          "- Quartz bells ring every morning",
+          "- Copper lanterns shine at dusk",
           "",
           "# Roadmap",
-          "- New pricing starts in March",
+          "- Silver ribbons mark the trail",
         ].join("\n"),
       },
     ],
@@ -80,23 +100,23 @@ function buildSyntheticFixture(): { dir: string; manifestPath: string; casesPath
             id: "syn-it.s1",
             title: "Risultati",
             points: [
-              { id: "syn-it.fatt", text: "Il fatturato è cresciuto del 12%" },
-              { id: "syn-it.resi", text: "I resi sono scesi al 3%" },
+              { id: "syn-it.campane", text: "Le campane viola suonano a mezzogiorno" },
+              { id: "syn-it.lanterne", text: "Le lanterne verdi brillano al tramonto" },
             ],
           },
           {
             id: "syn-it.s2",
             title: "Prossimi passi",
-            points: [{ id: "syn-it.cat", text: "Il nuovo catalogo esce ad aprile" }],
+            points: [{ id: "syn-it.nastri", text: "I nastri argentati segnano il sentiero" }],
           },
         ],
         script: [
           "# Risultati",
-          "- Il fatturato è cresciuto del 12%",
-          "- I resi sono scesi al 3%",
+          "- Le campane viola suonano a mezzogiorno",
+          "- Le lanterne verdi brillano al tramonto",
           "",
           "# Prossimi passi",
-          "- Il nuovo catalogo esce ad aprile",
+          "- I nastri argentati segnano il sentiero",
         ].join("\n"),
       },
     ],
@@ -111,18 +131,18 @@ function buildSyntheticFixture(): { dir: string; manifestPath: string; casesPath
       defect: "none",
       kind: "control",
       startSection: "syn-en.s1",
-      rationale: "plain coverage of revenue and churn enables section move",
+      rationale: "plain coverage of bells and lanterns enables section move",
       events: [
-        { type: "partial", text: "revenue grew" },
+        { type: "partial", text: "quartz bells" },
         {
           type: "final",
-          text: "revenue grew 18 percent year on year",
-          expect: { currentPoint: "syn-en.rev", ticked: ["syn-en.rev"], sectionMoveAllowed: false },
+          text: "quartz bells ring every morning",
+          expect: { currentPoint: "syn-en.bells", ticked: ["syn-en.bells"], sectionMoveAllowed: false },
         },
         {
           type: "final",
-          text: "churn fell to 4 percent",
-          expect: { currentPoint: "syn-en.churn", ticked: ["syn-en.rev", "syn-en.churn"], sectionMoveAllowed: true },
+          text: "copper lanterns shine at dusk",
+          expect: { currentPoint: "syn-en.lanterns", ticked: ["syn-en.bells", "syn-en.lanterns"], sectionMoveAllowed: true },
         },
       ],
     },
@@ -134,12 +154,12 @@ function buildSyntheticFixture(): { dir: string; manifestPath: string; casesPath
       defect: "C12",
       kind: "c12-mixed",
       startSection: "syn-en.s1",
-      rationale: "churn stated before unpunctuated postponement",
+      rationale: "lanterns stated before unpunctuated postponement",
       events: [
         {
           type: "final",
-          text: "churn fell to 4 percent and later I'll tell you about pricing",
-          expect: { currentPoint: "syn-en.churn", ticked: ["syn-en.churn"], sectionMoveAllowed: false },
+          text: "copper lanterns shine at dusk and later I'll tell you about ribbons",
+          expect: { currentPoint: "syn-en.lanterns", ticked: ["syn-en.lanterns"], sectionMoveAllowed: false },
         },
       ],
     },
@@ -155,8 +175,8 @@ function buildSyntheticFixture(): { dir: string; manifestPath: string; casesPath
       events: [
         {
           type: "final",
-          text: "il fatturato è cresciuto del 12 per cento",
-          expect: { currentPoint: "syn-it.fatt", ticked: ["syn-it.fatt"], sectionMoveAllowed: false },
+          text: "le campane viola suonano a mezzogiorno",
+          expect: { currentPoint: "syn-it.campane", ticked: ["syn-it.campane"], sectionMoveAllowed: false },
         },
       ],
     },
@@ -168,11 +188,11 @@ function buildSyntheticFixture(): { dir: string; manifestPath: string; casesPath
       defect: "C12",
       kind: "c12-postpone",
       startSection: "syn-it.s1",
-      rationale: "resi postponed to the end",
+      rationale: "lanterns postponed to the end",
       events: [
         {
           type: "final",
-          text: "dei resi vi parlo alla fine",
+          text: "delle lanterne vi parlo alla fine",
           expect: { currentPoint: null, ticked: [], sectionMoveAllowed: false },
         },
       ],
@@ -223,7 +243,7 @@ function loadSyntheticDataset(): { fixture: ReturnType<typeof buildSyntheticFixt
 describe("X-12 speech scorecard replay and comparator", () => {
   it("baseline self-comparison reports zero flips, zero regressions, and exit code 0", async () => {
     const { fixture, dataset } = loadSyntheticDataset();
-    const base = await replayArm({ dataset, armRoot: REPO_ROOT, armName: "base" });
+    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
     const outDir = makeTempDir("self-cmp");
     const basePath = path.join(outDir, "base.json");
     const outPath = path.join(outDir, "scorecard.json");
@@ -241,8 +261,6 @@ describe("X-12 speech scorecard replay and comparator", () => {
       basePath,
       "--candidate",
       basePath,
-      "--candidate-root",
-      REPO_ROOT,
       "--out",
       outPath,
     ]);
@@ -258,6 +276,7 @@ describe("X-12 speech scorecard replay and comparator", () => {
     expect(card.heldFixes.C23.status).toBe("not yet in review");
     expect(card.heldFixes.C27.status).toBe("not yet in review");
     expect(card.heldFixes.C28.status).toBe("not yet in review");
+    expect(card.manifestPinOverridden).toBe(true);
     const table = formatScorecardTable(card);
     expect(table).toContain("C12");
     expect(table).toContain("en-syn-001");
@@ -283,18 +302,26 @@ describe("X-12 speech scorecard replay and comparator", () => {
         },
       ],
     };
+    navCase.events.push({
+      type: "final",
+      text: "silver ribbons mark the trail",
+      expect: { currentPoint: null, ticked: [], sectionMoveAllowed: true },
+    });
     const navDataset: FrozenDataset = { ...dataset, cases: [...dataset.cases, navCase] };
-    const arm = await replayArm({ dataset: navDataset, armRoot: REPO_ROOT, armName: "nav-base" });
+    const arm = await replayArm({ lexicalOnly: true, dataset: navDataset, armRoot, armName: "nav-base" });
     const navResult = arm.cases.find((c) => c.id === "en-syn-nav")!;
     expect(navResult.finals[0].observed.voiceMoveTo).toBe("syn-en.s2");
     expect(navResult.finals[0].observed.sectionMoveAllowed).toBe(true);
     expect(navResult.finals[0].prohibitedSectionMove).toBe(true);
+    expect(navResult.finals[1].falseTicks).toEqual(["syn-en.ribbons"]);
+    expect(navResult.finals[1].currentPointMismatch).toBe(true);
+    expect(navResult.finals[1].missedSectionMove).toBe(true);
     expect(navResult.sectionMoves.voiceMoves).toBe(1);
   });
 
   it("an injected forbidden tick plus a compensating fix gives a named regression and non-zero exit even with flat total accuracy", async () => {
     const { fixture, dataset } = loadSyntheticDataset();
-    const base = await replayArm({ dataset, armRoot: REPO_ROOT, armName: "base" });
+    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
 
     // Confirm base fails en-syn-002 (unpunctuated 'later' drops the whole final on origin/main)
     // and passes it-syn-002 (postponement does not tick).
@@ -311,32 +338,21 @@ describe("X-12 speech scorecard replay and comparator", () => {
 
     const candEn = candidate.cases.find((c) => c.id === "en-syn-002")!;
     candEn.finals[0].observed = {
-      currentPoint: "syn-en.churn",
-      ticked: ["syn-en.churn"],
+      currentPoint: "syn-en.lanterns",
+      ticked: ["syn-en.lanterns"],
       sectionMoveAllowed: false,
       sectionId: "syn-en.s1",
       voiceMoveTo: null,
     };
-    candEn.finals[0].misses = [];
-    candEn.finals[0].falseTicks = [];
-    candEn.finals[0].currentPointMismatch = false;
-    candEn.finals[0].pass = true;
-    candEn.misses = 0;
-    candEn.pass = true;
 
     const candIt = candidate.cases.find((c) => c.id === "it-syn-002")!;
     candIt.finals[0].observed = {
-      currentPoint: "syn-it.resi",
-      ticked: ["syn-it.resi"],
+      currentPoint: "syn-it.lanterne",
+      ticked: ["syn-it.lanterne"],
       sectionMoveAllowed: false,
       sectionId: "syn-it.s1",
       voiceMoveTo: null,
     };
-    candIt.finals[0].falseTicks = ["syn-it.resi"];
-    candIt.finals[0].currentPointMismatch = true;
-    candIt.finals[0].pass = false;
-    candIt.falseTicks = 1;
-    candIt.pass = false;
 
     const outDir = makeTempDir("injected");
     const basePath = path.join(outDir, "base.json");
@@ -368,17 +384,19 @@ describe("X-12 speech scorecard replay and comparator", () => {
     expect(card.flips.regressedIds).toEqual(["it-syn-002"]);
     expect(card.namedRegressions.some((r: { caseId: string; reasons: string[] }) =>
       r.caseId === "it-syn-002" && r.reasons.includes("new-false-tick"))).toBe(true);
+    expect(card.heldFixes.C12.reasons.join(" ")).toContain("language loss in it");
     expect(card.heldFixes.C12.status).toBe("HOLD");
   });
 
   it("rejects missing case IDs in either arm", async () => {
     const { fixture, dataset } = loadSyntheticDataset();
-    const base = await replayArm({ dataset, armRoot: REPO_ROOT, armName: "base" });
+    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
     const incomplete: ArmResult = structuredClone(base);
     incomplete.cases = incomplete.cases.filter((c) => c.id !== "it-syn-002");
 
     expect(() => compareArms({ dataset, base, candidate: incomplete })).toThrow(/missing case/i);
 
+    expect(() => compareArms({ dataset, base: incomplete, candidate: base })).toThrow(/missing case IDs in base/i);
     const outDir = makeTempDir("missing-id");
     const basePath = path.join(outDir, "base.json");
     const candPath = path.join(outDir, "cand.json");
@@ -404,7 +422,7 @@ describe("X-12 speech scorecard replay and comparator", () => {
 
   it("rejects manifest hash mismatch", async () => {
     const { fixture, dataset } = loadSyntheticDataset();
-    const base = await replayArm({ dataset, armRoot: REPO_ROOT, armName: "base" });
+    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
     const outDir = makeTempDir("bad-manifest");
     const basePath = path.join(outDir, "base.json");
     fs.writeFileSync(basePath, JSON.stringify(base, null, 2), "utf8");
@@ -428,11 +446,11 @@ describe("X-12 speech scorecard replay and comparator", () => {
 
   it("rejects stale candidate digests (both source digest and git SHA)", async () => {
     const { fixture, dataset } = loadSyntheticDataset();
-    const base = await replayArm({ dataset, armRoot: REPO_ROOT, armName: "base" });
+    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
     const staleSource: ArmResult = structuredClone(base);
     staleSource.sourceDigest = "f".repeat(64);
 
-    const live = computeSourceDigest(REPO_ROOT);
+    const live = computeSourceDigest(armRoot);
     expect(() =>
       compareArms({
         dataset,
@@ -473,16 +491,16 @@ describe("X-12 speech scorecard replay and comparator", () => {
       basePath,
       "--candidate",
       candPath,
-      "--candidate-root",
-      REPO_ROOT,
     ]);
     expect(cli.exitCode).toBe(2);
     expect(cli.stderr).toMatch(/stale candidate/i);
+    expect(live.files).toContain("packages/core/src/screen.ts");
+    expect(live.files).toContain("packages/core/src/phone-ask.ts");
   });
 
   it("advances a fix only with target improvement, no language loss, no new prohibited tick or section move, and passing ordinary controls", async () => {
     const { dataset } = loadSyntheticDataset();
-    const base = await replayArm({ dataset, armRoot: REPO_ROOT, armName: "base" });
+    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
 
     // Clean improvement on C12 with no loss and passing controls -> PASS
     const good: ArmResult = structuredClone(base);
@@ -490,17 +508,12 @@ describe("X-12 speech scorecard replay and comparator", () => {
     good.includedFixes = ["C12"];
     const goodEn = good.cases.find((c) => c.id === "en-syn-002")!;
     goodEn.finals[0].observed = {
-      currentPoint: "syn-en.churn",
-      ticked: ["syn-en.churn"],
+      currentPoint: "syn-en.lanterns",
+      ticked: ["syn-en.lanterns"],
       sectionMoveAllowed: false,
       sectionId: "syn-en.s1",
       voiceMoveTo: null,
     };
-    goodEn.finals[0].misses = [];
-    goodEn.finals[0].currentPointMismatch = false;
-    goodEn.finals[0].pass = true;
-    goodEn.misses = 0;
-    goodEn.pass = true;
 
     const passCard = compareArms({ dataset, base, candidate: good });
     expect(passCard.namedRegressions).toEqual([]);
@@ -512,14 +525,47 @@ describe("X-12 speech scorecard replay and comparator", () => {
     const badIt = badMove.cases.find((c) => c.id === "it-syn-002")!;
     badIt.finals[0].observed.sectionMoveAllowed = true;
     badIt.finals[0].observed.voiceMoveTo = "syn-it.s2";
-    badIt.finals[0].prohibitedSectionMove = true;
-    badIt.finals[0].pass = false;
-    badIt.sectionMoves.prohibited = 1;
-    badIt.sectionMoves.voiceMoves = 1;
-    badIt.pass = false;
 
     const holdCard = compareArms({ dataset, base, candidate: badMove });
     expect(holdCard.namedRegressions.some((r) => r.caseId === "it-syn-002" && r.reasons.includes("new-prohibited-section-move"))).toBe(true);
     expect(holdCard.heldFixes.C12.status).toBe("HOLD");
   });
+  it("checks the live scorer, split, talks and clean source receipts", async () => {
+    const { dataset } = loadSyntheticDataset();
+    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
+    for (const [change, error] of [
+      [{ casesHash: "1".repeat(64) }, /cases hash/i],
+      [{ scorerDigest: "1".repeat(64) }, /scorer digest/i],
+      [{ gitDirty: true }, /dirty/i],
+      [{ split: "held" }, /split/i],
+      [{ talksHashes: { ...base.talksHashes, it: "x" } }, /talks hash/i],
+    ] as const) {
+      expect(() => compareArms({ dataset, base, candidate: { ...base, ...change } })).toThrow(error);
+    }
+  });
+
+  it("names new misses, cursor and move errors even on already failing controls", async () => {
+    const { dataset } = loadSyntheticDataset();
+    const base = await replayArm({ lexicalOnly: true, dataset, armRoot, armName: "base" });
+    const candidate = structuredClone(base);
+    candidate.includedFixes = ["C12"];
+    const control = (arm: ArmResult) => arm.cases[0].finals[1].observed;
+    control(base).ticked.push("extra");
+    control(candidate).ticked = ["extra"];
+    control(candidate).currentPoint = null;
+    control(candidate).sectionMoveAllowed = false;
+    const card = compareArms({ dataset, base, candidate });
+    expect(card.namedRegressions[0].reasons).toEqual(expect.arrayContaining([
+      "new-miss", "new-current-point-mismatch", "new-missed-section-move",
+    ]));
+    expect(card.heldFixes.C12.reasons.join(" ")).toContain("ordinary controls not all passing");
+    expect(card.controlRegressions).toContain("en-syn-001");
+  });
+
+  it("refuses semantic replay with a missing offline model", async () => {
+    const { dataset } = loadSyntheticDataset();
+    await expect(replayArm({ dataset, armRoot, armName: "offline",
+      modelCache: makeTempDir("empty-model-cache") })).rejects.toThrow(/offline.*model/i);
+  });
+
 });

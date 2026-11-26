@@ -60,6 +60,7 @@ export type FrozenCasesFile = {
 };
 
 export type FrozenDataset = {
+  manifestPinOverridden: boolean;
   version: string;
   split: SplitName;
   manifestSha256: string;
@@ -115,7 +116,7 @@ export type CaseArmResult = {
 };
 
 export type ArmResult = {
-  schemaVersion: "x12-arm-v1";
+  schemaVersion: "x12-arm-v2";
   datasetVersion: string;
   split: SplitName;
   armName: string;
@@ -129,7 +130,10 @@ export type ArmResult = {
   casesHash: string;
   talksHashes: Record<LanguageCode, string>;
   includedFixes: HeldFixId[];
-  embedder: "lexical";
+  armRoot: string;
+  embeddingCalls: number;
+  stages: string[];
+  embedder: "lexical" | { model: string; revision: string };
   cases: CaseArmResult[];
 };
 
@@ -144,6 +148,9 @@ export type BucketCounts = {
 };
 
 export type ArmSummary = {
+  stages: string[];
+  embedder: ArmResult["embedder"];
+  embeddingCalls: number;
   armName: string;
   total: BucketCounts;
   byLanguage: Record<string, BucketCounts>;
@@ -187,6 +194,8 @@ export type HeldFixEvaluation = {
 };
 
 export type Scorecard = {
+  manifestPinOverridden: boolean;
+  controlRegressions: string[];
   schemaVersion: "x12-scorecard-v1";
   datasetVersion: string;
   split: SplitName;

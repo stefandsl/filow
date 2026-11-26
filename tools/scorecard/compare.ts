@@ -11,6 +11,7 @@ import type {
   NamedRegression,
   Scorecard,
 } from "./types";
+import { scoreCase } from "./replay";
 import { HELD_FIX_IDS } from "./types";
 
 const HEX40 = /^[0-9a-f]{40}$/i;
@@ -76,6 +77,9 @@ function summarizeArm(arm: ArmResult, orderedIds: string[]): ArmSummary {
 
   return {
     armName: arm.armName,
+    stages: arm.stages,
+    embedder: arm.embedder,
+    embeddingCalls: arm.embeddingCalls,
     total,
     byLanguage,
     byDefect,
@@ -94,6 +98,13 @@ function validateArmAgainstDataset(arm: ArmResult, label: "base" | "candidate", 
     throw new Error(
       `Cases hash mismatch in ${label} arm: expected ${dataset.casesSha256}, got ${arm.casesHash}`,
     );
+  }
+  if (arm.schemaVersion !== "x12-arm-v2") throw new Error("Unsupported arm receipt: replay both arms");
+  if (arm.gitDirty !== false) throw new Error(`Dirty ${label} arm`);
+  if (arm.scorerDigest !== computeScorerDigest()) throw new Error(`Scorer digest mismatch in ${label} arm`);
+  if (arm.split !== dataset.split) throw new Error(`Split mismatch in ${label} arm`);
+  if (arm.talksHashes.en !== dataset.talksHashes.en || arm.talksHashes.it !== dataset.talksHashes.it) {
+    throw new Error(`Talks hash mismatch in ${label} arm`);
   }
   if (!HEX40.test(arm.gitSha)) {
     throw new Error(`Invalid git SHA in ${label} arm: ${arm.gitSha}`);
@@ -119,6 +130,24 @@ function validateArmAgainstDataset(arm: ArmResult, label: "base" | "candidate", 
     throw new Error(`Missing case IDs in ${label} arm (${missing.length}): ${missing.slice(0, 5).join(", ")}`);
   }
 
+  for (const frozen of dataset.cases) {
+    const finals = byId.get(frozen.id)!.finals;
+    const events = frozen.events.filter(event => event.type === "final");
+    if (finals.some((f, i) => f.finalIndex !== i || f.text !== events[i]?.text)) {
+      throw new Error(`Final identity mismatch on case ${frozen.id}`);
+    }
+    for (const { observed } of finals) {
+      if (!observed || !Array.isArray(observed.ticked) ||
+          !observed.ticked.every(id => typeof id === "string") ||
+          new Set(observed.ticked).size !== observed.ticked.length ||
+          typeof observed.sectionMoveAllowed !== "boolean" ||
+          ![observed.currentPoint, observed.voiceMoveTo, observed.sectionId].every(
+            value => value === null || typeof value === "string")) {
+        throw new Error(`Invalid observed state on case ${frozen.id}`);
+      }
+    }
+    byId.set(frozen.id, scoreCase(frozen, finals.map(f => f.observed)));
+  }
   return byId;
 }
 
@@ -127,13 +156,15 @@ function verifyFreshness(
   label: "base" | "candidate",
   opts: { root?: string; expectedGitSha?: string; expectedSourceDigest?: string },
 ): void {
-  let expectedSha = opts.expectedGitSha?.toLowerCase();
-  let expectedSource = opts.expectedSourceDigest?.toLowerCase();
-  if (opts.root) {
-    const liveGit = readGitInfo(opts.root);
-    const liveSource = computeSourceDigest(opts.root);
-    expectedSha ??= liveGit.gitSha;
-    expectedSource ??= liveSource.sourceDigest;
+  const root = opts.root ?? arm.armRoot;
+  if (!root) throw new Error(`Missing ${label} arm source root`);
+  const liveGit = readGitInfo(root);
+  const expectedSha = liveGit.gitSha;
+  const expectedSource = computeSourceDigest(root).sourceDigest;
+  if (liveGit.gitDirty) throw new Error(`Dirty live ${label} source`);
+  if ((opts.expectedGitSha && opts.expectedGitSha.toLowerCase() !== expectedSha) ||
+      (opts.expectedSourceDigest && opts.expectedSourceDigest.toLowerCase() !== expectedSource)) {
+    throw new Error(`Stale ${label} digest: expected checkout differs from live source`);
   }
   if (expectedSha && arm.gitSha.toLowerCase() !== expectedSha) {
     throw new Error(
@@ -156,6 +187,7 @@ function observedChanged(a: CaseArmResult, b: CaseArmResult): boolean {
       oa.currentPoint !== ob.currentPoint ||
       oa.sectionMoveAllowed !== ob.sectionMoveAllowed ||
       oa.voiceMoveTo !== ob.voiceMoveTo ||
+      oa.sectionId !== ob.sectionId ||
       oa.ticked.length !== ob.ticked.length ||
       oa.ticked.some((t, idx) => t !== ob.ticked[idx])
     ) {
@@ -175,7 +207,7 @@ export type CompareArmsOptions = {
   expectedBaseSourceDigest?: string;
   expectedCandidateGitSha?: string;
   expectedCandidateSourceDigest?: string;
-  scorerDigest?: string;
+
 };
 
 export function compareArms(opts: CompareArmsOptions): Scorecard {
@@ -193,9 +225,13 @@ export function compareArms(opts: CompareArmsOptions): Scorecard {
     expectedSourceDigest: opts.expectedCandidateSourceDigest,
   });
 
+  if (JSON.stringify(opts.base.stages) !== JSON.stringify(opts.candidate.stages) ||
+      JSON.stringify(opts.base.embedder) !== JSON.stringify(opts.candidate.embedder)) {
+    throw new Error("Matcher stages or embedding model revisions differ across arms");
+  }
   const orderedIds = opts.dataset.cases.map((c) => c.id);
-  const baseSummary = summarizeArm(opts.base, orderedIds);
-  const candSummary = summarizeArm(opts.candidate, orderedIds);
+  const baseSummary = summarizeArm({ ...opts.base, cases: [...baseById.values()] }, orderedIds);
+  const candSummary = summarizeArm({ ...opts.candidate, cases: [...candById.values()] }, orderedIds);
 
   const cases: CaseComparison[] = [];
   const improvedIds: string[] = [];
@@ -251,6 +287,12 @@ export function compareArms(opts: CompareArmsOptions): Scorecard {
     if (newProhibitedSectionMoves > 0) regressionReasons.push("new-prohibited-section-move");
     if (newMisses.length > 0) regressionReasons.push("new-miss");
 
+    if (c.finals.some((f, i) => f.currentPointMismatch && !b.finals[i].currentPointMismatch)) {
+      regressionReasons.push("new-current-point-mismatch");
+    }
+    if (c.finals.some((f, i) => f.missedSectionMove && !b.finals[i].missedSectionMove)) {
+      regressionReasons.push("new-missed-section-move");
+    }
     const namedRegression = regressionReasons.length > 0;
     if (namedRegression) {
       namedRegressions.push({
@@ -349,8 +391,10 @@ export function compareArms(opts: CompareArmsOptions): Scorecard {
     };
   }
 
-  const scorerSha256 = opts.scorerDigest ?? computeScorerDigest();
+  const scorerSha256 = computeScorerDigest();
   const payloadWithoutComparisonHash = {
+    manifestPinOverridden: opts.dataset.manifestPinOverridden,
+    controlRegressions: namedRegressions.filter(r => r.kind === "control").map(r => r.caseId),
     schemaVersion: "x12-scorecard-v1" as const,
     datasetVersion: opts.dataset.version,
     split: opts.dataset.split,
@@ -400,6 +444,8 @@ export function formatScorecardTable(card: Scorecard): string {
   lines.push(`Manifest:  ${card.digests.manifestSha256.slice(0, 12)} | Scorer: ${card.digests.scorerSha256.slice(0, 12)} | Comparison: ${card.digests.comparisonSha256.slice(0, 12)}`);
   lines.push("");
 
+  if (card.manifestPinOverridden) lines.push("Manifest pin overridden");
+  lines.push(`Control regressions: ${card.controlRegressions.join(", ") || "none"}`);
   lines.push("By language:");
   lines.push("lang  | base pass | cand pass | false ticks (b->c) | misses (b->c) | sec moves ok/prohib (b->c)");
   lines.push("------+-----------+-----------+--------------------+---------------+---------------------------");
