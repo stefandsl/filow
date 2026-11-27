@@ -277,8 +277,9 @@ function createActionDriver(transport = {}) {
     return sendCommand("focus", { hwnd });
   }
 
-  function checkRefTarget(hwnd, bounds, pid, foreground = false) {
-    return sendCommand("exec", { action: "check_ref_target", hwnd, bounds, pid, ...(foreground ? { foreground: true } : {}) });
+  function checkRefTarget(hwnd, bounds, pid, foreground = false, point) {
+    return sendCommand("exec", { action: "check_ref_target", hwnd, bounds, pid, ...(foreground ? { foreground: true } : {}),
+      ...(point ? { physX: point.x, physY: point.y } : {}) });
   }
 
   return { ownProcessTree: pid => sendCommand("own_tree", { pid }), checkRefTarget, focusTarget, inspectTarget, captureTarget, readBack, execute, abort };

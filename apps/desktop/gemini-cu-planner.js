@@ -19,7 +19,9 @@ const FREE_TIER_CU_MODELS = new Set([
 const VALID_DIRECTIONS = new Set(["up", "down", "left", "right"]);
 const VALID_SAFETY_DECISIONS = new Set(["allowed", "require_confirmation", "blocked"]);
 
+const PROGRESS_INSTRUCTION = "Inspect the current screenshot before each action. Never send an input that does not advance the task. Skip clearing an already empty field. If the required starting state is absent and recovery would violate the instructions, stop.";
 const SYSTEM_INSTRUCTION = [
+  PROGRESS_INSTRUCTION,
   "You are Filow's desktop UI planner acting on ONE target application window.",
   "Every coordinate is normalized 0-999 relative to the provided target window screenshot.",
   "Propose at most one clear desktop action per turn with a short plain-language intent.",
@@ -317,6 +319,7 @@ module.exports = {
   DEFAULT_MODEL,
   FREE_TIER_CU_MODELS,
   SYSTEM_INSTRUCTION,
+  PROGRESS_INSTRUCTION,
   QuotaOrBillingError,
   parseInteractionResponse,
   buildInitialRequest,

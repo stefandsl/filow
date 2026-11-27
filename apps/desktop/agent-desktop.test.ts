@@ -17,7 +17,7 @@ function server(mode = "ok") {
   const node = { states: [] as string[], available_actions: ["Click"], value: "" };
   let written!: () => void;
   const dispatched = new Promise<void>((resolve) => { written = resolve; });
-  const state = { duplicate: false, ref: "@s12345678:e1", owned: true, livePid: 42, panelFocused: false };
+  const state = { duplicate: false, ref: "@s12345678:e1", owned: true, livePid: 42, panelFocused: false, covered: false, focusedName: "Next" };
   child.stdin = new Writable({ write(chunk, _, done) {
     const { id, params } = JSON.parse(chunk.toString());
     const name = params.name;
@@ -46,13 +46,14 @@ function server(mode = "ok") {
       if (cmd === "exec" && data.action === "check_target") return { ok: !state.panelFocused, error: "target_not_foreground" };
       if (cmd === "exec" && data.action === "check_ref_target") {
         expect(data).toMatchObject({ action: "check_ref_target", hwnd: 17, bounds, pid: 42 });
+        if (state.covered && "physX" in data && "physY" in data) return { ok: false, error: "target_not_foreground" };
         return { ok: data.pid === state.livePid, error: "target_changed" };
       }
       throw new Error("Unexpected helper command " + cmd);
     },
     abort: vi.fn(), inspectTarget: async () => ({ hwnd: 17, bounds }),
     readBack: async () => ({ text: "Next" }),
-    captureTarget: async () => ({ hwnd: 17, info: { exe: "fixture.exe", pid: 42 }, bounds, snapshotId: "frame",
+    captureTarget: async () => ({ hwnd: 17, info: { exe: "fixture.exe", pid: 42, focusedElement: { name: state.focusedName } }, bounds, snapshotId: "frame",
       elements: [{ name: "Next", x1: 50, y1: 50, x2: 250, y2: 250 }] }),
   });
   for (const method of ["abort", "focusTarget", "ownProcessTree"]) vi.spyOn(observer, method);
@@ -155,7 +156,6 @@ it("completes a granted ref action through the loop with the panel focused", asy
 
 it.each([
   ["type", { text: "note" }, "desktop_set_value", { ref_id: "@s12345678:e1", value: "note" }],
-  ["click", action.args, "desktop_focus", { ref_id: "@s12345678:e1" }],
   ["hotkey", { keys: ["ctrl", "s"] }, "desktop_press", { app: "fixture.exe", window_id: "w-17", combo: "ctrl+s" }],
   ["press_key", { key: "tab" }, "desktop_press", { app: "fixture.exe", window_id: "w-17", combo: "tab" }],
   ["scroll", { ...action.args, direction: "down", magnitude_in_pixels: 650 }, "desktop_scroll",
@@ -200,4 +200,32 @@ it("hides the unsigned upstream download and refuses installation", async () => 
   const asset = require("./agent-desktop-asset").agentDesktopAsset(tmpdir());
   expect(asset.status().available).toBe(false);
   await expect(asset.change("install")).rejects.toThrow("agent_desktop_unavailable");
+});
+
+it("refuses a covered point before calling the headless tool", async () => {
+  const f = await fixture();
+  f.state.covered = true;
+  expect(await f.driver.execute(action, f.context)).toMatchObject({ refused: true, reason: "target_not_foreground" });
+  expect(f.tools).toEqual(["desktop_snapshot"]);
+});
+
+it("refuses an edit without a headless click action before calling focus", async () => {
+  const f = await fixture();
+  f.node.available_actions = ["SetValue"];
+  const shot = await f.driver.captureTarget(17);
+  expect(await f.driver.execute(action, { ...f.context, snapshotId: shot.snapshotId })).toMatchObject({
+    refused: true, reason: "unsupported_action",
+  });
+  expect(f.tools).toEqual(["desktop_snapshot", "desktop_snapshot"]);
+});
+
+it("refuses point-free typing if the observer and scoped snapshot disagree on focus", async () => {
+  const f = server();
+  f.state.focusedName = "Bottom Action";
+  Object.assign(f.node, { states: ["focused"], available_actions: ["SetValue"] });
+  const shot = await f.driver.captureTarget(17);
+  const result = await f.driver.execute({ name: "type", args: { text: "Saved note 42" } },
+    { hwnd: 17, snapshotId: shot.snapshotId, targetRect: bounds });
+  expect(result.reason).toBe("unbound_target");
+  expect(f.requests).toEqual([]);
 });

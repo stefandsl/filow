@@ -610,6 +610,10 @@ public static class FilowActionHelper {
     if (root == IntPtr.Zero || IsIconic(hwnd) || GetAncestor(GetForegroundWindow(), GA_ROOT) != root)
       throw new DispatchRefusal("target_not_foreground");
     RECT rect = CheckBounds(hwnd, bounds);
+    CheckPoints(root, rect, points);
+  }
+
+  static void CheckPoints(IntPtr root, RECT rect, List<POINT> points) {
     foreach (POINT point in points) {
       if (point.X < rect.L || point.X >= rect.R || point.Y < rect.T || point.Y >= rect.B ||
           GetAncestor(WindowFromPoint(point), GA_ROOT) != root) throw new DispatchRefusal("target_not_foreground");
@@ -673,6 +677,10 @@ public static class FilowActionHelper {
     long hwndVal = req.ContainsKey("hwnd") && req["hwnd"] != null ? Convert.ToInt64(req["hwnd"], CultureInfo.InvariantCulture) : 0;
     var hwnd = new IntPtr(hwndVal);
     var bounds = req.ContainsKey("bounds") ? req["bounds"] as Dictionary<string, object> : null;
+    var points = new List<POINT>();
+    if (req.ContainsKey("physX") || req.ContainsKey("physY")) {
+      points.Add(new POINT { X = GetInt(req, "physX", int.MinValue), Y = GetInt(req, "physY", int.MinValue) });
+    }
     // Semantic refs are resolved by UI Automation on the captured root. This check cannot inject input.
     if (action == "check_ref_target") {
       uint pid;
@@ -682,12 +690,8 @@ public static class FilowActionHelper {
         throw new DispatchRefusal("target_changed");
       if (req.ContainsKey("foreground") && Equals(req["foreground"], true) && GetAncestor(GetForegroundWindow(), GA_ROOT) != hwnd)
         throw new DispatchRefusal("target_not_foreground");
-      CheckBounds(hwnd, bounds);
+      CheckPoints(hwnd, CheckBounds(hwnd, bounds), points);
       return new Dictionary<string, object> { { "ok", true } };
-    }
-    var points = new List<POINT>();
-    if (req.ContainsKey("physX") || req.ContainsKey("physY")) {
-      points.Add(new POINT { X = GetInt(req, "physX", int.MinValue), Y = GetInt(req, "physY", int.MinValue) });
     }
     Action check = delegate { CheckTarget(hwnd, bounds, points); };
     if (action == "check_target") {

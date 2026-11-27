@@ -390,3 +390,7 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R433 (2026-11-26, X-14b): Preserve masked transport and cleanup errors and attribute focus events to individual actions. Check timeout and connection-refused replays and record HWND, process and pointer observations.
 - R434 (2026-11-26, X-14b): Preserve the focus spy and driver injection boundaries when combining panel fixtures. Check focus refusal and active-controller supersession in the same suite.
 - R430 (2026-11-27, tray quit): Filow stays in the tray when its window closes, so the tray menu must always end with a Quit item that calls app.quit(). Check: okfilow-tray-menu.test.ts.
+- R436 (2026-11-27, X-14b): Bind each calculator task to its own window and inspect the displayed state before proposing input. Check the task-three result cannot match the addition fixture and replay the recorded addition through the gate.
+- R437 (2026-11-27, X-14b): Hit-test the granted point before a headless ref dispatch. Check a covering window yields target_not_foreground and zero tool calls.
+- R438 (2026-11-27, X-14b): Establish the fixture editor focus before recording headless typing and require an advertised click action for pointer grants. Check a SetValue-only edit receives zero focus calls.
+- R439 (2026-11-27, X-14b): Recheck process identity after a failed cleanup command and check for other VM trials before staging. Replay an exited PID, a surviving process and an occupied VM.

@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const cp = require("node:child_process");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
+const { mapNormalizedToPhysical } = require("./action-driver");
 const { elementAtCoords } = require("./action-gate");
 
 function killWindowsTree(pid) {
@@ -118,7 +119,7 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
       if (["wait", "take_screenshot"].includes(action.name)) return await observer.execute(action, ctx);
       const rect = shot.bounds;
       const keyboard = action.name === "hotkey" || action.name === "press_key";
-      let args;
+      let args, point;
       if (keyboard) {
         tool = "desktop_press";
         args = { app: shot.info.exe, window_id: shot.tree.window.id,
@@ -126,6 +127,7 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
         targetName = shot.info.focusedElement?.name;
       } else {
         const focused = action.name === "type" && action.args.x == null && action.args.y == null;
+        if (!focused) point = mapNormalizedToPhysical(action.args.x, action.args.y, rect);
         const hit = focused ? shot.info.focusedElement : elementAtCoords(action, shot.elements);
         if ((!focused && !hit) || hit?.isPassword) throw new Error("unbound_target");
         const matches = [];
@@ -134,7 +136,7 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
           const n = stack.pop();
           if (Array.isArray(n.children)) stack.push(...n.children);
           if (focused) {
-            if (n.states?.includes("focused")) matches.push(n);
+            if (hit && n.states?.includes("focused") && (n.name || "") === hit.name) matches.push(n);
             continue;
           }
           const b = n.bounds;
@@ -151,7 +153,6 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
         args = { ref_id: n.ref_id };
         const offers = n.available_actions || [];
         if (action.name === "click" && offers.includes("Click")) tool = "desktop_click";
-        else if (action.name === "click" && offers.includes("SetValue")) tool = "desktop_focus";
         else if (action.name === "type" && !action.args.press_enter && offers.includes("SetValue") &&
             !n.value && !hit?.value) {
           tool = "desktop_set_value";
@@ -163,7 +164,7 @@ function createAgentDesktopDriver({ exe, observer, stateDir, makeState = fs.mkdt
           args.amount = Math.max(1, Math.min(100, Math.ceil((action.args.magnitude_in_pixels ?? 300) / 100)));
         } else throw new Error("unsupported_action");
       }
-      const check = await observer.checkRefTarget(ctx.hwnd, rect, shot.info.pid, keyboard);
+      const check = await observer.checkRefTarget(ctx.hwnd, rect, shot.info.pid, keyboard || !point, point);
       if (!check?.ok) throw new Error(check?.error || "target_changed");
       if (epoch !== generation || ctx.signal?.aborted) throw new Error("aborted");
       await call(tool, args);

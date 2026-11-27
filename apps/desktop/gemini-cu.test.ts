@@ -689,3 +689,29 @@ describe("X-14 dispatch boundaries", () => {
     expect(planner.continueWithResult).not.toHaveBeenCalled();
   });
 });
+
+it("sends state-aware instructions to both planners and executes the recorded addition in order", async () => {
+  const gemini = require("./gemini-cu-planner");
+  const codex = require("../../tools/computer-use/codex-planner.cjs");
+  for (const prompt of [gemini.buildInitialRequest({ task: "Add" }).system_instruction, codex.buildPrompt("Add", [])]) {
+    expect(prompt).toContain("Never send an input that does not advance the task");
+  }
+  // Round two Filow replies after the display returned to zero.
+  const points = [[317,649],[204,532],[430,532],[91,649],[317,414],[317,766]];
+  let index = 0;
+  const next = () => {
+    const point = points[index++];
+    return codex.parseReply(JSON.stringify(point ? { type: "function_call", id: "step", name: "click",
+      arguments: { x: point[0], y: point[1] } } : { done: true }));
+  };
+  const execute = vi.fn().mockResolvedValue({ ok: true, sent: 1 });
+  const bounds = { x: 0, y: 0, width: 900, height: 620 };
+  const driver = { inspectTarget: async () => ({ hwnd: 7, bounds }), execute, readBack: async () => ({}),
+    captureTarget: async () => ({ hwnd: 7, info: {}, elements: [], bounds,
+      snapshotId: String(index), pngBase64: "fixture" }) };
+  const result = await require("./action-loop").createComputerUseController({
+    driver, planner: { start: next, continueWithResult: next },
+  }).run({ enabled: true, consentGranted: true, targetHwnd: 7, task: "Add 35 and 19", maxSteps: 10 });
+  expect(result.reason).toBe("completed");
+  expect(execute.mock.calls.map(([a]) => [a.args.x, a.args.y])).toEqual(points);
+});
