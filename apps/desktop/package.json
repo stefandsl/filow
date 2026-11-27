@@ -155,6 +155,7 @@
       "okfilow-uia.js",
       "okfilow-model-place.js",
       "okfilow-rects.js",
+      "okfilow-tray-menu.js",
       "ollama-runtime.js",
       "local-ownership.js",
       "native/uia/bin/okfilow-uia.exe"
