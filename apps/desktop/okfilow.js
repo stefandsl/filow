@@ -924,17 +924,9 @@ function createOkFilow(deps) {
   }
   function refreshTray() {
     if (!tray) return;
-    const c = cfg();
-    // Phone questions waiting: a count only (never their text), none during a slide show.
-    const phones = phoneCount();
-    tray.setContextMenu(
-      Menu.buildFromTemplate([
-        ...(phones ? [{ label: menuText("okfPhoneWaiting", { n: phones }), click: togglePanel }] : []),
-        { label: menuText("okfOpen"), click: togglePanel },
-        { label: menuText("okfShowAlways"), type: "checkbox", checked: c.showAlways, click: (i) => applyConfig({ showAlways: i.checked }) },
-        { label: menuText("okfEnabled"), type: "checkbox", checked: c.enabled, click: (i) => applyConfig({ enabled: i.checked }) },
-      ]),
-    );
+    tray.setContextMenu(Menu.buildFromTemplate(require("./okfilow-tray-menu").trayTemplate({
+      menuText, cfg: cfg(), phones: phoneCount(), togglePanel, applyConfig, quit: () => app.quit(),
+    })));
   }
 
   function applyConfig(patch) {

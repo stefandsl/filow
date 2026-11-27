@@ -384,8 +384,9 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R410 (2026-11-26, X-14b): Hide the computer-use control in packaged builds and refuse saved opt-ins when the pilot is absent. Check: invoke start from the panel with a packaged shell and with missing modules.
 - R411 (2026-11-26, X-14b): Verify hotkey recovery on the compiled helper and focus restoration through panel IPC. Check: enumerate every prefix of a three-key chord, then deny focus with the panel focused and unfocused.
 - R412 (2026-11-26, X-14b): Run safety probes before live planning and score ordered inputs alongside independent read-back. Check: replay an extra first click, a swapped pair and a completed task followed by planner failure.
-- R430 (2026-11-26, X-14b): R406 superseded by R410 for the missing-module start result. Check packaged and source starts with the modules withheld.
+- R435 (2026-11-26, X-14b): R406 superseded by R410 for the missing-module start result. Check packaged and source starts with the modules withheld.
 - R431 (2026-11-26, X-14b): Require a ready password scan before capturing or dispatching. Check both drivers with an unknown scan and open the password page five times without a readiness sleep.
 - R432 (2026-11-26, X-14b): Bind point-free edits to the unique focused snapshot ref and keyboard commands to the granted window. Check nonempty edits, focus, key chords and scroll amount against emitted tool requests.
 - R433 (2026-11-26, X-14b): Preserve masked transport and cleanup errors and attribute focus events to individual actions. Check timeout and connection-refused replays and record HWND, process and pointer observations.
 - R434 (2026-11-26, X-14b): Preserve the focus spy and driver injection boundaries when combining panel fixtures. Check focus refusal and active-controller supersession in the same suite.
+- R430 (2026-11-27, tray quit): Filow stays in the tray when its window closes, so the tray menu must always end with a Quit item that calls app.quit(). Check: okfilow-tray-menu.test.ts.
